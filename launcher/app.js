@@ -109,16 +109,19 @@ function renderTiles(apps) {
 
 function renderApps(apps) {
   const layout = getLayout();
+  const main = document.getElementById("app");
   const header = document.getElementById("app-header");
   const grid = document.getElementById("grid");
   const body = document.body;
   if (layout === "grid") {
+    if (main) main.hidden = false;
     if (header) header.hidden = false;
     if (grid) grid.hidden = false;
     body.classList.add("bg-optimus-bg", "text-optimus-text");
     renderTiles(apps);
     return;
   }
+  if (main) main.hidden = true;
   if (header) header.hidden = true;
   if (grid) grid.hidden = true;
   if (citySceneInitialized) return;

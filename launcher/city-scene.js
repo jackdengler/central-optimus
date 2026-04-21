@@ -621,7 +621,7 @@ const balloons = apps.map((app, i) => {
 const row = Math.floor(i / BALLOON_COLS);
 const col = i % BALLOON_COLS;
 const stagger = (row % 2 === 1) ? CELL_W * 0.3 : 0;
-const homeX = (col + 0.5) * CELL_W + stagger;
+let homeX = (col + 0.5) * CELL_W + stagger;
 const homeY = SKY_TOP_PAD + (row + 0.5) * ROW_H;
 const scale = BASE_SCALE * (0.94 + Math.random() * 0.12);
 const b = makeBalloon(app, i, scale);
@@ -631,6 +631,11 @@ const halfCell = CELL_W / 2;
 const halfBalloon = (BALLOON_SVG_W * scale) / 2;
 const driftAmpX = Math.max(10, Math.min(50, halfCell - halfBalloon - 6));
 const driftAmpY = Math.min(22, ROW_H * 0.18);
+// Keep the balloon's full swept envelope (home + drift + sway + half-width)
+// inside the viewport so it never clips out at the edges.
+const swayMax = 10;
+const edgePad = halfBalloon + driftAmpX + swayMax + 4;
+homeX = Math.max(edgePad, Math.min(SCREEN_W - edgePad, homeX));
 return {
 el: b, scale, homeX, homeY, driftAmpX, driftAmpY,
 x: homeX, y: homeY,
