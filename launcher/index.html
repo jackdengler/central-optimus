@@ -1,10 +1,9 @@
 <!doctype html>
-<html lang="en" class="dark ios">
+<html lang="en" class="ios">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b0d12" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#faf9f5" />
     <title>Central Optimus</title>
 
     <link rel="manifest" href="./manifest.webmanifest" />
@@ -13,7 +12,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
 
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Optimus" />
 
     <link
@@ -24,10 +23,10 @@
 
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body class="bg-optimus-bg text-gray-100">
+  <body class="bg-optimus-bg text-optimus-text">
     <main
       id="app"
-      class="mx-auto max-w-5xl px-4 pb-12 k-safe-area-top"
+      class="mx-auto max-w-5xl px-4 pb-12"
       style="padding-top: max(env(safe-area-inset-top), 1.5rem);"
       hidden
     >
@@ -37,7 +36,7 @@
           id="lock"
           type="button"
           aria-label="Lock"
-          class="rounded-full border border-optimus-surface-2 bg-transparent px-4 py-2 text-sm text-gray-400 transition hover:border-optimus-accent hover:text-gray-100"
+          class="rounded-full border border-optimus-border bg-transparent px-4 py-2 text-sm text-optimus-muted transition hover:border-optimus-accent hover:text-optimus-text"
         >
           Lock
         </button>
@@ -50,16 +49,16 @@
         style="grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));"
       ></section>
 
-      <p id="empty" class="mt-20 text-center text-gray-400" hidden>No apps registered yet.</p>
+      <p id="empty" class="mt-20 text-center text-optimus-muted" hidden>No apps registered yet.</p>
     </main>
 
     <dialog
       id="gate"
-      class="w-[min(calc(100%-2rem),20rem)] rounded-2xl border border-optimus-surface-2 bg-optimus-surface p-6 text-gray-100 shadow-2xl backdrop:bg-black/70 backdrop:backdrop-blur"
+      class="w-[min(calc(100%-2rem),20rem)] rounded-2xl border border-optimus-border bg-optimus-surface p-6 text-optimus-text shadow-xl backdrop:bg-black/40 backdrop:backdrop-blur"
     >
       <form method="dialog" id="gate-form">
         <h2 class="mb-3 text-lg font-semibold">Sign in</h2>
-        <p class="mb-3 text-sm leading-snug text-gray-400">
+        <p class="mb-3 text-sm leading-snug text-optimus-muted">
           Paste a GitHub personal access token for your account.
           <a
             class="text-optimus-accent"
@@ -78,13 +77,13 @@
           autofocus
           required
           placeholder="github_pat_..."
-          class="mb-3 w-full rounded-xl border border-optimus-surface-2 bg-optimus-bg px-4 py-3 text-base text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-optimus-accent"
+          class="mb-3 w-full rounded-xl border border-optimus-border bg-optimus-bg px-4 py-3 text-base text-optimus-text placeholder-optimus-muted focus:outline-none focus:ring-2 focus:ring-optimus-accent"
         />
-        <p id="gate-error" class="mb-3 text-sm text-red-400" hidden>Sign-in failed.</p>
+        <p id="gate-error" class="mb-3 text-sm text-red-500" hidden>Sign-in failed.</p>
         <button
           type="submit"
           class="w-full rounded-xl border-0 py-3 text-base font-semibold text-white"
-          style="background: linear-gradient(180deg, #7c9cff, #4f46e5);"
+          style="background: linear-gradient(180deg, #d97757, #b85a3d);"
         >
           Unlock
         </button>

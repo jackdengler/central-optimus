@@ -46,7 +46,7 @@ jobs:
           rsvg-convert -w 512  -h 512  launcher/icons/icon.svg -o launcher/icons/icon-512.png
           rsvg-convert -w 512  -h 512  launcher/icons/icon.svg -o /tmp/icon-splash.png
           # iPhone 13 Pro portrait splash: 1170x2532, dark background, centered icon.
-          convert -size 1170x2532 xc:'#0b0d12' \
+          convert -size 1170x2532 xc:'#faf9f5' \
             \( /tmp/icon-splash.png \) -gravity center -composite \
             launcher/icons/splash-1170x2532.png
 

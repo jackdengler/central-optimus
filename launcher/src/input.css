@@ -3,21 +3,22 @@
 
 @source "../**/*.{html,js}";
 
-@custom-variant dark (&:where(.dark, .dark *));
-
 @theme {
-  --color-optimus-bg: #0b0d12;
-  --color-optimus-surface: #151821;
-  --color-optimus-surface-2: #1d2230;
-  --color-optimus-accent: #7c9cff;
-  --color-optimus-accent-2: #4f46e5;
+  --color-optimus-bg: #faf9f5;
+  --color-optimus-surface: #ffffff;
+  --color-optimus-surface-2: #efeae2;
+  --color-optimus-border: #e6dfd3;
+  --color-optimus-text: #1d1917;
+  --color-optimus-muted: #6b6358;
+  --color-optimus-accent: #d97757;
+  --color-optimus-accent-2: #b85a3d;
 }
 
 @layer base {
   html,
   body {
     background: var(--color-optimus-bg);
-    color: #e7eaf0;
+    color: var(--color-optimus-text);
     font-family:
       -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -33,20 +34,22 @@
     min-height: 140px;
     padding: 1.25rem;
     border-radius: 1rem;
-    border: 1px solid var(--color-optimus-surface-2);
+    border: 1px solid var(--color-optimus-border);
     background: var(--color-optimus-surface);
     color: inherit;
     text-decoration: none;
     transition:
       transform 120ms ease,
       border-color 120ms ease,
-      background 120ms ease;
+      background 120ms ease,
+      box-shadow 120ms ease;
   }
   .tile:hover,
   .tile:focus-visible {
     transform: translateY(-2px);
     border-color: var(--color-optimus-accent);
-    background: var(--color-optimus-surface-2);
+    background: var(--color-optimus-surface);
+    box-shadow: 0 4px 16px rgba(217, 119, 87, 0.12);
     outline: none;
   }
   .tile:active {
@@ -71,11 +74,12 @@
     margin: 0;
     font-size: 1rem;
     font-weight: 600;
+    color: var(--color-optimus-text);
   }
   .tile-desc {
     margin: 0;
     font-size: 0.875rem;
     line-height: 1.4;
-    color: #9aa3b2;
+    color: var(--color-optimus-muted);
   }
 }

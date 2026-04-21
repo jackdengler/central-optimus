@@ -1,3 +1,11 @@
 {
-  "apps": []
+  "apps": [
+    {
+      "id": "parlay",
+      "name": "Parlay Tracker",
+      "description": "Track parlays.",
+      "url": "https://jackdengler.github.io/parlay/",
+      "color": "#d97757"
+    }
+  ]
 }

@@ -31,7 +31,7 @@ function renderApps(apps) {
   for (const app of apps) {
     const a = document.createElement("a");
     a.className = "tile";
-    a.href = app.path;
+    a.href = app.url || app.path;
     const initial = (app.name || "?").trim().charAt(0).toUpperCase();
     a.innerHTML = `
       <div class="tile-icon"></div>
