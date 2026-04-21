@@ -243,15 +243,23 @@ function ensureEmbedShell() {
     "fixed inset-0 z-50 flex flex-col bg-optimus-bg text-optimus-text";
   wrap.innerHTML = `
     <div id="embed-bar" class="flex items-center gap-2 px-3 py-2 border-b border-optimus-border bg-optimus-surface" style="padding-top: max(env(safe-area-inset-top), 0.5rem);">
-      <button id="embed-back" type="button" class="rounded-full border border-optimus-border px-3 py-1.5 text-sm text-optimus-muted hover:text-optimus-text hover:border-optimus-accent">← Back</button>
+      <button id="embed-home" type="button" aria-label="Home" class="inline-flex items-center gap-1.5 rounded-full border border-optimus-border px-3 py-1.5 text-sm font-medium text-optimus-muted hover:text-optimus-text hover:border-optimus-accent">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3.5 11.5L12 4l8.5 7.5"/>
+          <path d="M5.5 10.5V19a1.5 1.5 0 0 0 1.5 1.5h3.5V15h3v5.5H17a1.5 1.5 0 0 0 1.5-1.5v-8.5"/>
+        </svg>
+        <span>Home</span>
+      </button>
       <div id="embed-title" class="flex-1 truncate text-sm font-medium"></div>
     </div>
     <iframe id="embed-frame" class="flex-1 w-full border-0" referrerpolicy="no-referrer" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
   `;
   document.body.appendChild(wrap);
-  document.getElementById("embed-back").addEventListener("click", () => {
-    if (location.hash.startsWith("#app/")) history.back();
-    else hideEmbed();
+  document.getElementById("embed-home").addEventListener("click", () => {
+    if (location.hash) {
+      history.pushState(null, "", location.pathname + location.search);
+    }
+    hideEmbed();
   });
   return wrap;
 }
