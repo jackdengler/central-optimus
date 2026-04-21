@@ -4,6 +4,9 @@ const TOKEN_KEY = "co.gh.token";
 const LAYOUT_KEY = "co.layout";
 let APPS = [];
 let citySceneInitialized = false;
+let paletteIndex = 0;
+let paletteResults = [];
+let clockTimer = null;
 
 const APP_GLYPHS = {
   parlay: `<path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1.6a1.6 1.6 0 1 0 0 3.2V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2.2a1.6 1.6 0 1 0 0-3.2V8z"/><path d="M10 9v6M14 9v6"/>`,
@@ -12,15 +15,16 @@ const APP_GLYPHS = {
   cornerman: `<path d="M12 3l7.5 4.5v9L12 21l-7.5-4.5v-9L12 3z"/><path d="M9.5 12.5l2 2 3.5-4"/>`,
   "polished-space": `<path d="M12 3.5l1.8 5.2 5.2 1.8-5.2 1.8L12 17.5l-1.8-5.2-5.2-1.8 5.2-1.8z"/><path d="M18.5 16.5l.55 1.45L20.5 18.5l-1.45.55L18.5 20.5l-.55-1.45L16.5 18.5l1.45-.55z"/>`,
   tbd: `<path d="M4 7.5a1.5 1.5 0 0 1 1.5-1.5h13A1.5 1.5 0 0 1 20 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5v-9z"/><path d="M4.5 8l7.5 5.5L19.5 8"/><path d="M17 3.5l.6 1.4L19 5.5l-1.4.6L17 7.5l-.6-1.4L15 5.5l1.4-.6z"/>`,
+  "clean-script": `<path d="M7 4h8l4 4v11a1.5 1.5 0 0 1-1.5 1.5h-10.5A1.5 1.5 0 0 1 5.5 19V5.5A1.5 1.5 0 0 1 7 4z"/><path d="M14.5 4v4.5H19"/><path d="M8.5 12.5h7M8.5 15.5h7M8.5 18h4"/>`,
 };
 const DEFAULT_GLYPH = `<circle cx="12" cy="12" r="7"/><path d="M12 8v4l2.5 2"/>`;
 
 function getLayout() {
   const v = localStorage.getItem(LAYOUT_KEY);
-  return v === "grid" ? "grid" : "balloons";
+  return v === "balloons" ? "balloons" : "grid";
 }
 function setLayout(v) {
-  localStorage.setItem(LAYOUT_KEY, v === "grid" ? "grid" : "balloons");
+  localStorage.setItem(LAYOUT_KEY, v === "balloons" ? "balloons" : "grid");
 }
 
 async function loadJSON(path) {
@@ -52,7 +56,52 @@ function darkenHex(hex, amount = 0.45) {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
 }
 
+function greetingFor(date, firstName) {
+  const h = date.getHours();
+  let prefix;
+  if (h < 5) prefix = "Working late";
+  else if (h < 12) prefix = "Good morning";
+  else if (h < 17) prefix = "Good afternoon";
+  else if (h < 22) prefix = "Good evening";
+  else prefix = "Good night";
+  const name = firstName ? `, ${firstName}` : "";
+  return `${prefix}${name}`;
+}
+
+function formatDate(date) {
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(date);
+}
+function formatTime(date) {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function updateHero(config) {
+  const now = new Date();
+  const first = (config.firstName || config.githubUser || "").split(/[\s.]/)[0];
+  const pretty = first ? first.charAt(0).toUpperCase() + first.slice(1) : "";
+  const g = document.getElementById("greeting-text");
+  const d = document.getElementById("hero-date");
+  const t = document.getElementById("hero-time");
+  if (g) g.textContent = greetingFor(now, pretty);
+  if (d) d.textContent = formatDate(now);
+  if (t) t.textContent = formatTime(now);
+}
+
+function startClock(config) {
+  updateHero(config);
+  if (clockTimer) clearInterval(clockTimer);
+  clockTimer = setInterval(() => updateHero(config), 30_000);
+}
+
 function launchApp(app) {
+  if (!app) return;
   if (app.openInNew) {
     window.open(app.url, "_blank", "noopener,noreferrer");
     return;
@@ -70,10 +119,11 @@ function renderTiles(apps) {
     return;
   }
   empty.hidden = true;
-  for (const app of apps) {
+  apps.forEach((app, idx) => {
     const a = document.createElement("a");
     a.className = "tile";
     a.href = app.url || app.path;
+    a.dataset.appId = app.id;
     if (app.openInNew) {
       a.target = "_blank";
       a.rel = "noopener noreferrer";
@@ -89,13 +139,12 @@ function renderTiles(apps) {
     a.style.setProperty("--tile-color", color);
     a.style.setProperty("--tile-shade", shade);
     const glyph = APP_GLYPHS[app.id] || DEFAULT_GLYPH;
+    const shortcut = idx < 9 ? `<span class="tile-shortcut" aria-hidden="true">${idx + 1}</span>` : "";
     a.innerHTML = `
+      ${shortcut}
       <div class="tile-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg>
       </div>
-      <svg class="tile-chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M7 17L17 7M9 7h8v8"/>
-      </svg>
       <div class="tile-meta">
         <h2 class="tile-name"></h2>
         <p class="tile-subtitle"></p>
@@ -104,26 +153,47 @@ function renderTiles(apps) {
     a.querySelector(".tile-name").textContent = app.name;
     a.querySelector(".tile-subtitle").textContent = app.subtitle || "";
     grid.appendChild(a);
-  }
+  });
 }
 
-function renderApps(apps) {
+function populateStatus(apps) {
+  const count = apps.length;
+  const heroCount = document.getElementById("hero-app-count");
+  if (heroCount) heroCount.textContent = String(count);
+  const statusCount = document.getElementById("status-count");
+  if (statusCount) statusCount.textContent = `${count} ${count === 1 ? "app" : "apps"}`;
+}
+
+function renderApps(apps, config) {
   const layout = getLayout();
   const main = document.getElementById("app");
   const header = document.getElementById("app-header");
+  const hero = document.getElementById("hero");
+  const section = document.getElementById("apps-section");
   const grid = document.getElementById("grid");
+  const status = document.getElementById("status-bar");
   const body = document.body;
+
   if (layout === "grid") {
     if (main) main.hidden = false;
     if (header) header.hidden = false;
+    if (hero) hero.hidden = false;
+    if (section) section.hidden = false;
     if (grid) grid.hidden = false;
+    if (status) status.hidden = false;
     body.classList.add("bg-optimus-bg", "text-optimus-text");
     renderTiles(apps);
+    populateStatus(apps);
+    startClock(config || {});
     return;
   }
+
   if (main) main.hidden = true;
   if (header) header.hidden = true;
+  if (hero) hero.hidden = true;
+  if (section) section.hidden = true;
   if (grid) grid.hidden = true;
+  if (status) status.hidden = true;
   if (citySceneInitialized) return;
   const container = document.getElementById("city-root");
   if (!container || !apps.length) return;
@@ -235,6 +305,175 @@ function showApp(title) {
   document.title = title;
 }
 
+/* ---------- Command palette ---------- */
+
+function paletteOpen() {
+  const dialog = document.getElementById("palette");
+  const input = document.getElementById("palette-input");
+  if (!dialog || dialog.open) return;
+  input.value = "";
+  renderPalette("");
+  dialog.showModal();
+  requestAnimationFrame(() => input.focus());
+}
+
+function paletteClose() {
+  const dialog = document.getElementById("palette");
+  if (dialog && dialog.open) dialog.close();
+}
+
+function matchScore(app, q) {
+  if (!q) return 1;
+  const needle = q.toLowerCase();
+  const hay = `${app.name} ${app.subtitle || ""} ${app.blurb || ""} ${app.id}`.toLowerCase();
+  if (hay.includes(needle)) {
+    if (app.name.toLowerCase().startsWith(needle)) return 3;
+    if (app.name.toLowerCase().includes(needle)) return 2;
+    return 1;
+  }
+  let i = 0;
+  for (const ch of hay) {
+    if (ch === needle[i]) i++;
+    if (i === needle.length) return 0.5;
+  }
+  return 0;
+}
+
+function renderPalette(query) {
+  const list = document.getElementById("palette-results");
+  if (!list) return;
+  const scored = APPS
+    .map((app, idx) => ({ app, idx, score: matchScore(app, query) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score || a.idx - b.idx);
+  paletteResults = scored.map((x) => x.app);
+  paletteIndex = 0;
+  list.innerHTML = "";
+  if (!paletteResults.length) {
+    const li = document.createElement("li");
+    li.className = "palette-empty";
+    li.textContent = query ? `No matches for "${query}"` : "No apps registered.";
+    list.appendChild(li);
+    return;
+  }
+  paletteResults.forEach((app, i) => {
+    const li = document.createElement("li");
+    li.className = "palette-item";
+    li.setAttribute("role", "option");
+    li.setAttribute("aria-selected", i === 0 ? "true" : "false");
+    const color = app.color || "#c96a47";
+    const shade = app.shade || darkenHex(color);
+    li.style.setProperty("--tile-color", color);
+    li.style.setProperty("--tile-shade", shade);
+    const glyph = APP_GLYPHS[app.id] || DEFAULT_GLYPH;
+    li.innerHTML = `
+      <div class="palette-item-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24">${glyph}</svg>
+      </div>
+      <div class="palette-item-body">
+        <div class="palette-item-name"></div>
+        <div class="palette-item-subtitle"></div>
+      </div>
+      <kbd class="palette-item-hint">↵</kbd>
+    `;
+    li.querySelector(".palette-item-name").textContent = app.name;
+    li.querySelector(".palette-item-subtitle").textContent =
+      app.blurb || app.subtitle || "";
+    li.addEventListener("mousemove", () => setPaletteIndex(i));
+    li.addEventListener("click", (e) => {
+      e.preventDefault();
+      paletteLaunch(i);
+    });
+    list.appendChild(li);
+  });
+}
+
+function setPaletteIndex(i) {
+  if (i < 0 || i >= paletteResults.length) return;
+  paletteIndex = i;
+  const list = document.getElementById("palette-results");
+  if (!list) return;
+  [...list.children].forEach((child, idx) => {
+    if (child.classList.contains("palette-item")) {
+      child.setAttribute("aria-selected", idx === i ? "true" : "false");
+      if (idx === i) child.scrollIntoView({ block: "nearest" });
+    }
+  });
+}
+
+function paletteLaunch(i = paletteIndex) {
+  const app = paletteResults[i];
+  if (!app) return;
+  paletteClose();
+  launchApp(app);
+}
+
+function wirePalette() {
+  const dialog = document.getElementById("palette");
+  const input = document.getElementById("palette-input");
+  const form = document.getElementById("palette-form");
+  const openBtn = document.getElementById("palette-open");
+  if (!dialog || !input || !form) return;
+
+  openBtn?.addEventListener("click", paletteOpen);
+  input.addEventListener("input", () => renderPalette(input.value.trim()));
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    paletteLaunch();
+  });
+  dialog.addEventListener("click", (e) => {
+    if (e.target === dialog) paletteClose();
+  });
+  dialog.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setPaletteIndex(Math.min(paletteIndex + 1, paletteResults.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setPaletteIndex(Math.max(paletteIndex - 1, 0));
+    } else if (e.key === "Escape") {
+      paletteClose();
+    }
+  });
+}
+
+function wireGlobalShortcuts() {
+  window.addEventListener("keydown", (e) => {
+    const active = document.activeElement;
+    const typing =
+      active &&
+      (active.tagName === "INPUT" ||
+        active.tagName === "TEXTAREA" ||
+        active.isContentEditable);
+    const paletteDialog = document.getElementById("palette");
+    const paletteOpenNow = paletteDialog && paletteDialog.open;
+
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      if (paletteOpenNow) paletteClose();
+      else paletteOpen();
+      return;
+    }
+
+    if (e.key === "/" && !typing && !paletteOpenNow) {
+      e.preventDefault();
+      paletteOpen();
+      return;
+    }
+
+    if (!typing && !paletteOpenNow && /^[1-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      const idx = parseInt(e.key, 10) - 1;
+      const app = APPS[idx];
+      if (app) {
+        e.preventDefault();
+        launchApp(app);
+      }
+    }
+  });
+}
+
+/* ---------- Auth + bootstrap ---------- */
+
 async function unlock(config, registry) {
   const dialog = document.getElementById("gate");
   const form = document.getElementById("gate-form");
@@ -251,7 +490,7 @@ async function unlock(config, registry) {
     if (dialog.open) dialog.close();
     showApp(config.title);
     APPS = registry.apps || [];
-    renderApps(APPS);
+    renderApps(APPS, config);
     handleHash();
   };
 
@@ -283,9 +522,13 @@ function lockAndReload() {
   localStorage.removeItem(TOKEN_KEY);
   location.reload();
 }
-document.getElementById("lock").addEventListener("click", lockAndReload);
-document.getElementById("settings-lock").addEventListener("click", lockAndReload);
-document.getElementById("header-settings").addEventListener("click", openSettings);
+
+document.getElementById("lock")?.addEventListener("click", lockAndReload);
+document.getElementById("settings-lock")?.addEventListener("click", lockAndReload);
+document.getElementById("header-settings")?.addEventListener("click", openSettings);
+
+wirePalette();
+wireGlobalShortcuts();
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

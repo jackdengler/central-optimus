@@ -32,45 +32,123 @@
       style="position: fixed; inset: 0; z-index: 0;"
     ></div>
 
-    <main
-      id="app"
-      class="relative mx-auto max-w-5xl px-5 pb-16"
-      style="padding-top: max(env(safe-area-inset-top), 1.75rem); z-index: 10;"
-      hidden
-    >
-      <header id="app-header" class="mb-8 flex items-center justify-end gap-2" hidden>
-        <button
-          id="header-settings"
-          type="button"
-          aria-label="Settings"
-          class="icon-btn"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-        </button>
-        <button
-          id="lock"
-          type="button"
-          aria-label="Lock"
-          class="icon-btn"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="4" y="11" width="16" height="10" rx="2.5" />
-            <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-          </svg>
-        </button>
+    <main id="app" class="shell" hidden>
+      <header id="app-header" class="topbar" hidden>
+        <div class="wordmark" aria-label="Central Optimus">
+          <span class="wordmark-dot" aria-hidden="true"></span>
+          <span class="wordmark-text">
+            <span class="wordmark-primary">Central</span>
+            <span class="wordmark-accent">Optimus</span>
+          </span>
+        </div>
+        <div class="topbar-controls">
+          <button
+            id="palette-open"
+            type="button"
+            class="icon-btn icon-btn--wide"
+            aria-label="Search apps"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="11" cy="11" r="6.5" />
+              <path d="M20 20l-4.2-4.2" />
+            </svg>
+            <span class="icon-btn-text">Search</span>
+            <span class="icon-btn-kbd"><kbd>⌘</kbd><kbd>K</kbd></span>
+          </button>
+          <button
+            id="header-settings"
+            type="button"
+            aria-label="Settings"
+            class="icon-btn"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
+          <button
+            id="lock"
+            type="button"
+            aria-label="Lock"
+            class="icon-btn"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="11" width="16" height="10" rx="2.5" />
+              <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+            </svg>
+          </button>
+        </div>
       </header>
 
-      <section
-        id="grid"
-        aria-label="Apps"
-        class="grid gap-4 sm:gap-5"
-        hidden
-      ></section>
-      <p id="empty" class="mt-20 text-center text-optimus-muted" hidden>No apps registered yet.</p>
+      <section id="hero" class="hero" hidden>
+        <p class="eyebrow">
+          <span class="hero-dot" aria-hidden="true"></span>
+          <span id="hero-date">—</span>
+          <span class="eyebrow-sep" aria-hidden="true">·</span>
+          <span id="hero-time">—</span>
+        </p>
+        <h1 class="greeting">
+          <span id="greeting-text">Welcome</span><span class="greeting-punct">.</span>
+        </h1>
+        <p class="hero-tagline">
+          Your private workspace — <span class="hero-count"><span id="hero-app-count">0</span> apps ready</span>.
+        </p>
+      </section>
+
+      <section id="apps-section" class="apps-section" hidden>
+        <div class="section-header">
+          <h2 class="section-title">All apps</h2>
+          <span class="section-hint">
+            Tap or press <kbd>1</kbd>–<kbd>9</kbd>
+          </span>
+        </div>
+        <div
+          id="grid"
+          class="grid"
+          aria-label="Apps"
+        ></div>
+      </section>
+
+      <p id="empty" class="empty-state" hidden>No apps registered yet.</p>
+
+      <footer id="status-bar" class="status-bar" hidden>
+        <span class="status-indicator">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>All systems nominal</span>
+        </span>
+        <span class="status-meta">
+          <span id="status-count">0 apps</span>
+          <span class="status-sep" aria-hidden="true">·</span>
+          <span class="status-build">build 2026.04</span>
+        </span>
+      </footer>
     </main>
+
+    <dialog id="palette" class="palette">
+      <form method="dialog" id="palette-form" class="palette-form">
+        <div class="palette-input-wrap">
+          <svg class="palette-search-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="6.5" />
+            <path d="M20 20l-4.2-4.2" />
+          </svg>
+          <input
+            id="palette-input"
+            type="text"
+            autocomplete="off"
+            spellcheck="false"
+            placeholder="Search apps…"
+            aria-label="Search apps"
+          />
+          <kbd class="palette-esc">esc</kbd>
+        </div>
+        <ul id="palette-results" class="palette-results" role="listbox"></ul>
+        <div class="palette-footer">
+          <span class="palette-hint"><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+          <span class="palette-hint"><kbd>↵</kbd> launch</span>
+          <span class="palette-hint"><kbd>esc</kbd> close</span>
+        </div>
+      </form>
+    </dialog>
 
     <dialog
       id="settings"
