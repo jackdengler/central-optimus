@@ -93,13 +93,13 @@ function openEmbed(app) {
   const wrap = ensureEmbedShell();
   document.getElementById("embed-title").textContent = app.name;
   const frame = document.getElementById("embed-frame");
-  const target = embedUrlFor(app);
-  if (frame.src !== target) frame.src = target;
+  const src = embedUrlFor(app);
+  if (frame.src !== src) frame.src = src;
   wrap.hidden = false;
   document.getElementById("app").hidden = true;
-  const target = `#app/${app.id}`;
-  if (location.hash !== target) {
-    history.pushState({ embed: app.id }, "", target);
+  const hash = `#app/${app.id}`;
+  if (location.hash !== hash) {
+    history.pushState({ embed: app.id }, "", hash);
   }
 }
 
