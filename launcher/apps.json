@@ -24,8 +24,7 @@
     },
     {
       "id": "cornerman",
-      "name": "Cornerman",
-      "description": "Cornerman.",
+      "name": "Tapology",
       "url": "https://jackdengler.github.io/cornerman-site/",
       "color": "#2b6cb0"
     },
@@ -38,8 +37,7 @@
     },
     {
       "id": "tbd",
-      "name": "TBD",
-      "description": "TBD.",
+      "name": "Gmail Cleanup",
       "url": "https://jackdengler.github.io/tbd-repo/",
       "color": "#6b46c1"
     }
