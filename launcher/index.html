@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#faf9f5" />
+    <meta name="theme-color" content="#1B1235" />
     <title>Central Optimus</title>
 
     <link rel="manifest" href="./manifest.webmanifest" />
@@ -12,8 +12,11 @@
     <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
 
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Optimus" />
+    <style>
+      html, body { background: #1B1235; margin: 0; }
+    </style>
 
     <link
       rel="apple-touch-startup-image"
@@ -35,21 +38,62 @@
       style="padding-top: max(env(safe-area-inset-top), 1.5rem); z-index: 10;"
       hidden
     >
-      <header class="flex items-center justify-between">
-        <h1 id="title" class="m-0 text-2xl font-semibold tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">Central Optimus</h1>
+      <header id="app-header" class="mb-10 flex items-center justify-between" hidden>
+        <h1 id="title" class="m-0 text-3xl font-semibold tracking-tight bg-gradient-to-br from-optimus-text to-optimus-accent-2 bg-clip-text text-transparent">Central Optimus</h1>
         <button
           id="lock"
           type="button"
           aria-label="Lock"
-          class="rounded-full border border-white/30 bg-black/30 px-4 py-2 text-sm text-white/90 backdrop-blur transition hover:border-white/60 hover:bg-black/40"
+          class="rounded-full border border-optimus-border bg-white/60 px-4 py-2 text-sm text-optimus-muted backdrop-blur transition hover:border-optimus-accent hover:text-optimus-text"
         >
           Lock
         </button>
       </header>
 
-      <section id="grid" hidden></section>
-      <p id="empty" hidden></p>
+      <section
+        id="grid"
+        aria-label="Apps"
+        class="grid gap-4 sm:gap-5"
+        style="grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));"
+        hidden
+      ></section>
+      <p id="empty" class="mt-20 text-center text-optimus-muted" hidden>No apps registered yet.</p>
     </main>
+
+    <dialog
+      id="settings"
+      class="w-[min(calc(100%-2rem),22rem)] rounded-2xl border border-white/10 bg-[#1B1235] p-6 text-white shadow-2xl backdrop:bg-black/50 backdrop:backdrop-blur"
+    >
+      <form method="dialog" class="flex flex-col gap-4">
+        <h2 class="text-lg font-semibold">Settings</h2>
+        <fieldset class="flex flex-col gap-2">
+          <legend class="text-sm text-white/70 mb-1">Layout</legend>
+          <label class="flex items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-3 py-2 cursor-pointer">
+            <input type="radio" name="layout" value="balloons" class="accent-white" />
+            <span>Balloons</span>
+          </label>
+          <label class="flex items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-3 py-2 cursor-pointer">
+            <input type="radio" name="layout" value="grid" class="accent-white" />
+            <span>Grid</span>
+          </label>
+        </fieldset>
+        <button
+          id="settings-lock"
+          type="button"
+          class="w-full rounded-xl border border-white/20 bg-white/10 py-3 text-sm font-medium text-white hover:bg-white/15"
+        >
+          Lock &amp; sign out
+        </button>
+        <button
+          id="settings-close"
+          type="submit"
+          class="w-full rounded-xl border-0 py-3 text-base font-semibold text-white"
+          style="background: linear-gradient(180deg, #d97757, #b85a3d);"
+        >
+          Done
+        </button>
+      </form>
+    </dialog>
 
     <dialog
       id="gate"

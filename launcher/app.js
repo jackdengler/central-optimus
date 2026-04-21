@@ -1,8 +1,17 @@
 import { initCityScene } from "./city-scene.js";
 
 const TOKEN_KEY = "co.gh.token";
+const LAYOUT_KEY = "co.layout";
 let APPS = [];
 let citySceneInitialized = false;
+
+function getLayout() {
+  const v = localStorage.getItem(LAYOUT_KEY);
+  return v === "grid" ? "grid" : "balloons";
+}
+function setLayout(v) {
+  localStorage.setItem(LAYOUT_KEY, v === "grid" ? "grid" : "balloons");
+}
 
 async function loadJSON(path) {
   const res = await fetch(path, { cache: "no-cache" });
@@ -41,7 +50,54 @@ function launchApp(app) {
   if (app.url) openEmbed(app);
 }
 
+function renderTiles(apps) {
+  const grid = document.getElementById("grid");
+  const empty = document.getElementById("empty");
+  grid.hidden = false;
+  grid.innerHTML = "";
+  if (!apps.length) {
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+  for (const app of apps) {
+    const a = document.createElement("a");
+    a.className = "tile";
+    a.href = app.url || app.path;
+    if (app.openInNew) {
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+    } else if (app.url) {
+      a.addEventListener("click", (e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
+        e.preventDefault();
+        openEmbed(app);
+      });
+    }
+    const initial = (app.name || "?").trim().charAt(0).toUpperCase();
+    a.innerHTML = `<div class="tile-icon"></div><h2 class="tile-name"></h2>`;
+    const icon = a.querySelector(".tile-icon");
+    if (app.color) icon.style.background = app.color;
+    icon.textContent = initial;
+    a.querySelector(".tile-name").textContent = app.name;
+    grid.appendChild(a);
+  }
+}
+
 function renderApps(apps) {
+  const layout = getLayout();
+  const header = document.getElementById("app-header");
+  const grid = document.getElementById("grid");
+  const body = document.body;
+  if (layout === "grid") {
+    if (header) header.hidden = false;
+    if (grid) grid.hidden = false;
+    body.classList.add("bg-optimus-bg", "text-optimus-text");
+    renderTiles(apps);
+    return;
+  }
+  if (header) header.hidden = true;
+  if (grid) grid.hidden = true;
   if (citySceneInitialized) return;
   const container = document.getElementById("city-root");
   if (!container || !apps.length) return;
@@ -53,12 +109,32 @@ function renderApps(apps) {
       iconUrl: a.iconUrl,
       color: a.color || "#3B82F6",
       shade: a.shade || darkenHex(a.color || "#3B82F6"),
-      // preserved so onLaunch can dispatch correctly
       _app: a,
     })),
     onLaunch: (balloonApp) => launchApp(balloonApp._app || balloonApp),
+    onSettings: openSettings,
   });
   citySceneInitialized = true;
+}
+
+function openSettings() {
+  const dialog = document.getElementById("settings");
+  if (!dialog) return;
+  const current = getLayout();
+  dialog
+    .querySelectorAll('input[name="layout"]')
+    .forEach((input) => {
+      input.checked = input.value === current;
+      input.onchange = () => {
+        if (!input.checked) return;
+        const next = input.value;
+        if (next === current) return;
+        setLayout(next);
+        dialog.close();
+        location.reload();
+      };
+    });
+  if (!dialog.open) dialog.showModal();
 }
 
 function ensureEmbedShell() {
@@ -178,10 +254,12 @@ async function unlock(config, registry) {
   });
 }
 
-document.getElementById("lock").addEventListener("click", () => {
+function lockAndReload() {
   localStorage.removeItem(TOKEN_KEY);
   location.reload();
-});
+}
+document.getElementById("lock").addEventListener("click", lockAndReload);
+document.getElementById("settings-lock").addEventListener("click", lockAndReload);
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

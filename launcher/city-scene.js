@@ -17,7 +17,7 @@
 // Balloons are rendered as tappable circles containing the app's icon image.
 // Everything else (city, sky, ambient events) is pure decoration.
 
-export function initCityScene({ container, apps, onLaunch }) {
+export function initCityScene({ container, apps, onLaunch, onSettings }) {
 if (!container) throw new Error('city-scene: container is required');
 if (!Array.isArray(apps) || apps.length === 0) throw new Error('city-scene: apps array is required');
 if (typeof onLaunch !== 'function') throw new Error('city-scene: onLaunch callback is required');
@@ -28,9 +28,9 @@ const SCREEN_W = Math.max(rect.width, 320);
 const SCREEN_H = Math.max(rect.height, 600);
 
 // ––––– city dimensions –––––
-const NEAR_H = Math.min(215, Math.floor(SCREEN_H * 0.34));
-const MID_H = Math.min(175, Math.floor(SCREEN_H * 0.28));
-const FAR_H = Math.min(130, Math.floor(SCREEN_H * 0.21));
+const NEAR_H = Math.max(215, Math.floor(SCREEN_H * 0.42));
+const MID_H = Math.max(175, Math.floor(SCREEN_H * 0.32));
+const FAR_H = Math.max(130, Math.floor(SCREEN_H * 0.24));
 const DISTRICT_W = SCREEN_W * 1.5;
 const NUM_DISTRICTS = 5;
 const TOTAL_W = DISTRICT_W * NUM_DISTRICTS;
@@ -79,11 +79,16 @@ root.appendChild(d);
 return d;
 }
 
-// Celestial body (moon)
+// Celestial body (moon) — clickable when onSettings is provided
 const cel = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
 cel.setAttribute('width', '44'); cel.setAttribute('height', '44'); cel.setAttribute('viewBox', '0 0 44 44');
-cel.style.cssText = 'position:absolute; top:90px; right:38px; z-index:2;';
+cel.style.cssText = `position:absolute; top:max(env(safe-area-inset-top), 44px); right:24px; z-index:20; ${onSettings ? 'cursor:pointer; pointer-events:auto;' : 'pointer-events:none;'} transition: transform 0.15s cubic-bezier(.34,1.56,.64,1);`;
 cel.innerHTML = `<circle cx="22" cy="22" r="18" fill="#FAE8C8"/><circle cx="22" cy="22" r="18" fill="#FAE8C8" opacity="0.3" transform="scale(1.15) translate(-3,-3)"/><circle cx="16" cy="18" r="2.8" fill="#D4B896" opacity="0.6"/><circle cx="27" cy="25" r="1.8" fill="#D4B896" opacity="0.6"/>`;
+if (onSettings) {
+cel.setAttribute('role', 'button');
+cel.setAttribute('aria-label', 'Settings');
+cel.addEventListener('click', (e) => { e.stopPropagation(); cel.style.transform = 'scale(1.2)'; setTimeout(() => { cel.style.transform = ''; }, 180); onSettings(); });
+}
 root.appendChild(cel);
 layers.celestial = cel;
 
@@ -538,14 +543,17 @@ buildRiver(layers.river);
 buildPowerLines(layers.powerlines);
 
 // ––––– balloons –––––
-const FLOCK_CENTERS = [];
-for (let i = 0; i < 3; i++) {
-FLOCK_CENTERS.push({
-x: -100 + i * (SCREEN_W + 200) / 3,
-yBase: 70 + Math.random() * 160,
-speed: 0.10 + Math.random() * 0.04,
-});
-}
+const BALLOON_SVG_W = 68, BALLOON_SVG_H = 86;
+const N_APPS = apps.length;
+const BALLOON_ROWS = N_APPS <= 3 ? 1 : 2;
+const BALLOON_COLS = Math.ceil(N_APPS / BALLOON_ROWS);
+const CELL_W = SCREEN_W / BALLOON_COLS;
+const FIT_SCALE = (CELL_W * 0.78) / BALLOON_SVG_W;
+const BASE_SCALE = Math.max(1.1, Math.min(1.85, FIT_SCALE));
+const SKY_TOP_PAD = Math.max(80, Math.floor(SCREEN_H * 0.12));
+const SKY_BOT_PAD = NEAR_H + 30;
+const SKY_H_AVAIL = Math.max(160, SCREEN_H - SKY_TOP_PAD - SKY_BOT_PAD);
+const ROW_H = SKY_H_AVAIL / BALLOON_ROWS;
 
 function blendToSky(hex, amount) {
 const r = parseInt(hex.slice(1,3), 16), g = parseInt(hex.slice(3,5), 16), b = parseInt(hex.slice(5,7), 16);
@@ -610,21 +618,25 @@ return el;
 }
 
 const balloons = apps.map((app, i) => {
-const flockIdx = i % FLOCK_CENTERS.length;
-const flock = FLOCK_CENTERS[flockIdx];
-let depth = 0.85 + Math.random() * 0.15;
-if (i === 0 && apps.length > 4) depth = 0.72;
-if (i === apps.length - 1 && apps.length > 4) depth = 1.05;
-const b = makeBalloon(app, i, depth);
+const row = Math.floor(i / BALLOON_COLS);
+const col = i % BALLOON_COLS;
+const stagger = (row % 2 === 1) ? CELL_W * 0.3 : 0;
+const homeX = (col + 0.5) * CELL_W + stagger;
+const homeY = SKY_TOP_PAD + (row + 0.5) * ROW_H;
+const scale = BASE_SCALE * (0.94 + Math.random() * 0.12);
+const b = makeBalloon(app, i, scale);
 layers.balloons.appendChild(b);
+// Drift amplitude: limited so balloons stay within their cell and never overlap
+const halfCell = CELL_W / 2;
+const halfBalloon = (BALLOON_SVG_W * scale) / 2;
+const driftAmpX = Math.max(10, Math.min(50, halfCell - halfBalloon - 6));
+const driftAmpY = Math.min(22, ROW_H * 0.18);
 return {
-el: b, flockIdx, scale: depth,
-flockOffsetX: (Math.random() - 0.5) * 90,
-flockOffsetY: (Math.random() - 0.5) * 60,
-x: 0, y: 0,
-bobAmp: 3 + Math.random() * 2.5, bobPhase: Math.random() * Math.PI * 2, bobSpeed: 0.0008 + Math.random() * 0.0006,
-swayAmp: 1.5 + Math.random() * 1, swayPhase: Math.random() * Math.PI * 2, swaySpeed: 0.0006 + Math.random() * 0.0004,
-driftPhase: Math.random() * Math.PI * 2, driftSpeed: 0.00015 + Math.random() * 0.0001,
+el: b, scale, homeX, homeY, driftAmpX, driftAmpY,
+x: homeX, y: homeY,
+bobAmp: 4 + Math.random() * 3, bobPhase: Math.random() * Math.PI * 2, bobSpeed: 0.0009 + Math.random() * 0.0006,
+swayAmp: 6 + Math.random() * 4, swayPhase: Math.random() * Math.PI * 2, swaySpeed: 0.00045 + Math.random() * 0.00025,
+driftPhase: Math.random() * Math.PI * 2, driftSpeed: 0.00018 + Math.random() * 0.0001,
 };
 });
 
@@ -848,19 +860,16 @@ layers.mountains.style.transform = `translateX(${mountainOffset.toFixed(1)}px)`;
 layers.river.style.transform = `translateX(${nearOffset.toFixed(1)}px)`;
 layers.rooftopEvents.style.transform = `translateX(${nearOffset.toFixed(1)}px)`;
 layers.waterEvents.style.transform = `translateX(${nearOffset.toFixed(1)}px)`;
-FLOCK_CENTERS.forEach(f => {
-f.x += f.speed * dt * 0.05;
-if (f.x > SCREEN_W + 100) { f.x = -150; f.yBase = 70 + Math.random() * 160; }
-});
 balloons.forEach(b => {
-const flock = FLOCK_CENTERS[b.flockIdx];
-const dx = Math.sin(now * b.driftSpeed + b.driftPhase) * 25;
-const dy = Math.cos(now * b.driftSpeed + b.driftPhase) * 18;
-b.x = flock.x + b.flockOffsetX + dx;
-b.y = flock.yBase + b.flockOffsetY + dy;
-const bob = Math.sin(now * b.bobSpeed + b.bobPhase) * b.bobAmp;
+const dx = Math.sin(now * b.driftSpeed + b.driftPhase) * b.driftAmpX;
+const dy = Math.cos(now * b.driftSpeed + b.driftPhase) * b.driftAmpY;
 const sway = Math.sin(now * b.swaySpeed + b.swayPhase) * b.swayAmp;
-b.el.style.transform = `translate(${(b.x + sway).toFixed(1)}px, ${(b.y + bob).toFixed(1)}px) scale(${b.scale})`;
+const bob = Math.sin(now * b.bobSpeed + b.bobPhase) * b.bobAmp;
+// Translate such that the SVG's transform-origin (34, 50) — envelope bottom center —
+// lands at the balloon's home + drift position.
+const tx = (b.homeX + dx + sway) - 34;
+const ty = (b.homeY + dy + bob) - 50;
+b.el.style.transform = `translate(${tx.toFixed(1)}px, ${ty.toFixed(1)}px) scale(${b.scale})`;
 });
 }
 requestAnimationFrame(tick);
