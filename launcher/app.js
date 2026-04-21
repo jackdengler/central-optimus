@@ -47,13 +47,17 @@ function renderApps(apps) {
     a.innerHTML = `
       <div class="tile-icon"></div>
       <h2 class="tile-name"></h2>
-      <p class="tile-desc"></p>
     `;
     const icon = a.querySelector(".tile-icon");
     if (app.color) icon.style.background = app.color;
     icon.textContent = initial;
     a.querySelector(".tile-name").textContent = app.name;
-    a.querySelector(".tile-desc").textContent = app.description || "";
+    if (app.description) {
+      const p = document.createElement("p");
+      p.className = "tile-desc";
+      p.textContent = app.description;
+      a.appendChild(p);
+    }
     grid.appendChild(a);
   }
 }
