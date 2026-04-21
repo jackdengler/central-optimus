@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#1B1235" />
+    <meta name="theme-color" content="#f6f1e7" />
     <title>Central Optimus</title>
 
     <link rel="manifest" href="./manifest.webmanifest" />
@@ -12,10 +12,10 @@
     <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
 
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Optimus" />
     <style>
-      html, body { background: #1B1235; margin: 0; }
+      html, body { background: #f6f1e7; margin: 0; }
     </style>
 
     <link
@@ -26,7 +26,7 @@
 
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body class="text-optimus-text">
+  <body>
     <div
       id="city-root"
       style="position: fixed; inset: 0; z-index: 0;"
@@ -34,28 +34,39 @@
 
     <main
       id="app"
-      class="relative mx-auto max-w-5xl px-4 pb-12"
-      style="padding-top: max(env(safe-area-inset-top), 1.5rem); z-index: 10;"
+      class="relative mx-auto max-w-5xl px-5 pb-16"
+      style="padding-top: max(env(safe-area-inset-top), 1.75rem); z-index: 10;"
       hidden
     >
-      <header id="app-header" class="mb-10 flex items-center justify-between gap-2" hidden>
-        <h1 id="title" class="m-0 text-3xl font-semibold tracking-tight bg-gradient-to-br from-optimus-text to-optimus-accent-2 bg-clip-text text-transparent">Central Optimus</h1>
+      <header id="app-header" class="mb-10 flex items-end justify-between gap-3" hidden>
+        <div class="flex flex-col gap-1.5">
+          <span class="eyebrow" id="header-eyebrow">Dashboard</span>
+          <h1 id="title" class="title-hero">
+            <span class="title-accent">Central Optimus</span>
+          </h1>
+        </div>
         <div class="flex items-center gap-2">
           <button
             id="header-settings"
             type="button"
             aria-label="Settings"
-            class="rounded-full border border-optimus-border bg-white/60 px-4 py-2 text-sm text-optimus-muted backdrop-blur transition hover:border-optimus-accent hover:text-optimus-text"
+            class="icon-btn"
           >
-            Settings
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
           </button>
           <button
             id="lock"
             type="button"
             aria-label="Lock"
-            class="rounded-full border border-optimus-border bg-white/60 px-4 py-2 text-sm text-optimus-muted backdrop-blur transition hover:border-optimus-accent hover:text-optimus-text"
+            class="icon-btn"
           >
-            Lock
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="11" width="16" height="10" rx="2.5" />
+              <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+            </svg>
           </button>
         </div>
       </header>
@@ -64,7 +75,6 @@
         id="grid"
         aria-label="Apps"
         class="grid gap-4 sm:gap-5"
-        style="grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));"
         hidden
       ></section>
       <p id="empty" class="mt-20 text-center text-optimus-muted" hidden>No apps registered yet.</p>
@@ -72,33 +82,32 @@
 
     <dialog
       id="settings"
-      class="w-[min(calc(100%-2rem),22rem)] rounded-2xl border border-white/10 bg-[#1B1235] p-6 text-white shadow-2xl backdrop:bg-black/50 backdrop:backdrop-blur"
+      class="co-dialog w-[min(calc(100%-2rem),22rem)] rounded-2xl p-6"
     >
       <form method="dialog" class="flex flex-col gap-4">
-        <h2 class="text-lg font-semibold">Settings</h2>
+        <h2 class="text-lg font-semibold tracking-tight">Settings</h2>
         <fieldset class="flex flex-col gap-2">
-          <legend class="text-sm text-white/70 mb-1">Layout</legend>
-          <label class="flex items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-3 py-2 cursor-pointer">
-            <input type="radio" name="layout" value="balloons" class="accent-white" />
-            <span>Balloons</span>
+          <legend class="text-xs font-medium uppercase tracking-[0.18em] text-optimus-muted mb-2">Layout</legend>
+          <label class="flex items-center gap-3 rounded-xl border border-optimus-border bg-optimus-surface-2 px-3 py-2.5 cursor-pointer">
+            <input type="radio" name="layout" value="balloons" class="accent-optimus-accent" />
+            <span class="text-sm font-medium">Balloons</span>
           </label>
-          <label class="flex items-center gap-3 rounded-xl border border-white/15 bg-white/5 px-3 py-2 cursor-pointer">
-            <input type="radio" name="layout" value="grid" class="accent-white" />
-            <span>Grid</span>
+          <label class="flex items-center gap-3 rounded-xl border border-optimus-border bg-optimus-surface-2 px-3 py-2.5 cursor-pointer">
+            <input type="radio" name="layout" value="grid" class="accent-optimus-accent" />
+            <span class="text-sm font-medium">Grid</span>
           </label>
         </fieldset>
         <button
           id="settings-lock"
           type="button"
-          class="w-full rounded-xl border border-white/20 bg-white/10 py-3 text-sm font-medium text-white hover:bg-white/15"
+          class="btn-ghost"
         >
           Lock &amp; sign out
         </button>
         <button
           id="settings-close"
           type="submit"
-          class="w-full rounded-xl border-0 py-3 text-base font-semibold text-white"
-          style="background: linear-gradient(180deg, #d97757, #b85a3d);"
+          class="btn-primary"
         >
           Done
         </button>
@@ -107,14 +116,14 @@
 
     <dialog
       id="gate"
-      class="w-[min(calc(100%-2rem),20rem)] rounded-2xl border border-optimus-border bg-optimus-surface p-6 text-optimus-text shadow-xl backdrop:bg-black/40 backdrop:backdrop-blur"
+      class="co-dialog w-[min(calc(100%-2rem),20rem)] rounded-2xl p-6"
     >
       <form method="dialog" id="gate-form">
-        <h2 class="mb-3 text-lg font-semibold">Sign in</h2>
+        <h2 class="mb-3 text-lg font-semibold tracking-tight">Sign in</h2>
         <p class="mb-3 text-sm leading-snug text-optimus-muted">
           Paste a GitHub personal access token for your account.
           <a
-            class="text-optimus-accent"
+            class="text-optimus-accent font-medium underline-offset-2 hover:underline"
             href="https://github.com/settings/personal-access-tokens/new"
             target="_blank"
             rel="noopener"
@@ -130,13 +139,12 @@
           autofocus
           required
           placeholder="github_pat_..."
-          class="mb-3 w-full rounded-xl border border-optimus-border bg-optimus-bg px-4 py-3 text-base text-optimus-text placeholder-optimus-muted focus:outline-none focus:ring-2 focus:ring-optimus-accent"
+          class="mb-3 w-full rounded-xl border border-optimus-border bg-optimus-surface px-4 py-3 text-base text-optimus-text placeholder-optimus-muted focus:outline-none focus:ring-2 focus:ring-optimus-accent/60"
         />
-        <p id="gate-error" class="mb-3 text-sm text-red-500" hidden>Sign-in failed.</p>
+        <p id="gate-error" class="mb-3 text-sm text-red-600" hidden>Sign-in failed.</p>
         <button
           type="submit"
-          class="w-full rounded-xl border-0 py-3 text-base font-semibold text-white"
-          style="background: linear-gradient(180deg, #d97757, #b85a3d);"
+          class="btn-primary"
         >
           Unlock
         </button>

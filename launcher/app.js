@@ -77,7 +77,10 @@ function renderTiles(apps) {
     const initial = (app.name || "?").trim().charAt(0).toUpperCase();
     a.innerHTML = `<div class="tile-icon"></div><h2 class="tile-name"></h2>`;
     const icon = a.querySelector(".tile-icon");
-    if (app.color) icon.style.background = app.color;
+    const color = app.color || "#c96a47";
+    const shade = app.shade || darkenHex(color);
+    a.style.setProperty("--tile-color", color);
+    a.style.setProperty("--tile-shade", shade);
     icon.textContent = initial;
     a.querySelector(".tile-name").textContent = app.name;
     grid.appendChild(a);
@@ -206,7 +209,10 @@ window.addEventListener("popstate", handleHash);
 
 function showApp(title) {
   document.getElementById("app").hidden = false;
-  document.getElementById("title").textContent = title;
+  const titleEl = document.getElementById("title");
+  const accent = titleEl?.querySelector(".title-accent");
+  if (accent) accent.textContent = title;
+  else if (titleEl) titleEl.textContent = title;
   document.title = title;
 }
 
