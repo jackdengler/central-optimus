@@ -1,0 +1,67 @@
+name: Deploy launcher to Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  repository_dispatch:
+    types: [app-updated]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install rasterizer
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends librsvg2-bin imagemagick
+
+      - name: Generate icon PNGs from SVG
+        run: |
+          set -euo pipefail
+          mkdir -p launcher/icons
+          rsvg-convert -w 180  -h 180  launcher/icons/icon.svg -o launcher/icons/apple-touch-icon.png
+          rsvg-convert -w 512  -h 512  launcher/icons/icon.svg -o launcher/icons/icon-512.png
+          rsvg-convert -w 512  -h 512  launcher/icons/icon.svg -o /tmp/icon-splash.png
+          # iPhone 13 Pro portrait splash: 1170x2532, dark background, centered icon.
+          convert -size 1170x2532 xc:'#0b0d12' \
+            \( /tmp/icon-splash.png \) -gravity center -composite \
+            launcher/icons/splash-1170x2532.png
+
+      - name: Assemble site
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          mkdir -p _site/apps
+          cp -R launcher/. _site/
+          if [ -d apps ] && [ -n "$(ls -A apps 2>/dev/null | grep -v '^\.gitkeep$' || true)" ]; then
+            cp -R apps/. _site/apps/
+          fi
+          touch _site/.nojekyll
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

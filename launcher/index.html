@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0d12" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f5f6f8" media="(prefers-color-scheme: light)" />
+    <title>Central Optimus</title>
+
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="./icons/icon.svg" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
+
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Optimus" />
+
+    <link
+      rel="apple-touch-startup-image"
+      href="./icons/splash-1170x2532.png"
+      media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+    />
+
+    <link rel="stylesheet" href="https://unpkg.com/open-props@1.7.4/open-props.min.css" />
+    <link rel="stylesheet" href="https://unpkg.com/open-props@1.7.4/normalize.dark.min.css" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main id="app" hidden>
+      <header>
+        <h1 id="title">Central Optimus</h1>
+        <button id="lock" type="button" aria-label="Lock">Lock</button>
+      </header>
+      <section id="grid" class="grid" aria-label="Apps"></section>
+      <p id="empty" class="empty" hidden>No apps registered yet.</p>
+    </main>
+
+    <dialog id="gate">
+      <form method="dialog" id="gate-form">
+        <h2>Sign in</h2>
+        <p class="hint">
+          Paste a GitHub personal access token for your account.
+          <a
+            href="https://github.com/settings/personal-access-tokens/new"
+            target="_blank"
+            rel="noopener"
+            >Create one</a
+          >
+          (fine-grained, no repository access, no permissions needed).
+        </p>
+        <input
+          id="token"
+          type="password"
+          autocomplete="off"
+          spellcheck="false"
+          autofocus
+          required
+          placeholder="github_pat_..."
+        />
+        <p id="gate-error" class="error" hidden>Sign-in failed.</p>
+        <button type="submit">Unlock</button>
+      </form>
+    </dialog>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

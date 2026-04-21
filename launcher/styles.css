@@ -1,0 +1,159 @@
+/* Theme tokens layered on top of Open Props (https://open-props.style). */
+:where(html) {
+  --bg: #0b0d12;
+  --surface: #151821;
+  --surface-2: #1d2230;
+  --text: var(--gray-1);
+  --muted: var(--gray-5);
+  --accent: #7c9cff;
+  --accent-2: #4f46e5;
+  --danger: var(--red-5);
+  --radius-tile: var(--radius-3);
+  --radius-card: var(--radius-3);
+
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--bg);
+}
+
+main {
+  max-width: 1100px;
+  margin-inline: auto;
+  padding-block: max(env(safe-area-inset-top), var(--size-5)) var(--size-7);
+  padding-inline: max(env(safe-area-inset-left), var(--size-4)) max(env(safe-area-inset-right), var(--size-4));
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-block-end: var(--size-6);
+}
+
+h1 {
+  font-size: var(--font-size-4);
+  font-weight: var(--font-weight-7);
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+#lock {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--surface-2);
+  padding-block: var(--size-2);
+  padding-inline: var(--size-3);
+  border-radius: var(--radius-round);
+  font-size: var(--font-size-0);
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms;
+}
+#lock:hover { color: var(--text); border-color: var(--accent); }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--size-3);
+}
+
+.tile {
+  background: var(--surface);
+  border: 1px solid var(--surface-2);
+  border-radius: var(--radius-tile);
+  padding: var(--size-4);
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-3);
+  min-height: 140px;
+  transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+.tile:hover, .tile:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  background: var(--surface-2);
+  outline: none;
+}
+.tile:active { transform: translateY(0); }
+
+.tile-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+  font-weight: var(--font-weight-8);
+  color: white;
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  flex-shrink: 0;
+}
+
+.tile-name { font-size: var(--font-size-2); font-weight: var(--font-weight-6); margin: 0; }
+.tile-desc { color: var(--muted); font-size: var(--font-size-0); margin: 0; line-height: 1.4; }
+
+.empty {
+  color: var(--muted);
+  text-align: center;
+  margin-block-start: var(--size-9);
+}
+
+dialog {
+  border: 1px solid var(--surface-2);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: var(--radius-card);
+  padding: var(--size-5);
+  max-width: 320px;
+  width: calc(100% - var(--size-5));
+  box-shadow: var(--shadow-5);
+}
+dialog::backdrop { background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); }
+
+dialog h2 { margin: 0 0 var(--size-3); font-size: var(--font-size-2); font-weight: var(--font-weight-6); }
+
+dialog .hint {
+  color: var(--muted);
+  font-size: var(--font-size-0);
+  line-height: 1.4;
+  margin: 0 0 var(--size-3);
+}
+dialog .hint a { color: var(--accent); }
+
+dialog input {
+  width: 100%;
+  padding: var(--size-3) var(--size-4);
+  border-radius: 10px;
+  border: 1px solid var(--surface-2);
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--font-size-2);
+  margin-block-end: var(--size-2);
+  font-family: inherit;
+}
+dialog input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+dialog button {
+  width: 100%;
+  padding: var(--size-3);
+  border-radius: 10px;
+  border: 0;
+  background: linear-gradient(180deg, var(--accent), var(--accent-2));
+  color: white;
+  font-size: var(--font-size-2);
+  font-weight: var(--font-weight-6);
+  cursor: pointer;
+  font-family: inherit;
+}
+dialog button:active { filter: brightness(0.95); }
+
+.error { color: var(--danger); font-size: var(--font-size-0); margin: 0 0 var(--size-2); }
