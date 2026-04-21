@@ -81,11 +81,20 @@ function ensureEmbedShell() {
   return wrap;
 }
 
+function embedUrlFor(app) {
+  if (app.auth !== "pat") return app.url;
+  const pat = localStorage.getItem(TOKEN_KEY) || "";
+  const u = new URL(app.url);
+  u.searchParams.set("pat", pat);
+  return u.toString();
+}
+
 function openEmbed(app) {
   const wrap = ensureEmbedShell();
   document.getElementById("embed-title").textContent = app.name;
   const frame = document.getElementById("embed-frame");
-  if (frame.src !== app.url) frame.src = app.url;
+  const target = embedUrlFor(app);
+  if (frame.src !== target) frame.src = target;
   wrap.hidden = false;
   document.getElementById("app").hidden = true;
   const target = `#app/${app.id}`;
