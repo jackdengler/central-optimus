@@ -3,14 +3,12 @@
     {
       "id": "parlay",
       "name": "Parlay Tracker",
-      "description": "Track parlays.",
       "url": "https://jackdengler.github.io/parlay/",
       "color": "#d97757"
     },
     {
       "id": "budget-together",
       "name": "Budget Together",
-      "description": "Shared household budgeting.",
       "url": "https://script.google.com/macros/s/AKfycbz00_wJSijk4uL7KHMHpIi3u4OlWxmJmouGlHX2X106jwh_yDZFTVC9NyW9tFq0N1KpEg/exec?v=mobile",
       "color": "#4a7c59",
       "auth": "pat"
@@ -18,7 +16,6 @@
     {
       "id": "upcoming-movies",
       "name": "Upcoming Movies",
-      "description": "Browse upcoming movie releases.",
       "url": "https://jackdengler.github.io/upcoming-movies/",
       "color": "#a32929"
     },
@@ -31,7 +28,6 @@
     {
       "id": "polished-space",
       "name": "Polished Space",
-      "description": "Polished Space.",
       "url": "https://jackdengler.github.io/polished-space/",
       "color": "#312e81"
     },
