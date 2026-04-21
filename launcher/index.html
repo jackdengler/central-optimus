@@ -38,37 +38,29 @@
       style="padding-top: max(env(safe-area-inset-top), 1.75rem); z-index: 10;"
       hidden
     >
-      <header id="app-header" class="mb-10 flex items-end justify-between gap-3" hidden>
-        <div class="flex flex-col gap-1.5">
-          <span class="eyebrow" id="header-eyebrow">Dashboard</span>
-          <h1 id="title" class="title-hero">
-            <span class="title-accent">Central Optimus</span>
-          </h1>
-        </div>
-        <div class="flex items-center gap-2">
-          <button
-            id="header-settings"
-            type="button"
-            aria-label="Settings"
-            class="icon-btn"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </button>
-          <button
-            id="lock"
-            type="button"
-            aria-label="Lock"
-            class="icon-btn"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <rect x="4" y="11" width="16" height="10" rx="2.5" />
-              <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-            </svg>
-          </button>
-        </div>
+      <header id="app-header" class="mb-8 flex items-center justify-end gap-2" hidden>
+        <button
+          id="header-settings"
+          type="button"
+          aria-label="Settings"
+          class="icon-btn"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
+        <button
+          id="lock"
+          type="button"
+          aria-label="Lock"
+          class="icon-btn"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="4" y="11" width="16" height="10" rx="2.5" />
+            <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+          </svg>
+        </button>
       </header>
 
       <section

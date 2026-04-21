@@ -227,33 +227,8 @@ function handleHash() {
 
 window.addEventListener("popstate", handleHash);
 
-function greetingFor(hour) {
-  if (hour < 5) return "Good night";
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  if (hour < 22) return "Good evening";
-  return "Good night";
-}
-
-function renderGreeting() {
-  const el = document.getElementById("header-eyebrow");
-  if (!el) return;
-  const now = new Date();
-  const date = now.toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-  el.textContent = `${greetingFor(now.getHours())} · ${date}`;
-}
-
 function showApp(title) {
   document.getElementById("app").hidden = false;
-  const titleEl = document.getElementById("title");
-  const accent = titleEl?.querySelector(".title-accent");
-  if (accent) accent.textContent = title;
-  else if (titleEl) titleEl.textContent = title;
-  renderGreeting();
   document.title = title;
 }
 
