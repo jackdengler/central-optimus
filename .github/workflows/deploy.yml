@@ -38,14 +38,23 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends librsvg2-bin imagemagick
 
-      - name: Generate icon PNGs from SVG
+      - name: Generate icon PNGs
         run: |
           set -euo pipefail
           mkdir -p launcher/icons
-          rsvg-convert -w 180  -h 180  launcher/icons/icon.svg -o launcher/icons/apple-touch-icon.png
-          rsvg-convert -w 512  -h 512  launcher/icons/icon.svg -o launcher/icons/icon-512.png
-          rsvg-convert -w 512  -h 512  launcher/icons/icon.svg -o /tmp/icon-splash.png
-          # iPhone 13 Pro portrait splash: 1170x2532, dark background, centered icon.
+          # Drop-in override: if launcher/icons/custom.png exists, it is used
+          # as the source for all iOS/PWA icons instead of rasterizing the SVG.
+          # Any square PNG works best (>=512px); non-square is center-cropped.
+          if [ -f launcher/icons/custom.png ]; then
+            convert launcher/icons/custom.png -resize 180x180^ -gravity center -extent 180x180 launcher/icons/apple-touch-icon.png
+            convert launcher/icons/custom.png -resize 512x512^ -gravity center -extent 512x512 launcher/icons/icon-512.png
+            convert launcher/icons/custom.png -resize 512x512^ -gravity center -extent 512x512 /tmp/icon-splash.png
+          else
+            rsvg-convert -w 180 -h 180 launcher/icons/icon.svg -o launcher/icons/apple-touch-icon.png
+            rsvg-convert -w 512 -h 512 launcher/icons/icon.svg -o launcher/icons/icon-512.png
+            rsvg-convert -w 512 -h 512 launcher/icons/icon.svg -o /tmp/icon-splash.png
+          fi
+          # iPhone 13 Pro portrait splash: 1170x2532, background + centered icon.
           convert -size 1170x2532 xc:'#faf9f5' \
             \( /tmp/icon-splash.png \) -gravity center -composite \
             launcher/icons/splash-1170x2532.png
