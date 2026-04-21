@@ -33,7 +33,10 @@ function renderApps(apps) {
     const a = document.createElement("a");
     a.className = "tile";
     a.href = app.url || app.path;
-    if (app.url) {
+    if (app.openInNew) {
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+    } else if (app.url) {
       a.addEventListener("click", (e) => {
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
         e.preventDefault();
