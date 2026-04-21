@@ -38,16 +38,26 @@
       style="padding-top: max(env(safe-area-inset-top), 1.5rem); z-index: 10;"
       hidden
     >
-      <header id="app-header" class="mb-10 flex items-center justify-between" hidden>
+      <header id="app-header" class="mb-10 flex items-center justify-between gap-2" hidden>
         <h1 id="title" class="m-0 text-3xl font-semibold tracking-tight bg-gradient-to-br from-optimus-text to-optimus-accent-2 bg-clip-text text-transparent">Central Optimus</h1>
-        <button
-          id="lock"
-          type="button"
-          aria-label="Lock"
-          class="rounded-full border border-optimus-border bg-white/60 px-4 py-2 text-sm text-optimus-muted backdrop-blur transition hover:border-optimus-accent hover:text-optimus-text"
-        >
-          Lock
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            id="header-settings"
+            type="button"
+            aria-label="Settings"
+            class="rounded-full border border-optimus-border bg-white/60 px-4 py-2 text-sm text-optimus-muted backdrop-blur transition hover:border-optimus-accent hover:text-optimus-text"
+          >
+            Settings
+          </button>
+          <button
+            id="lock"
+            type="button"
+            aria-label="Lock"
+            class="rounded-full border border-optimus-border bg-white/60 px-4 py-2 text-sm text-optimus-muted backdrop-blur transition hover:border-optimus-accent hover:text-optimus-text"
+          >
+            Lock
+          </button>
+        </div>
       </header>
 
       <section

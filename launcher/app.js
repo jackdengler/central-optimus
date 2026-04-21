@@ -260,6 +260,7 @@ function lockAndReload() {
 }
 document.getElementById("lock").addEventListener("click", lockAndReload);
 document.getElementById("settings-lock").addEventListener("click", lockAndReload);
+document.getElementById("header-settings").addEventListener("click", openSettings);
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
