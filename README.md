@@ -64,18 +64,30 @@ server-side auth. If you later want edge-level protection (no bytes
 served to unauthenticated visitors), put **Cloudflare Access** in front
 of the domain — free for up to 50 users.
 
+## Theme / UI
+
+Styling is built with [Tailwind CSS v4](https://tailwindcss.com) and
+[Konsta UI](https://github.com/konstaui/konsta) v5 (iOS-flavored mobile
+components). The root element carries `class="dark ios"` so Konsta's
+iOS theme tokens take effect.
+
+Source CSS lives at `launcher/src/input.css`; the compiled stylesheet
+is `launcher/styles.css` (generated, git-ignored).
+
 ## Local preview
 
 ```
+npm install
+npm run build          # one-shot compile of launcher/styles.css
+# or: npm run dev      # watch mode
 python3 -m http.server 8000 --directory launcher
 ```
 
-Then open http://localhost:8000. Note: icons referenced as PNGs are
-generated in CI; locally you'll see a missing-image for
-`apple-touch-icon.png` / `icon-512.png` until you either rasterize
-locally or ignore them — functionally the launcher still runs.
+Then open http://localhost:8000.
 
-Optional local rasterize:
+Icons referenced as PNGs are generated in CI; locally you'll see a
+missing-image for `apple-touch-icon.png` / `icon-512.png` until you
+rasterize (optional):
 
 ```
 brew install librsvg

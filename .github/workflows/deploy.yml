@@ -22,6 +22,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build CSS (Tailwind + Konsta)
+        run: npm run build
+
       - name: Install rasterizer
         run: |
           sudo apt-get update
