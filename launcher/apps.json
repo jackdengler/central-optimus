@@ -3,6 +3,7 @@
     {
       "id": "parlay",
       "name": "Parlay Tracker",
+      "subtitle": "Wagers",
       "url": "https://jackdengler.github.io/parlay/",
       "color": "#d97757",
       "shade": "#8b3a1f"
@@ -10,6 +11,7 @@
     {
       "id": "budget-together",
       "name": "Budget Together",
+      "subtitle": "Shared finances",
       "url": "https://script.google.com/macros/s/AKfycbz00_wJSijk4uL7KHMHpIi3u4OlWxmJmouGlHX2X106jwh_yDZFTVC9NyW9tFq0N1KpEg/exec?v=mobile",
       "color": "#4a7c59",
       "shade": "#1f4a2d",
@@ -18,6 +20,7 @@
     {
       "id": "upcoming-movies",
       "name": "Upcoming Movies",
+      "subtitle": "Release radar",
       "url": "https://jackdengler.github.io/upcoming-movies/",
       "color": "#a32929",
       "shade": "#5c1010"
@@ -25,6 +28,7 @@
     {
       "id": "cornerman",
       "name": "Tapology",
+      "subtitle": "Fight card",
       "url": "https://jackdengler.github.io/cornerman-site/",
       "color": "#2b6cb0",
       "shade": "#163a66"
@@ -32,6 +36,7 @@
     {
       "id": "polished-space",
       "name": "Polished Space",
+      "subtitle": "Makeover",
       "url": "https://jackdengler.github.io/polished-space/",
       "color": "#312e81",
       "shade": "#1a1845"
@@ -39,6 +44,7 @@
     {
       "id": "tbd",
       "name": "Gmail Cleanup",
+      "subtitle": "Inbox sweeper",
       "url": "https://jackdengler.github.io/tbd-repo/",
       "color": "#6b46c1",
       "shade": "#3b2670"

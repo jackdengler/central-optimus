@@ -5,6 +5,16 @@ const LAYOUT_KEY = "co.layout";
 let APPS = [];
 let citySceneInitialized = false;
 
+const APP_GLYPHS = {
+  parlay: `<path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1.6a1.6 1.6 0 1 0 0 3.2V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2.2a1.6 1.6 0 1 0 0-3.2V8z"/><path d="M10 9v6M14 9v6"/>`,
+  "budget-together": `<circle cx="9.5" cy="12" r="4.5"/><circle cx="14.5" cy="12" r="4.5"/>`,
+  "upcoming-movies": `<rect x="4" y="6" width="16" height="13" rx="1.8"/><path d="M4 10h16M4 15h16"/><path d="M8 6v4M8 15v4M16 6v4M16 15v4"/>`,
+  cornerman: `<path d="M12 3l7.5 4.5v9L12 21l-7.5-4.5v-9L12 3z"/><path d="M9.5 12.5l2 2 3.5-4"/>`,
+  "polished-space": `<path d="M12 3.5l1.8 5.2 5.2 1.8-5.2 1.8L12 17.5l-1.8-5.2-5.2-1.8 5.2-1.8z"/><path d="M18.5 16.5l.55 1.45L20.5 18.5l-1.45.55L18.5 20.5l-.55-1.45L16.5 18.5l1.45-.55z"/>`,
+  tbd: `<path d="M4 7.5a1.5 1.5 0 0 1 1.5-1.5h13A1.5 1.5 0 0 1 20 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5v-9z"/><path d="M4.5 8l7.5 5.5L19.5 8"/><path d="M17 3.5l.6 1.4L19 5.5l-1.4.6L17 7.5l-.6-1.4L15 5.5l1.4-.6z"/>`,
+};
+const DEFAULT_GLYPH = `<circle cx="12" cy="12" r="7"/><path d="M12 8v4l2.5 2"/>`;
+
 function getLayout() {
   const v = localStorage.getItem(LAYOUT_KEY);
   return v === "grid" ? "grid" : "balloons";
@@ -74,15 +84,25 @@ function renderTiles(apps) {
         openEmbed(app);
       });
     }
-    const initial = (app.name || "?").trim().charAt(0).toUpperCase();
-    a.innerHTML = `<div class="tile-icon"></div><h2 class="tile-name"></h2>`;
-    const icon = a.querySelector(".tile-icon");
     const color = app.color || "#c96a47";
     const shade = app.shade || darkenHex(color);
     a.style.setProperty("--tile-color", color);
     a.style.setProperty("--tile-shade", shade);
-    icon.textContent = initial;
+    const glyph = APP_GLYPHS[app.id] || DEFAULT_GLYPH;
+    a.innerHTML = `
+      <div class="tile-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg>
+      </div>
+      <svg class="tile-chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M7 17L17 7M9 7h8v8"/>
+      </svg>
+      <div class="tile-meta">
+        <h2 class="tile-name"></h2>
+        <p class="tile-subtitle"></p>
+      </div>
+    `;
     a.querySelector(".tile-name").textContent = app.name;
+    a.querySelector(".tile-subtitle").textContent = app.subtitle || "";
     grid.appendChild(a);
   }
 }
@@ -207,12 +227,33 @@ function handleHash() {
 
 window.addEventListener("popstate", handleHash);
 
+function greetingFor(hour) {
+  if (hour < 5) return "Good night";
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  if (hour < 22) return "Good evening";
+  return "Good night";
+}
+
+function renderGreeting() {
+  const el = document.getElementById("header-eyebrow");
+  if (!el) return;
+  const now = new Date();
+  const date = now.toLocaleDateString(undefined, {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+  el.textContent = `${greetingFor(now.getHours())} · ${date}`;
+}
+
 function showApp(title) {
   document.getElementById("app").hidden = false;
   const titleEl = document.getElementById("title");
   const accent = titleEl?.querySelector(".title-accent");
   if (accent) accent.textContent = title;
   else if (titleEl) titleEl.textContent = title;
+  renderGreeting();
   document.title = title;
 }
 
