@@ -1,4 +1,4 @@
-const CACHE = "launcher-v1";
+const CACHE = "launcher-v2";
 const SHELL = [
   "./",
   "./index.html",
@@ -34,10 +34,18 @@ self.addEventListener("fetch", (e) => {
   const rel = url.pathname.slice(scope.pathname.length);
   // Hand control of /apps/* off to each app's own service worker (or network).
   if (rel.startsWith("apps/")) return;
+
   e.respondWith(
-    caches.match(e.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(e.request).catch(() => caches.match("./"));
-    })
+    fetch(e.request)
+      .then((res) => {
+        if (res && res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
+        }
+        return res;
+      })
+      .catch(() =>
+        caches.match(e.request).then((cached) => cached || caches.match("./"))
+      )
   );
 });
