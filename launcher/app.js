@@ -1,5 +1,8 @@
+import { initCityScene } from "./city-scene.js";
+
 const TOKEN_KEY = "co.gh.token";
 let APPS = [];
+let citySceneInitialized = false;
 
 async function loadJSON(path) {
   const res = await fetch(path, { cache: "no-cache" });
@@ -20,46 +23,42 @@ async function verifyToken(token, expectedLogin) {
   return typeof user.login === "string" && user.login.toLowerCase() === expectedLogin.toLowerCase();
 }
 
-function renderApps(apps) {
-  const grid = document.getElementById("grid");
-  const empty = document.getElementById("empty");
-  grid.innerHTML = "";
-  if (!apps.length) {
-    empty.hidden = false;
+function darkenHex(hex, amount = 0.45) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return "#1E40AF";
+  const n = parseInt(m[1], 16);
+  const r = Math.round(((n >> 16) & 0xff) * (1 - amount));
+  const g = Math.round(((n >> 8) & 0xff) * (1 - amount));
+  const b = Math.round((n & 0xff) * (1 - amount));
+  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+}
+
+function launchApp(app) {
+  if (app.openInNew) {
+    window.open(app.url, "_blank", "noopener,noreferrer");
     return;
   }
-  empty.hidden = true;
-  for (const app of apps) {
-    const a = document.createElement("a");
-    a.className = "tile";
-    a.href = app.url || app.path;
-    if (app.openInNew) {
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-    } else if (app.url) {
-      a.addEventListener("click", (e) => {
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
-        e.preventDefault();
-        openEmbed(app);
-      });
-    }
-    const initial = (app.name || "?").trim().charAt(0).toUpperCase();
-    a.innerHTML = `
-      <div class="tile-icon"></div>
-      <h2 class="tile-name"></h2>
-    `;
-    const icon = a.querySelector(".tile-icon");
-    if (app.color) icon.style.background = app.color;
-    icon.textContent = initial;
-    a.querySelector(".tile-name").textContent = app.name;
-    if (app.description) {
-      const p = document.createElement("p");
-      p.className = "tile-desc";
-      p.textContent = app.description;
-      a.appendChild(p);
-    }
-    grid.appendChild(a);
-  }
+  if (app.url) openEmbed(app);
+}
+
+function renderApps(apps) {
+  if (citySceneInitialized) return;
+  const container = document.getElementById("city-root");
+  if (!container || !apps.length) return;
+  initCityScene({
+    container,
+    apps: apps.map((a) => ({
+      name: a.name,
+      url: a.url,
+      iconUrl: a.iconUrl,
+      color: a.color || "#3B82F6",
+      shade: a.shade || darkenHex(a.color || "#3B82F6"),
+      // preserved so onLaunch can dispatch correctly
+      _app: a,
+    })),
+    onLaunch: (balloonApp) => launchApp(balloonApp._app || balloonApp),
+  });
+  citySceneInitialized = true;
 }
 
 function ensureEmbedShell() {
