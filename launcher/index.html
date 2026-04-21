@@ -23,33 +23,32 @@
 
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body class="bg-optimus-bg text-optimus-text">
+  <body class="text-optimus-text">
+    <div
+      id="city-root"
+      style="position: fixed; inset: 0; z-index: 0;"
+    ></div>
+
     <main
       id="app"
-      class="mx-auto max-w-5xl px-4 pb-12"
-      style="padding-top: max(env(safe-area-inset-top), 1.5rem);"
+      class="relative mx-auto max-w-5xl px-4 pb-12"
+      style="padding-top: max(env(safe-area-inset-top), 1.5rem); z-index: 10;"
       hidden
     >
-      <header class="mb-10 flex items-center justify-between">
-        <h1 id="title" class="m-0 text-3xl font-semibold tracking-tight bg-gradient-to-br from-optimus-text to-optimus-accent-2 bg-clip-text text-transparent">Central Optimus</h1>
+      <header class="flex items-center justify-between">
+        <h1 id="title" class="m-0 text-2xl font-semibold tracking-tight text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]">Central Optimus</h1>
         <button
           id="lock"
           type="button"
           aria-label="Lock"
-          class="rounded-full border border-optimus-border bg-white/60 px-4 py-2 text-sm text-optimus-muted backdrop-blur transition hover:border-optimus-accent hover:text-optimus-text"
+          class="rounded-full border border-white/30 bg-black/30 px-4 py-2 text-sm text-white/90 backdrop-blur transition hover:border-white/60 hover:bg-black/40"
         >
           Lock
         </button>
       </header>
 
-      <section
-        id="grid"
-        aria-label="Apps"
-        class="grid gap-4 sm:gap-5"
-        style="grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));"
-      ></section>
-
-      <p id="empty" class="mt-20 text-center text-optimus-muted" hidden>No apps registered yet.</p>
+      <section id="grid" hidden></section>
+      <p id="empty" hidden></p>
     </main>
 
     <dialog

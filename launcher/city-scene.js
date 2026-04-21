@@ -3,24 +3,24 @@
 // Drop-in ES module. No dependencies.
 //
 // Usage:
-//   import { initCityScene } from ‘./city-scene.js’;
+//   import { initCityScene } from './city-scene.js';
 //   initCityScene({
-//     container: document.getElementById(‘city-root’),
+//     container: document.getElementById('city-root'),
 //     apps: [
-//       { name: ‘Notion’, color: ‘#3B82F6’, shade: ‘#1E40AF’, iconUrl: ‘/icons/notion.png’, url: ‘/apps/notion/’ },
+//       { name: 'Notion', color: '#3B82F6', shade: '#1E40AF', iconUrl: '/icons/notion.png', url: '/apps/notion/' },
 //       …
 //     ],
 //     onLaunch: (app) => { window.location.href = app.url; }
 //   });
 //
 // The container should be a full-viewport element (position: fixed; inset: 0; or similar).
-// Balloons are rendered as tappable circles containing the app’s icon image.
+// Balloons are rendered as tappable circles containing the app's icon image.
 // Everything else (city, sky, ambient events) is pure decoration.
 
 export function initCityScene({ container, apps, onLaunch }) {
-if (!container) throw new Error(‘city-scene: container is required’);
-if (!Array.isArray(apps) || apps.length === 0) throw new Error(‘city-scene: apps array is required’);
-if (typeof onLaunch !== ‘function’) throw new Error(‘city-scene: onLaunch callback is required’);
+if (!container) throw new Error('city-scene: container is required');
+if (!Array.isArray(apps) || apps.length === 0) throw new Error('city-scene: apps array is required');
+if (typeof onLaunch !== 'function') throw new Error('city-scene: onLaunch callback is required');
 
 // ––––– measure container –––––
 const rect = container.getBoundingClientRect();
@@ -36,59 +36,59 @@ const NUM_DISTRICTS = 5;
 const TOTAL_W = DISTRICT_W * NUM_DISTRICTS;
 
 // ––––– root –––––
-container.style.position = container.style.position || ‘relative’;
-container.style.overflow = ‘hidden’;
-container.style.background = ‘linear-gradient(to bottom, #1B1235 0%, #3A2456 28%, #6B3866 52%, #B85575 72%, #E89368 88%, #F5B574 100%)’;
+container.style.position = container.style.position || 'relative';
+container.style.overflow = 'hidden';
+container.style.background = 'linear-gradient(to bottom, #1B1235 0%, #3A2456 28%, #6B3866 52%, #B85575 72%, #E89368 88%, #F5B574 100%)';
 
-const root = document.createElement(‘div’);
+const root = document.createElement('div');
 root.style.cssText = `position:absolute; inset:0; overflow:hidden;`;
 container.appendChild(root);
 
 // Inject animations once
-if (!document.getElementById(‘city-scene-styles’)) {
-const st = document.createElement(‘style’);
-st.id = ‘city-scene-styles’;
+if (!document.getElementById('city-scene-styles')) {
+const st = document.createElement('style');
+st.id = 'city-scene-styles';
 st.textContent = `@keyframes city-twinkle { 0%,100% { opacity: 0.2; } 50% { opacity: 0.9; } } @keyframes city-blink { 0%,90%,100% { opacity: 1; } 92%,98% { opacity: 0.2; } } .city-blink { animation: city-blink 2s infinite; } @keyframes city-shimmer { 0%,100% { opacity:0.3; transform:translateX(0); } 50% { opacity:0.9; transform:translateX(2px); } } @keyframes city-lhpulse { 0%,100% { opacity: 0.95; } 50% { opacity: 0.4; } } .city-lighthouse-lamp, .city-lighthouse-glow { animation: city-lhpulse 4s infinite; } @keyframes city-heliblink { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } } .city-heli-blink { animation: city-heliblink 0.4s infinite; } @keyframes city-fwfade { 0% { opacity: 1; transform: scale(0.3); } 100% { opacity: 0; transform: scale(1.4); } }`;
 document.head.appendChild(st);
 }
 
 // ––––– layer stack –––––
 const layers = {
-stars: mkLayer(‘position:absolute; inset:0; z-index:1; pointer-events:none;’),
-satellites: mkLayer(‘position:absolute; inset:0; z-index:1; pointer-events:none;’),
+stars: mkLayer('position:absolute; inset:0; z-index:1; pointer-events:none;'),
+satellites: mkLayer('position:absolute; inset:0; z-index:1; pointer-events:none;'),
 mountains: mkLayer(`position:absolute; bottom:${NEAR_H - 15}px; left:0; height:50px; z-index:2; will-change:transform; pointer-events:none;`),
 haze: mkLayer(`position:absolute; bottom:${FAR_H - 50}px; left:0; right:0; height:180px; z-index:2; pointer-events:none; background: linear-gradient(to bottom, rgba(184,85,117,0) 0%, rgba(184,85,117,0.15) 70%, rgba(232,147,104,0.22) 100%);`),
-clouds: mkLayer(‘position:absolute; top:60px; left:0; right:0; height:200px; z-index:2; will-change:transform; pointer-events:none;’),
-skyEvents: mkLayer(‘position:absolute; inset:0; z-index:3; pointer-events:none;’),
+clouds: mkLayer('position:absolute; top:60px; left:0; right:0; height:200px; z-index:2; will-change:transform; pointer-events:none;'),
+skyEvents: mkLayer('position:absolute; inset:0; z-index:3; pointer-events:none;'),
 cityFar: mkLayer(`position:absolute; bottom:${NEAR_H - 15}px; left:0; height:${FAR_H}px; will-change:transform; z-index:3;`),
 cityMid: mkLayer(`position:absolute; bottom:${NEAR_H - 55}px; left:0; height:${MID_H}px; will-change:transform; z-index:4;`),
 cityNear: mkLayer(`position:absolute; bottom:0; left:0; height:${NEAR_H}px; will-change:transform; z-index:6;`),
 rooftopEvents: mkLayer(`position:absolute; bottom:0; left:0; height:${NEAR_H}px; z-index:7; pointer-events:none; will-change:transform;`),
-river: mkLayer(‘position:absolute; bottom:0; left:0; height:22px; z-index:5; pointer-events:none; will-change:transform;’),
-waterEvents: mkLayer(‘position:absolute; bottom:0; left:0; height:28px; z-index:7; pointer-events:none; will-change:transform;’),
-balloons: mkLayer(‘position:absolute; inset:0; z-index:8;’),
-powerlines: mkLayer(‘position:absolute; top:30px; left:0; right:0; height:50px; z-index:9; pointer-events:none;’),
-lightning: mkLayer(‘position:absolute; inset:0; background:rgba(180,200,255,0); z-index:49; pointer-events:none; transition: background 0.1s;’),
+river: mkLayer('position:absolute; bottom:0; left:0; height:22px; z-index:5; pointer-events:none; will-change:transform;'),
+waterEvents: mkLayer('position:absolute; bottom:0; left:0; height:28px; z-index:7; pointer-events:none; will-change:transform;'),
+balloons: mkLayer('position:absolute; inset:0; z-index:8;'),
+powerlines: mkLayer('position:absolute; top:30px; left:0; right:0; height:50px; z-index:9; pointer-events:none;'),
+lightning: mkLayer('position:absolute; inset:0; background:rgba(180,200,255,0); z-index:49; pointer-events:none; transition: background 0.1s;'),
 celestial: null,
 };
 
 function mkLayer(css) {
-const d = document.createElement(‘div’);
+const d = document.createElement('div');
 d.style.cssText = css;
 root.appendChild(d);
 return d;
 }
 
 // Celestial body (moon)
-const cel = document.createElementNS(‘http://www.w3.org/2000/svg’, ‘svg’);
-cel.setAttribute(‘width’, ‘44’); cel.setAttribute(‘height’, ‘44’); cel.setAttribute(‘viewBox’, ‘0 0 44 44’);
-cel.style.cssText = ‘position:absolute; top:90px; right:38px; z-index:2;’;
+const cel = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+cel.setAttribute('width', '44'); cel.setAttribute('height', '44'); cel.setAttribute('viewBox', '0 0 44 44');
+cel.style.cssText = 'position:absolute; top:90px; right:38px; z-index:2;';
 cel.innerHTML = `<circle cx="22" cy="22" r="18" fill="#FAE8C8"/><circle cx="22" cy="22" r="18" fill="#FAE8C8" opacity="0.3" transform="scale(1.15) translate(-3,-3)"/><circle cx="16" cy="18" r="2.8" fill="#D4B896" opacity="0.6"/><circle cx="27" cy="25" r="1.8" fill="#D4B896" opacity="0.6"/>`;
 root.appendChild(cel);
 layers.celestial = cel;
 
 // ––––– stars –––––
-let starHTML = ‘’;
+let starHTML = '';
 for (let i = 0; i < 35; i++) {
 const x = Math.random() * SCREEN_W;
 const y = Math.random() * Math.min(220, SCREEN_H * 0.35);
@@ -110,11 +110,11 @@ const wx = bx + colSpacing * (c + 1) - 1.2;
 const wy = by + 8 + r * 7;
 if (wy < NEAR_H - 6) {
 const lit = Math.random();
-let color = ‘#FFD580’, op = 1;
-if (lit < 0.1) color = ‘#9FE1FF’;
-else if (lit < 0.16) color = ‘#FF9F70’;
-else if (lit > 0.72) { op = 0.45; color = ‘#4A3A20’; }
-if (op > 0.8 && (color === ‘#FFD580’ || color === ‘#FF9F70’)) {
+let color = '#FFD580', op = 1;
+if (lit < 0.1) color = '#9FE1FF';
+else if (lit < 0.16) color = '#FF9F70';
+else if (lit > 0.72) { op = 0.45; color = '#4A3A20'; }
+if (op > 0.8 && (color === '#FFD580' || color === '#FF9F70')) {
 out.push(`<rect x="${(wx-0.5).toFixed(1)}" y="${(wy-0.5).toFixed(1)}" width="3.5" height="4.2" fill="${color}" opacity="0.22"/>`);
 }
 out.push(`<rect x="${wx.toFixed(1)}" y="${wy.toFixed(1)}" width="2.5" height="3.2" fill="${color}" opacity="${op}"/>`);
@@ -213,9 +213,9 @@ parts.push(`<polygon points="${px - bw/6},${h - bh} ${px},${h - bh - 8} ${px + b
 if (!didBillboard && Math.random() > 0.3) {
 didBillboard = true;
 const bbW = bw + 4, bbH = 14, bbX = x - 2, bbY = h - bh - 22;
-const colors = [’#9FE1FF’, ‘#FFD580’, ‘#FF6B9D’, ‘#A8FFB0’];
+const colors = ['#9FE1FF', '#FFD580', '#FF6B9D', '#A8FFB0'];
 const sc = colors[Math.floor(Math.random() * colors.length)];
-const msgs = [‘HARBOR FRESH’, ‘COLD BEER’, ‘OPEN LATE’, ‘BAIT & TACKLE’];
+const msgs = ['HARBOR FRESH', 'COLD BEER', 'OPEN LATE', 'BAIT & TACKLE'];
 const msg = msgs[Math.floor(Math.random() * msgs.length)];
 signs.push(`<rect x="${bbX - 1}" y="${bbY - 1}" width="${bbW + 2}" height="${bbH + 2}" fill="${sc}" opacity="0.12"/>`);
 signs.push(`<rect x="${bbX}" y="${bbY}" width="${bbW}" height="${bbH}" fill="#080419" stroke="${sc}" stroke-width="0.6"/>`);
@@ -328,7 +328,7 @@ parts.push(`<line x1="${fwX}" y1="${fwCY}" x2="${fwX + 2*fwR}" y2="${fwCY}" stro
 extras.push(`<circle cx="${fwX + fwR}" cy="${fwCY}" r="${fwR}" fill="none" stroke="#080419" stroke-width="0.8"/>`);
 extras.push(`<circle cx="${fwX + fwR}" cy="${fwCY}" r="${fwR - 2}" fill="none" stroke="#080419" stroke-width="0.5"/>`);
 extras.push(`<circle cx="${fwX + fwR}" cy="${fwCY}" r="3" fill="#080419"/>`);
-const fwColors = [’#FFD580’, ‘#FF6B9D’, ‘#9FE1FF’, ‘#A8FFB0’, ‘#FFE890’];
+const fwColors = ['#FFD580', '#FF6B9D', '#9FE1FF', '#A8FFB0', '#FFE890'];
 for (let s = 0; s < 12; s++) {
 const ang = (s / 12) * Math.PI * 2;
 const x2 = fwX + fwR + Math.cos(ang) * fwR, y2 = fwCY + Math.sin(ang) * fwR;
@@ -385,7 +385,7 @@ x += bw + 2;
 
 function buildNearCity(layerEl) {
 let svg = `<svg width="${TOTAL_W * 2}" height="${NEAR_H}" viewBox="0 0 ${TOTAL_W * 2} ${NEAR_H}" style="display:block;">`;
-let all = ‘’;
+let all = '';
 for (let loop = 0; loop < 2; loop++) {
 for (let d = 0; d < NUM_DISTRICTS; d++) {
 const parts = [], windows = [], signs = [], extras = [];
@@ -395,12 +395,12 @@ else if (d === 1) buildHarbor(sx, parts, windows, signs, extras);
 else if (d === 2) buildMidtown(sx, parts, windows, signs, extras);
 else if (d === 3) buildBridgeDistrict(sx, parts, windows, signs, extras);
 else if (d === 4) buildUptown(sx, parts, windows, signs, extras);
-all += parts.join(’’) + windows.join(’’) + signs.join(’’) + extras.join(’’);
+all += parts.join('') + windows.join('') + signs.join('') + extras.join('');
 }
 }
-svg += all + ‘</svg>’;
+svg += all + '</svg>';
 layerEl.innerHTML = svg;
-layerEl.style.width = (TOTAL_W * 2) + ‘px’;
+layerEl.style.width = (TOTAL_W * 2) + 'px';
 layerEl._totalW = TOTAL_W;
 }
 
@@ -422,18 +422,18 @@ for (let r = 0; r < wRows; r++) for (let c = 0; c < wCols; c++) {
 if (Math.random() > 0.45) {
 const wx = x + csp * (c + 1) - 1, wy = h - bh + 6 + r * 6;
 if (wy < h - 4) {
-const lit = Math.random(); let color = ‘#FFD580’, op = 0.95;
-if (lit < 0.1) color = ‘#9FE1FF’; else if (lit < 0.18) color = ‘#FFB070’; else if (lit > 0.7) { op = 0.4; color = ‘#5A4830’; }
+const lit = Math.random(); let color = '#FFD580', op = 0.95;
+if (lit < 0.1) color = '#9FE1FF'; else if (lit < 0.18) color = '#FFB070'; else if (lit > 0.7) { op = 0.4; color = '#5A4830'; }
 windows.push(`<rect x="${wx.toFixed(1)}" y="${wy.toFixed(1)}" width="2" height="2.5" fill="${color}" opacity="${op}"/>`);
 }
 }
 }
 x += bw + 1;
 }
-return parts.join(’’) + windows.join(’’) + features.join(’’);
+return parts.join('') + windows.join('') + features.join('');
 }
-svg += sec(0) + sec(TOTAL_W) + ‘</svg>’;
-layerEl.innerHTML = svg; layerEl.style.width = (TOTAL_W * 2) + ‘px’; layerEl._totalW = TOTAL_W;
+svg += sec(0) + sec(TOTAL_W) + '</svg>';
+layerEl.innerHTML = svg; layerEl.style.width = (TOTAL_W * 2) + 'px'; layerEl._totalW = TOTAL_W;
 }
 
 function buildFarCity(layerEl) {
@@ -462,10 +462,10 @@ windows.push(`<rect x="${wx.toFixed(1)}" y="${wy.toFixed(1)}" width="1.5" height
 x += bw;
 }
 path += ` L ${offsetX + TOTAL_W} ${h} Z`;
-return `<path d="${path}" fill="#241845"/>` + windows.join(’’) + lights.join(’’);
+return `<path d="${path}" fill="#241845"/>` + windows.join('') + lights.join('');
 }
-svg += sec(0) + sec(TOTAL_W) + ‘</svg>’;
-layerEl.innerHTML = svg; layerEl.style.width = (TOTAL_W * 2) + ‘px’; layerEl._totalW = TOTAL_W;
+svg += sec(0) + sec(TOTAL_W) + '</svg>';
+layerEl.innerHTML = svg; layerEl.style.width = (TOTAL_W * 2) + 'px'; layerEl._totalW = TOTAL_W;
 }
 
 function buildMountains(layerEl) {
@@ -480,13 +480,13 @@ x += pw;
 path += ` L ${offsetX + TOTAL_W} 50 Z`;
 return `<path d="${path}" fill="#3A2456" opacity="0.55"/>`;
 }
-svg += sec(0) + sec(TOTAL_W) + ‘</svg>’;
-layerEl.innerHTML = svg; layerEl.style.width = (TOTAL_W * 2) + ‘px’; layerEl._totalW = TOTAL_W;
+svg += sec(0) + sec(TOTAL_W) + '</svg>';
+layerEl.innerHTML = svg; layerEl.style.width = (TOTAL_W * 2) + 'px'; layerEl._totalW = TOTAL_W;
 }
 
 function buildRiver(layerEl) {
-let html = ‘’;
-layerEl.style.width = (TOTAL_W * 2) + ‘px’;
+let html = '';
+layerEl.style.width = (TOTAL_W * 2) + 'px';
 layerEl._totalW = TOTAL_W;
 for (let loop = 0; loop < 2; loop++) {
 const hs = loop * TOTAL_W + 1 * DISTRICT_W;
@@ -494,7 +494,7 @@ html += `<div style="position:absolute; bottom:0; left:${hs}px; width:${DISTRICT
 for (let i = 0; i < 22; i++) {
 const x = hs + Math.random() * DISTRICT_W;
 const w = 4 + Math.random() * 12, top = 2 + Math.random() * 16;
-const colors = [‘rgba(255,213,128,0.4)’, ‘rgba(255,159,112,0.35)’, ‘rgba(159,225,255,0.3)’];
+const colors = ['rgba(255,213,128,0.4)', 'rgba(255,159,112,0.35)', 'rgba(159,225,255,0.3)'];
 const c = colors[Math.floor(Math.random() * colors.length)];
 html += `<div style="position:absolute; bottom:${top}px; left:${x}px; width:${w}px; height:0.8px; background:${c}; animation: city-shimmer 2.5s infinite ease-in-out; animation-delay:${(Math.random() * 3).toFixed(1)}s;"></div>`;
 }
@@ -512,8 +512,8 @@ const sc = 0.6 + Math.random() * 0.7;
 const op = 0.15 + Math.random() * 0.25;
 svg += `<g transform="translate(${x},${y}) scale(${sc})" opacity="${op}"><ellipse cx="0" cy="0" rx="22" ry="6" fill="#fff"/><ellipse cx="-10" cy="-3" rx="10" ry="5" fill="#fff"/><ellipse cx="8" cy="-3" rx="12" ry="6" fill="#fff"/></g>`;
 }
-svg += ‘</svg>’;
-layerEl.innerHTML = svg; layerEl.style.width = (TOTAL_W * 2) + ‘px’; layerEl._totalW = TOTAL_W;
+svg += '</svg>';
+layerEl.innerHTML = svg; layerEl.style.width = (TOTAL_W * 2) + 'px'; layerEl._totalW = TOTAL_W;
 }
 
 function buildPowerLines(layerEl) {
@@ -525,7 +525,7 @@ svg += `<path d="M -5 7 Q ${SCREEN_W * 0.5} 18 ${SCREEN_W + 5} 11" stroke="#0a04
 svg += `<path d="M 4 7 Q ${SCREEN_W * 0.5} 20 ${SCREEN_W + 5} 13" stroke="#0a0418" stroke-width="0.8" fill="none" opacity="0.85"/>`;
 svg += `<path d="M -5 15 Q ${SCREEN_W * 0.5} 27 ${SCREEN_W + 5} 19" stroke="#0a0418" stroke-width="0.8" fill="none" opacity="0.85"/>`;
 svg += `<path d="M 4 15 Q ${SCREEN_W * 0.5} 29 ${SCREEN_W + 5} 21" stroke="#0a0418" stroke-width="0.8" fill="none" opacity="0.85"/>`;
-svg += ‘</svg>’;
+svg += '</svg>';
 layerEl.innerHTML = svg;
 }
 
@@ -557,12 +557,11 @@ return `rgb(${nr},${ng},${nb})`;
 }
 
 function makeBalloon(app, idx, depth) {
-const el = document.createElement(‘div’);
+const el = document.createElement('div');
 const desat = depth < 0.85 ? 0.7 : 1;
-const envColor = blendToSky(app.color || ‘#3B82F6’, desat);
-const envShade = blendToSky(app.shade || app.color || ‘#1E40AF’, desat);
+const envColor = blendToSky(app.color || '#3B82F6', desat);
+const envShade = blendToSky(app.shade || app.color || '#1E40AF', desat);
 
-```
 el.style.cssText = `position:absolute; cursor:pointer; transition:transform 0.18s cubic-bezier(.34,1.56,.64,1); will-change:transform; transform-origin: 34px 50px;`;
 
 // Icon: image if provided, otherwise first letter of name
@@ -607,7 +606,6 @@ el.addEventListener('click', (e) => {
   setTimeout(() => onLaunch(app), 180);
 });
 return el;
-```
 
 }
 
@@ -637,7 +635,7 @@ const currentDistrict = () => Math.floor((((-nearOffset + SCREEN_W / 2) % TOTAL_
 
 function plane() {
 if (active.plane) return; active.plane = true;
-const pl = document.createElement(‘div’);
+const pl = document.createElement('div');
 const dir = Math.random() > 0.5 ? 1 : -1;
 const startX = dir > 0 ? -40 : SCREEN_W + 10;
 const y = 120 + Math.random() * 60;
@@ -661,8 +659,8 @@ const angle = 25 + Math.random() * 20;
 const length = 80 + Math.random() * 60;
 const endX = startX + length * Math.cos(angle * Math.PI / 180);
 const endY = startY + length * Math.sin(angle * Math.PI / 180);
-const star = document.createElement(‘div’);
-star.style.cssText = ‘position:absolute; inset:0;’;
+const star = document.createElement('div');
+star.style.cssText = 'position:absolute; inset:0;';
 star.innerHTML = `<svg width="${SCREEN_W}" height="${SCREEN_H}" viewBox="0 0 ${SCREEN_W} ${SCREEN_H}"><defs><linearGradient id="ct" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity="0.95"/></linearGradient></defs><line id="trk" x1="${startX}" y1="${startY}" x2="${startX}" y2="${startY}" stroke="url(#ct)" stroke-width="1.5" stroke-linecap="round"/><circle id="hd" cx="${startX}" cy="${startY}" r="1.5" fill="#fff"/></svg>`;
 layers.skyEvents.appendChild(star);
 let t = 0;
@@ -674,16 +672,16 @@ const cx = startX + (endX - startX) * p, cy = startY + (endY - startY) * p;
 const ts = Math.max(0, p - 0.25);
 const tx = startX + (endX - startX) * ts, ty = startY + (endY - startY) * ts;
 const op = t > 1 ? Math.max(0, 1.3 - t) / 0.3 : 1;
-const trk = star.querySelector(’#trk’), hd = star.querySelector(’#hd’);
-trk.setAttribute(‘x1’, tx); trk.setAttribute(‘y1’, ty); trk.setAttribute(‘x2’, cx); trk.setAttribute(‘y2’, cy); trk.setAttribute(‘opacity’, op);
-hd.setAttribute(‘cx’, cx); hd.setAttribute(‘cy’, cy); hd.setAttribute(‘opacity’, op);
+const trk = star.querySelector('#trk'), hd = star.querySelector('#hd');
+trk.setAttribute('x1', tx); trk.setAttribute('y1', ty); trk.setAttribute('x2', cx); trk.setAttribute('y2', cy); trk.setAttribute('opacity', op);
+hd.setAttribute('cx', cx); hd.setAttribute('cy', cy); hd.setAttribute('opacity', op);
 requestAnimationFrame(a);
 })();
 }
 
 function owl() {
 if (active.owl) return; active.owl = true;
-const ow = document.createElement(‘div’);
+const ow = document.createElement('div');
 const dir = Math.random() > 0.5 ? 1 : -1;
 const startX = dir > 0 ? -25 : SCREEN_W + 5;
 const y = 280 + Math.random() * 50;
@@ -694,8 +692,8 @@ let ox = startX, t = 0;
 (function tk() {
 ox += 0.5 * dir; t += 0.18;
 const f = Math.sin(t) * 0.4;
-ow.querySelector(’#ow-l’).setAttribute(‘transform’, `translate(0, ${f})`);
-ow.querySelector(’#ow-r’).setAttribute(‘transform’, `translate(0, ${f})`);
+ow.querySelector('#ow-l').setAttribute('transform', `translate(0, ${f})`);
+ow.querySelector('#ow-r').setAttribute('transform', `translate(0, ${f})`);
 ow.style.transform = `translateX(${ox}px) ${dir < 0 ? 'scaleX(-1)' : ''}`;
 if ((dir > 0 && ox > SCREEN_W + 25) || (dir < 0 && ox < -25)) { ow.remove(); active.owl = false; return; }
 requestAnimationFrame(tk);
@@ -704,7 +702,7 @@ requestAnimationFrame(tk);
 
 function satellite() {
 if (active.sat) return; active.sat = true;
-const s = document.createElement(‘div’);
+const s = document.createElement('div');
 const y = 30 + Math.random() * 60;
 const dir = Math.random() > 0.5 ? 1 : -1;
 const sx0 = dir > 0 ? -10 : SCREEN_W + 10;
@@ -722,7 +720,7 @@ requestAnimationFrame(tk);
 
 function cat() {
 if (active.cat) return; active.cat = true;
-const c = document.createElement(‘div’);
+const c = document.createElement('div');
 const cityX = 0 * DISTRICT_W + 30 + Math.random() * (DISTRICT_W - 60);
 const rooftopY = 60 + Math.random() * 50;
 const dir = Math.random() > 0.5 ? 1 : -1;
@@ -733,14 +731,14 @@ const t0 = performance.now(), dur = 4000, dist = 60 * dir;
 (function tk(now) {
 const p = (now - t0) / dur;
 if (p > 1) { c.remove(); active.cat = false; return; }
-c.style.left = (cityX + dist * p) + ‘px’;
+c.style.left = (cityX + dist * p) + 'px';
 requestAnimationFrame(tk);
 })(performance.now());
 }
 
 function train() {
 if (active.train) return; active.train = true;
-const t = document.createElement(‘div’);
+const t = document.createElement('div');
 const cityX = 2 * DISTRICT_W, dir = Math.random() > 0.5 ? 1 : -1;
 const sx0 = dir > 0 ? cityX - 60 : cityX + DISTRICT_W + 60;
 t.style.cssText = `position:absolute; left:${sx0}px; bottom:80px; transform:${dir < 0 ? 'scaleX(-1)' : ''};`;
@@ -749,7 +747,7 @@ layers.rooftopEvents.appendChild(t);
 let tx = sx0;
 (function tk() {
 tx += 1.2 * dir;
-t.style.left = tx + ‘px’;
+t.style.left = tx + 'px';
 if ((dir > 0 && tx > cityX + DISTRICT_W + 60) || (dir < 0 && tx < cityX - 60)) { t.remove(); active.train = false; return; }
 requestAnimationFrame(tk);
 })();
@@ -757,7 +755,7 @@ requestAnimationFrame(tk);
 
 function ferry() {
 if (active.ferry) return; active.ferry = true;
-const f = document.createElement(‘div’);
+const f = document.createElement('div');
 const dir = Math.random() > 0.5 ? 1 : -1;
 const cityX = 1 * DISTRICT_W;
 const sx0 = dir > 0 ? cityX - 36 : cityX + DISTRICT_W + 10;
@@ -769,7 +767,7 @@ let fx = sx0;
 fx += 0.18 * dir;
 const wob = Math.sin(performance.now() * 0.003) * 0.6;
 f.style.transform = `translateY(${wob}px) ${dir < 0 ? 'scaleX(-1)' : ''}`;
-f.style.left = fx + ‘px’;
+f.style.left = fx + 'px';
 if ((dir > 0 && fx > cityX + DISTRICT_W + 36) || (dir < 0 && fx < cityX - 36)) { f.remove(); active.ferry = false; return; }
 requestAnimationFrame(tk);
 })();
@@ -779,7 +777,7 @@ function kite() {
 if (active.kite) return; active.kite = true;
 const cityX = 4 * DISTRICT_W + 100 + Math.random() * 200;
 const baseY = 200 + Math.random() * 30;
-const k = document.createElement(‘div’);
+const k = document.createElement('div');
 k.style.cssText = `position:absolute; left:${cityX}px; bottom:${baseY}px;`;
 k.innerHTML = `<svg width="20" height="80" viewBox="0 0 20 80" style="overflow:visible;"><line x1="10" y1="20" x2="10" y2="80" stroke="#0a0418" stroke-width="0.4" stroke-dasharray="2 1" opacity="0.5"/><polygon points="10,2 16,12 10,24 4,12" fill="#EF4444"/><polygon points="10,2 10,24 4,12" fill="#991B1B" opacity="0.4"/><line x1="10" y1="24" x2="8" y2="34" stroke="#FFD580" stroke-width="0.4"/><circle cx="8.5" cy="29" r="0.6" fill="#FFD580"/><circle cx="7.7" cy="33" r="0.6" fill="#FFD580"/><line x1="10" y1="24" x2="12" y2="36" stroke="#FFD580" stroke-width="0.4"/><circle cx="11" cy="31" r="0.6" fill="#FFD580"/></svg>`;
 layers.rooftopEvents.appendChild(k);
@@ -796,10 +794,10 @@ requestAnimationFrame(tk);
 }
 
 const eventCatalog = [
-{ fn: shootingStar, districts: ‘sky’, weight: 2 },
-{ fn: plane, districts: ‘sky’, weight: 3 },
-{ fn: owl, districts: ‘sky’, weight: 1 },
-{ fn: satellite, districts: ‘sky’, weight: 1 },
+{ fn: shootingStar, districts: 'sky', weight: 2 },
+{ fn: plane, districts: 'sky', weight: 3 },
+{ fn: owl, districts: 'sky', weight: 1 },
+{ fn: satellite, districts: 'sky', weight: 1 },
 { fn: cat, districts: [0], weight: 3 },
 { fn: ferry, districts: [1], weight: 4 },
 { fn: train, districts: [2], weight: 4 },
@@ -812,7 +810,7 @@ setTimeout(() => {
 const d = currentDistrict();
 const pool = [];
 eventCatalog.forEach(ev => {
-if (ev.districts === ‘sky’ || ev.districts.includes(d)) {
+if (ev.districts === 'sky' || ev.districts.includes(d)) {
 for (let w = 0; w < ev.weight; w++) pool.push(ev.fn);
 }
 });
@@ -870,7 +868,7 @@ requestAnimationFrame(tick);
 requestAnimationFrame(tick);
 
 // Pause when tab is hidden to save battery
-document.addEventListener(‘visibilitychange’, () => { paused = document.hidden; });
+document.addEventListener('visibilitychange', () => { paused = document.hidden; });
 
 return {
 pause: () => { paused = true; },

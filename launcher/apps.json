@@ -4,38 +4,44 @@
       "id": "parlay",
       "name": "Parlay Tracker",
       "url": "https://jackdengler.github.io/parlay/",
-      "color": "#d97757"
+      "color": "#d97757",
+      "shade": "#8b3a1f"
     },
     {
       "id": "budget-together",
       "name": "Budget Together",
       "url": "https://script.google.com/macros/s/AKfycbz00_wJSijk4uL7KHMHpIi3u4OlWxmJmouGlHX2X106jwh_yDZFTVC9NyW9tFq0N1KpEg/exec?v=mobile",
       "color": "#4a7c59",
+      "shade": "#1f4a2d",
       "auth": "pat"
     },
     {
       "id": "upcoming-movies",
       "name": "Upcoming Movies",
       "url": "https://jackdengler.github.io/upcoming-movies/",
-      "color": "#a32929"
+      "color": "#a32929",
+      "shade": "#5c1010"
     },
     {
       "id": "cornerman",
       "name": "Tapology",
       "url": "https://jackdengler.github.io/cornerman-site/",
-      "color": "#2b6cb0"
+      "color": "#2b6cb0",
+      "shade": "#163a66"
     },
     {
       "id": "polished-space",
       "name": "Polished Space",
       "url": "https://jackdengler.github.io/polished-space/",
-      "color": "#312e81"
+      "color": "#312e81",
+      "shade": "#1a1845"
     },
     {
       "id": "tbd",
       "name": "Gmail Cleanup",
       "url": "https://jackdengler.github.io/tbd-repo/",
-      "color": "#6b46c1"
+      "color": "#6b46c1",
+      "shade": "#3b2670"
     }
   ]
 }
