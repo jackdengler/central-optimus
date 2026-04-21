@@ -6,6 +6,13 @@
       "description": "Track parlays.",
       "url": "https://jackdengler.github.io/parlay/",
       "color": "#d97757"
+    },
+    {
+      "id": "budget-together",
+      "name": "Budget Together",
+      "description": "Shared household budgeting.",
+      "url": "https://script.google.com/macros/s/AKfycbz00_wJSijk4uL7KHMHpIi3u4OlWxmJmouGlHX2X106jwh_yDZFTVC9NyW9tFq0N1KpEg/exec?v=mobile",
+      "color": "#4a7c59"
     }
   ]
 }
