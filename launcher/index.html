@@ -33,25 +33,39 @@
     ></div>
 
     <main id="app" class="shell" hidden>
-      <header id="app-header" class="topbar" hidden>
-        <div class="topbar-controls">
+      <section id="hero" class="hero" hidden>
+        <div class="hero-content">
+          <p class="eyebrow">
+            <span class="hero-dot" aria-hidden="true"></span>
+            <span id="hero-date">—</span>
+            <span class="eyebrow-sep" aria-hidden="true">·</span>
+            <span id="hero-time">—</span>
+          </p>
+          <h1 class="greeting">
+            <span id="greeting-text">Welcome</span><span class="greeting-punct">.</span>
+          </h1>
+          <p class="hero-tagline">
+            Your private workspace — <span class="hero-count"><span id="hero-app-count">0</span> apps ready</span>.
+          </p>
+        </div>
+        <div class="hero-actions" id="app-header">
           <button
             id="palette-open"
             type="button"
-            class="icon-btn icon-btn--wide"
-            aria-label="Search apps"
+            aria-label="Search apps (⌘K)"
+            title="Search apps (⌘K)"
+            class="icon-btn"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <circle cx="11" cy="11" r="6.5" />
               <path d="M20 20l-4.2-4.2" />
             </svg>
-            <span class="icon-btn-text">Search</span>
-            <span class="icon-btn-kbd"><kbd>⌘</kbd><kbd>K</kbd></span>
           </button>
           <button
             id="header-settings"
             type="button"
             aria-label="Settings"
+            title="Settings"
             class="icon-btn"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -63,6 +77,7 @@
             id="lock"
             type="button"
             aria-label="Lock"
+            title="Lock"
             class="icon-btn"
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -71,21 +86,6 @@
             </svg>
           </button>
         </div>
-      </header>
-
-      <section id="hero" class="hero" hidden>
-        <p class="eyebrow">
-          <span class="hero-dot" aria-hidden="true"></span>
-          <span id="hero-date">—</span>
-          <span class="eyebrow-sep" aria-hidden="true">·</span>
-          <span id="hero-time">—</span>
-        </p>
-        <h1 class="greeting">
-          <span id="greeting-text">Welcome</span><span class="greeting-punct">.</span>
-        </h1>
-        <p class="hero-tagline">
-          Your private workspace — <span class="hero-count"><span id="hero-app-count">0</span> apps ready</span>.
-        </p>
       </section>
 
       <section id="apps-section" class="apps-section" hidden>
