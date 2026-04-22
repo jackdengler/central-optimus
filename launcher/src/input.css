@@ -878,34 +878,6 @@
   body.launch-flash .launch-glow {
     opacity: 1;
   }
-  .launch-glow::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    padding: 5px;
-    border-radius: inherit;
-    background: conic-gradient(
-      from var(--launch-glow-angle, 0deg),
-      #ff7a45 0%,
-      #ffc98a 14%,
-      #5fbf7a 33%,
-      #5a4fc7 55%,
-      #c9422a 72%,
-      #ffc98a 88%,
-      #ff7a45 100%
-    );
-    -webkit-mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-            mask-composite: exclude;
-    animation:
-      launch-glow-spin 4.5s linear infinite,
-      launch-glow-pulse 1.6s ease-in-out infinite;
-    filter:
-      drop-shadow(0 0 10px color-mix(in oklab, var(--color-optimus-accent) 75%, transparent))
-      drop-shadow(0 0 22px color-mix(in oklab, var(--color-optimus-accent) 45%, transparent));
-  }
   .launch-glow::after {
     content: "";
     position: absolute;
@@ -916,24 +888,11 @@
       inset 0 0 100px color-mix(in oklab, var(--color-optimus-accent) 18%, transparent);
     animation: launch-glow-breathe 1.8s ease-in-out infinite;
   }
-  @property --launch-glow-angle {
-    syntax: "<angle>";
-    initial-value: 0deg;
-    inherits: false;
-  }
-  @keyframes launch-glow-spin {
-    to { --launch-glow-angle: 360deg; }
-  }
-  @keyframes launch-glow-pulse {
-    0%, 100% { opacity: 0.9; }
-    50%      { opacity: 1; }
-  }
   @keyframes launch-glow-breathe {
     0%, 100% { opacity: 0.7; }
     50%      { opacity: 1; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .launch-glow::before,
     .launch-glow::after {
       animation: none !important;
     }
