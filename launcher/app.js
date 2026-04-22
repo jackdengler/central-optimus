@@ -1,9 +1,11 @@
 import { initCityScene } from "./city-scene.js";
+import { mountLittleGuy } from "./little-guy.js";
 
 const TOKEN_KEY = "co.gh.token";
 const LAYOUT_KEY = "co.layout";
 let APPS = [];
 let citySceneInitialized = false;
+let lilGuyController = null;
 let paletteIndex = 0;
 let paletteResults = [];
 let clockTimer = null;
@@ -531,6 +533,11 @@ async function unlock(config, registry) {
     APPS = registry.apps || [];
     renderApps(APPS, config);
     handleHash();
+    const mountEl = document.getElementById("lil-guy");
+    if (mountEl && getLayout() === "grid") {
+      if (lilGuyController) lilGuyController.destroy();
+      lilGuyController = mountLittleGuy(mountEl);
+    }
   };
 
   const existing = localStorage.getItem(TOKEN_KEY);
