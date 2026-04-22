@@ -1,11 +1,13 @@
 import { initCityScene } from "./city-scene.js";
 import { mountLittleGuy } from "./little-guy.js";
+import { startLittleGuyWander } from "./little-guy-wander.js";
 
 const TOKEN_KEY = "co.gh.token";
 const LAYOUT_KEY = "co.layout";
 let APPS = [];
 let citySceneInitialized = false;
 let lilGuyController = null;
+let lilGuyWander = null;
 let paletteIndex = 0;
 let paletteResults = [];
 let clockTimer = null;
@@ -536,8 +538,10 @@ async function unlock(config, registry) {
     const mountEl = document.getElementById("lil-guy");
     if (mountEl && getLayout() === "grid") {
       if (lilGuyController) lilGuyController.destroy();
+      if (lilGuyWander) lilGuyWander.stop();
       lilGuyController = mountLittleGuy(mountEl);
       mountEl.addEventListener("dblclick", (e) => e.preventDefault());
+      lilGuyWander = startLittleGuyWander(mountEl);
     }
   };
 
