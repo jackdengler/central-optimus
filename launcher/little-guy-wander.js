@@ -87,24 +87,35 @@ export function startLittleGuyWander(mountEl, opts = {}) {
     return { x: targetCX - originCX, y: targetCY - originCY };
   };
 
-  const walkTo = async (x, y) => {
-    const startX = pose.x;
-    const startY = pose.y;
-    const dx = x - startX;
-    const dy = y - startY;
-    const dist = Math.hypot(dx, dy);
-    const steps = Math.max(2, Math.round(dist / 70));
-    const duration = Math.min(2600, Math.max(500, dist * 2.2));
-    const perStep = duration / steps;
-    for (let i = 1; i <= steps && !stopped; i++) {
-      const frac = i / steps;
-      const segX = startX + dx * frac;
-      const segY = startY + dy * frac;
-      const bob = i % 2 === 0 ? -6 : 2;
-      await tween({ x: segX, y: segY + bob }, perStep, easeInOut);
-    }
-    if (!stopped) await tween({ x, y }, 180, easeOut);
-  };
+  const walkTo = (x, y) =>
+    new Promise((resolve) => {
+      if (stopped) return resolve();
+      const startX = pose.x;
+      const startY = pose.y;
+      const dx = x - startX;
+      const dy = y - startY;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 1) return resolve();
+      const duration = Math.min(4500, Math.max(900, dist * 4.2));
+      const cadenceHz = 2.2;
+      const bobAmp = 5;
+      const start = performance.now();
+      const step = (now) => {
+        if (stopped) return resolve();
+        const elapsed = now - start;
+        const t = Math.min(1, elapsed / duration);
+        const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+        // Sine bob, attenuated at start/end so he doesn't jolt at rest.
+        const fade = Math.sin(Math.PI * t);
+        const bob = -bobAmp * fade * Math.sin(2 * Math.PI * cadenceHz * (elapsed / 1000));
+        pose.x = startX + dx * e;
+        pose.y = startY + dy * e + bob;
+        apply();
+        if (t < 1) rafId = requestAnimationFrame(step);
+        else resolve();
+      };
+      rafId = requestAnimationFrame(step);
+    });
 
   const peek = async (dir) => {
     // Lean over the tile and dip forward.
