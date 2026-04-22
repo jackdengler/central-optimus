@@ -100,10 +100,39 @@ function startClock(config) {
   clockTimer = setInterval(() => updateHero(config), 30_000);
 }
 
+let launchFlashTimer = null;
+
+function ensureLaunchGlow() {
+  let el = document.getElementById("launch-glow");
+  if (el) return el;
+  el = document.createElement("div");
+  el.id = "launch-glow";
+  el.className = "launch-glow";
+  el.setAttribute("aria-hidden", "true");
+  document.body.appendChild(el);
+  return el;
+}
+
+function setEmbedGlow(active) {
+  ensureLaunchGlow();
+  document.body.classList.toggle("embed-active", !!active);
+}
+
+function flashLaunchGlow() {
+  ensureLaunchGlow();
+  document.body.classList.add("launch-flash");
+  clearTimeout(launchFlashTimer);
+  launchFlashTimer = setTimeout(
+    () => document.body.classList.remove("launch-flash"),
+    1800,
+  );
+}
+
 function launchApp(app) {
   if (!app) return;
   if (app.openInNew) {
     window.open(app.url, "_blank", "noopener,noreferrer");
+    flashLaunchGlow();
     return;
   }
   if (app.url) openEmbed(app);
@@ -280,6 +309,7 @@ function openEmbed(app) {
   if (frame.src !== src) frame.src = src;
   wrap.hidden = false;
   document.getElementById("app").hidden = true;
+  setEmbedGlow(true);
   const hash = `#app/${app.id}`;
   if (location.hash !== hash) {
     history.pushState({ embed: app.id }, "", hash);
@@ -293,6 +323,7 @@ function hideEmbed() {
   const frame = document.getElementById("embed-frame");
   if (frame) frame.src = "about:blank";
   document.getElementById("app").hidden = false;
+  setEmbedGlow(false);
 }
 
 function handleHash() {
