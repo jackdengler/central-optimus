@@ -991,4 +991,10 @@
   .btn-ghost:hover {
     background: color-mix(in oklab, var(--color-optimus-surface-2) 85%, white);
   }
+
+  /* The little guy's antenna orbs move with him; we replace them with the
+     stationary aura orbs anchored at his home, so hide the built-in ones. */
+  .lg-wrap svg g[style*="lg-antenna"] {
+    display: none;
+  }
 }
