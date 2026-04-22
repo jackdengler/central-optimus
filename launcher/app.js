@@ -105,6 +105,7 @@ function startClock(config) {
 }
 
 let launchFlashTimer = null;
+let embedHandoffHandler = null;
 
 function ensureLaunchGlow() {
   let el = document.getElementById("launch-glow");
@@ -117,26 +118,37 @@ function ensureLaunchGlow() {
   return el;
 }
 
-function setEmbedGlow(active) {
-  ensureLaunchGlow();
-  document.body.classList.toggle("embed-active", !!active);
-}
-
-function flashLaunchGlow() {
+function flashHandoff() {
   ensureLaunchGlow();
   document.body.classList.add("launch-flash");
   clearTimeout(launchFlashTimer);
   launchFlashTimer = setTimeout(
     () => document.body.classList.remove("launch-flash"),
-    1800,
+    2600,
   );
+}
+
+function armEmbedHandoff(active) {
+  if (active) {
+    if (embedHandoffHandler) return;
+    embedHandoffHandler = () => {
+      if (document.hidden) flashHandoff();
+    };
+    document.addEventListener("visibilitychange", embedHandoffHandler);
+  } else {
+    if (embedHandoffHandler) {
+      document.removeEventListener("visibilitychange", embedHandoffHandler);
+      embedHandoffHandler = null;
+    }
+    clearTimeout(launchFlashTimer);
+    document.body.classList.remove("launch-flash");
+  }
 }
 
 function launchApp(app) {
   if (!app) return;
   if (app.openInNew) {
     window.open(app.url, "_blank", "noopener,noreferrer");
-    flashLaunchGlow();
     return;
   }
   if (app.url) openEmbed(app);
@@ -313,7 +325,7 @@ function openEmbed(app) {
   if (frame.src !== src) frame.src = src;
   wrap.hidden = false;
   document.getElementById("app").hidden = true;
-  setEmbedGlow(true);
+  armEmbedHandoff(true);
   const hash = `#app/${app.id}`;
   if (location.hash !== hash) {
     history.pushState({ embed: app.id }, "", hash);
@@ -327,7 +339,7 @@ function hideEmbed() {
   const frame = document.getElementById("embed-frame");
   if (frame) frame.src = "about:blank";
   document.getElementById("app").hidden = false;
-  setEmbedGlow(false);
+  armEmbedHandoff(false);
 }
 
 function handleHash() {
