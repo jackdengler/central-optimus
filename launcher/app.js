@@ -105,7 +105,6 @@ function startClock(config) {
 }
 
 let launchFlashTimer = null;
-let embedHandoffHandler = null;
 
 function ensureLaunchGlow() {
   let el = document.getElementById("launch-glow");
@@ -118,8 +117,10 @@ function ensureLaunchGlow() {
   return el;
 }
 
-function flashHandoff() {
+function flashLaunchGlow() {
   ensureLaunchGlow();
+  document.body.classList.remove("launch-flash");
+  void document.body.offsetWidth;
   document.body.classList.add("launch-flash");
   clearTimeout(launchFlashTimer);
   launchFlashTimer = setTimeout(
@@ -128,26 +129,10 @@ function flashHandoff() {
   );
 }
 
-function armEmbedHandoff(active) {
-  if (active) {
-    if (embedHandoffHandler) return;
-    embedHandoffHandler = () => {
-      if (document.hidden) flashHandoff();
-    };
-    document.addEventListener("visibilitychange", embedHandoffHandler);
-  } else {
-    if (embedHandoffHandler) {
-      document.removeEventListener("visibilitychange", embedHandoffHandler);
-      embedHandoffHandler = null;
-    }
-    clearTimeout(launchFlashTimer);
-    document.body.classList.remove("launch-flash");
-  }
-}
-
 function launchApp(app) {
   if (!app) return;
   if (app.openInNew) {
+    flashLaunchGlow();
     window.open(app.url, "_blank", "noopener,noreferrer");
     return;
   }
@@ -172,6 +157,10 @@ function renderTiles(apps) {
     if (app.openInNew) {
       a.target = "_blank";
       a.rel = "noopener noreferrer";
+      a.addEventListener("click", (e) => {
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
+        flashLaunchGlow();
+      });
     } else if (app.url) {
       a.addEventListener("click", (e) => {
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
@@ -325,7 +314,7 @@ function openEmbed(app) {
   if (frame.src !== src) frame.src = src;
   wrap.hidden = false;
   document.getElementById("app").hidden = true;
-  armEmbedHandoff(true);
+  flashLaunchGlow();
   const hash = `#app/${app.id}`;
   if (location.hash !== hash) {
     history.pushState({ embed: app.id }, "", hash);
@@ -339,7 +328,6 @@ function hideEmbed() {
   const frame = document.getElementById("embed-frame");
   if (frame) frame.src = "about:blank";
   document.getElementById("app").hidden = false;
-  armEmbedHandoff(false);
 }
 
 function handleHash() {
