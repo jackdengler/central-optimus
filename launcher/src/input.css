@@ -29,6 +29,7 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     min-height: 100dvh;
+    touch-action: manipulation;
   }
   body {
     background-color: var(--color-optimus-bg);
