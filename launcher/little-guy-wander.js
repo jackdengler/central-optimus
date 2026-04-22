@@ -7,9 +7,125 @@ const reduced =
   typeof matchMedia !== "undefined" &&
   matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+const AURA_STYLE_ID = "lg-aura-styles";
+const AURA_ORBS = [
+  { cx: 18,  cy: 2,   s: 22, d: 2.8, dl: 0    },
+  { cx: 50,  cy: -4,  s: 28, d: 3.0, dl: -0.4 },
+  { cx: 82,  cy: 2,   s: 22, d: 3.2, dl: -0.8 },
+  { cx: -2,  cy: 30,  s: 14, d: 3.4, dl: -0.2 },
+  { cx: 102, cy: 30,  s: 14, d: 3.6, dl: -0.6 },
+  { cx: -4,  cy: 56,  s: 16, d: 3.8, dl: -1.0 },
+  { cx: 104, cy: 56,  s: 16, d: 3.4, dl: -0.3 },
+  { cx: 4,   cy: 80,  s: 18, d: 3.6, dl: -1.4 },
+  { cx: 96,  cy: 80,  s: 18, d: 3.2, dl: -0.5 },
+  { cx: 30,  cy: 102, s: 14, d: 3.2, dl: -1.2 },
+  { cx: 70,  cy: 102, s: 14, d: 3.0, dl: -0.7 },
+  { cx: 50,  cy: 50,  s: 180, d: 5.5, dl: 0, halo: true },
+];
+
+function ensureAuraStyles() {
+  if (document.getElementById(AURA_STYLE_ID)) return;
+  const style = document.createElement("style");
+  style.id = AURA_STYLE_ID;
+  style.textContent = `
+    .lg-aura {
+      position: absolute;
+      pointer-events: none;
+      z-index: -1;
+    }
+    .lg-aura .lg-orb {
+      position: absolute;
+      border-radius: 50%;
+      transform: translate(-50%, -50%) scale(1);
+      background: radial-gradient(circle,
+        rgba(255, 240, 255, 0.95) 0%,
+        rgba(184, 155, 232, 0.55) 45%,
+        rgba(184, 155, 232, 0) 72%);
+      filter: blur(0.6px);
+      animation: lg-orb-pulse var(--dur, 3s) ease-in-out infinite;
+      animation-delay: var(--delay, 0s);
+      will-change: opacity, transform;
+    }
+    .lg-aura .lg-orb.lg-orb-halo {
+      background: radial-gradient(circle,
+        rgba(232, 212, 255, 0.28) 0%,
+        rgba(184, 155, 232, 0.12) 40%,
+        rgba(184, 155, 232, 0) 72%);
+      filter: blur(6px);
+      animation-timing-function: ease-in-out;
+    }
+    @keyframes lg-orb-pulse {
+      0%, 100% { opacity: 0.35; transform: translate(-50%, -50%) scale(1); }
+      50%      { opacity: 0.9;  transform: translate(-50%, -50%) scale(1.35); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .lg-aura .lg-orb { animation: none; opacity: 0.55; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function createAura(mountEl) {
+  const host = mountEl.parentElement;
+  if (!host) return null;
+  ensureAuraStyles();
+  if (getComputedStyle(host).position === "static") {
+    host.style.position = "relative";
+  }
+  // Own stacking context so the aura's z-index: -1 stays inside hero-main,
+  // behind the greeting text and the guy, not bleeding back to the page body.
+  host.style.isolation = "isolate";
+  const aura = document.createElement("div");
+  aura.className = "lg-aura";
+  AURA_ORBS.forEach((o) => {
+    const orb = document.createElement("div");
+    orb.className = "lg-orb" + (o.halo ? " lg-orb-halo" : "");
+    orb.style.left = o.cx + "%";
+    orb.style.top = o.cy + "%";
+    orb.style.width = o.s + "px";
+    orb.style.height = o.s + "px";
+    orb.style.setProperty("--dur", o.d + "s");
+    orb.style.setProperty("--delay", o.dl + "s");
+    aura.appendChild(orb);
+  });
+  host.insertBefore(aura, host.firstChild);
+
+  const position = () => {
+    const m = mountEl.getBoundingClientRect();
+    const h = host.getBoundingClientRect();
+    // Aura lives at mount home. Callers must invoke this while pose is 0,0.
+    const expand = 32;
+    aura.style.left = m.left - h.left - expand + "px";
+    aura.style.top = m.top - h.top - expand + "px";
+    aura.style.width = m.width + 2 * expand + "px";
+    aura.style.height = m.height + 2 * expand + "px";
+  };
+  position();
+
+  const onResize = () => position();
+  window.addEventListener("resize", onResize, { passive: true });
+
+  return {
+    reposition: position,
+    destroy() {
+      window.removeEventListener("resize", onResize);
+      aura.remove();
+    },
+  };
+}
+
 export function startLittleGuyWander(mountEl, opts = {}) {
   if (!mountEl) throw new Error("startLittleGuyWander: mount element required");
-  if (reduced) return { stop() {} };
+
+  const aura = createAura(mountEl);
+
+  if (reduced) {
+    return {
+      stop() {
+        if (aura) aura.destroy();
+      },
+    };
+  }
 
   const {
     tileSelector = "#grid .tile",
@@ -177,6 +293,7 @@ export function startLittleGuyWander(mountEl, opts = {}) {
       stopped = true;
       cancelAnimationFrame(rafId);
       if (sleepTimer) clearTimeout(sleepTimer);
+      if (aura) aura.destroy();
       mountEl.style.transform = "";
       mountEl.style.willChange = "";
     },
