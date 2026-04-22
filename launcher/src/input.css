@@ -255,26 +255,32 @@
   /* ---------- Hero ---------- */
   .hero {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: clamp(0.75rem, 2vw, 1.25rem);
+    flex-direction: column;
+    gap: 0.5rem;
     padding-top: clamp(0.25rem, 2vw, 1rem);
     animation: fade-up 680ms cubic-bezier(0.2, 0.8, 0.2, 1) 80ms both;
   }
-  .hero-content {
+  .hero-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .hero-main {
+    display: flex;
+    align-items: center;
+    gap: clamp(0.75rem, 2vw, 1.25rem);
+  }
+  .hero-main .greeting {
     flex: 1 1 auto;
     min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.45rem;
     overflow-wrap: anywhere;
   }
   .hero-actions {
     flex-shrink: 0;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 0.5rem;
-    padding-top: 0.25rem;
   }
   .eyebrow {
     display: inline-flex;

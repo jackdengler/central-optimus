@@ -2,7 +2,7 @@
 <html lang="en" class="ios">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="theme-color" content="#f6f1e7" />
     <title>Central Optimus</title>
 
@@ -34,21 +34,14 @@
 
     <main id="app" class="shell" hidden>
       <section id="hero" class="hero" hidden>
-        <div class="hero-content">
+        <div class="hero-top">
           <p class="eyebrow">
             <span class="hero-dot" aria-hidden="true"></span>
             <span id="hero-date">—</span>
             <span class="eyebrow-sep" aria-hidden="true">·</span>
             <span id="hero-time">—</span>
           </p>
-          <h1 class="greeting">
-            <span id="greeting-text">Welcome</span><span class="greeting-punct">.</span>
-          </h1>
-          <p class="hero-tagline">
-            Your private workspace — <span class="hero-count"><span id="hero-app-count">0</span> apps ready</span>.
-          </p>
-        </div>
-        <div class="hero-actions" id="app-header">
+          <div class="hero-actions" id="app-header">
           <button
             id="palette-open"
             type="button"
@@ -85,8 +78,17 @@
               <path d="M8 11V8a4 4 0 0 1 8 0v3" />
             </svg>
           </button>
+          </div>
         </div>
-        <div id="lil-guy" style="flex-shrink: 0;"></div>
+        <div class="hero-main">
+          <h1 class="greeting">
+            <span id="greeting-text">Welcome</span><span class="greeting-punct">.</span>
+          </h1>
+          <div id="lil-guy" style="flex-shrink: 0;"></div>
+        </div>
+        <p class="hero-tagline">
+          Your private workspace — <span class="hero-count"><span id="hero-app-count">0</span> apps ready</span>.
+        </p>
       </section>
 
       <section id="apps-section" class="apps-section" hidden>

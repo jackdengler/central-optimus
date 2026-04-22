@@ -537,6 +537,7 @@ async function unlock(config, registry) {
     if (mountEl && getLayout() === "grid") {
       if (lilGuyController) lilGuyController.destroy();
       lilGuyController = mountLittleGuy(mountEl);
+      mountEl.addEventListener("dblclick", (e) => e.preventDefault());
     }
   };
 
