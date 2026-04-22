@@ -9,18 +9,18 @@ const reduced =
 
 const AURA_STYLE_ID = "lg-aura-styles";
 const AURA_ORBS = [
-  { cx: 18,  cy: 2,   s: 22, d: 2.8, dl: 0    },
-  { cx: 50,  cy: -4,  s: 28, d: 3.0, dl: -0.4 },
-  { cx: 82,  cy: 2,   s: 22, d: 3.2, dl: -0.8 },
-  { cx: -2,  cy: 30,  s: 14, d: 3.4, dl: -0.2 },
-  { cx: 102, cy: 30,  s: 14, d: 3.6, dl: -0.6 },
-  { cx: -4,  cy: 56,  s: 16, d: 3.8, dl: -1.0 },
-  { cx: 104, cy: 56,  s: 16, d: 3.4, dl: -0.3 },
-  { cx: 4,   cy: 80,  s: 18, d: 3.6, dl: -1.4 },
-  { cx: 96,  cy: 80,  s: 18, d: 3.2, dl: -0.5 },
-  { cx: 30,  cy: 102, s: 14, d: 3.2, dl: -1.2 },
-  { cx: 70,  cy: 102, s: 14, d: 3.0, dl: -0.7 },
-  { cx: 50,  cy: 50,  s: 180, d: 5.5, dl: 0, halo: true },
+  { cx: 28, cy: 10, s: 16, d: 2.8, dl: 0 },
+  { cx: 50, cy: 5,  s: 20, d: 3.0, dl: -0.4 },
+  { cx: 72, cy: 10, s: 16, d: 3.2, dl: -0.8 },
+  { cx: 22, cy: 32, s: 12, d: 3.4, dl: -0.2 },
+  { cx: 78, cy: 32, s: 12, d: 3.6, dl: -0.6 },
+  { cx: 20, cy: 58, s: 13, d: 3.8, dl: -1.0 },
+  { cx: 80, cy: 58, s: 13, d: 3.4, dl: -0.3 },
+  { cx: 26, cy: 80, s: 14, d: 3.6, dl: -1.4 },
+  { cx: 74, cy: 80, s: 14, d: 3.2, dl: -0.5 },
+  { cx: 40, cy: 92, s: 11, d: 3.2, dl: -1.2 },
+  { cx: 60, cy: 92, s: 11, d: 3.0, dl: -0.7 },
+  { cx: 50, cy: 52, s: 120, d: 5.5, dl: 0, halo: true },
 ];
 
 function ensureAuraStyles() {
@@ -93,12 +93,13 @@ function createAura(mountEl) {
   const position = () => {
     const m = mountEl.getBoundingClientRect();
     const h = host.getBoundingClientRect();
-    // Aura lives at mount home. Callers must invoke this while pose is 0,0.
-    const expand = 32;
-    aura.style.left = m.left - h.left - expand + "px";
-    aura.style.top = m.top - h.top - expand + "px";
-    aura.style.width = m.width + 2 * expand + "px";
-    aura.style.height = m.height + 2 * expand + "px";
+    // Aura lives at mount home, constrained to the mount's own box so orbs
+    // never bleed into the greeting to the left. Callers must invoke this
+    // while pose is 0,0.
+    aura.style.left = m.left - h.left + "px";
+    aura.style.top = m.top - h.top + "px";
+    aura.style.width = m.width + "px";
+    aura.style.height = m.height + "px";
   };
   position();
 
