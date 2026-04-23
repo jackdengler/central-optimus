@@ -4,6 +4,7 @@ import { startLittleGuyWander } from "./little-guy-wander.js";
 
 const TOKEN_KEY = "co.gh.token";
 const LAYOUT_KEY = "co.layout";
+const INTRO_MIN_MS = 1200;
 let APPS = [];
 let citySceneInitialized = false;
 let lilGuyController = null;
@@ -11,6 +12,13 @@ let lilGuyWander = null;
 let paletteIndex = 0;
 let paletteResults = [];
 let clockTimer = null;
+let introExitStarted = false;
+let introMinHoldResolve;
+const introMinHold = new Promise((r) => (introMinHoldResolve = r));
+setTimeout(() => introMinHoldResolve?.(), INTRO_MIN_MS);
+const prefersReducedMotion = () =>
+  typeof matchMedia !== "undefined" &&
+  matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const APP_GLYPHS = {
   parlay: `<path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1.6a1.6 1.6 0 1 0 0 3.2V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2.2a1.6 1.6 0 1 0 0-3.2V8z"/><path d="M10 9v6M14 9v6"/>`,
@@ -535,14 +543,7 @@ async function unlock(config, registry) {
     APPS = registry.apps || [];
     renderApps(APPS, config);
     handleHash();
-    const mountEl = document.getElementById("lil-guy");
-    if (mountEl && getLayout() === "grid") {
-      if (lilGuyController) lilGuyController.destroy();
-      if (lilGuyWander) lilGuyWander.stop();
-      lilGuyController = mountLittleGuy(mountEl);
-      mountEl.addEventListener("dblclick", (e) => e.preventDefault());
-      lilGuyWander = startLittleGuyWander(mountEl);
-    }
+    runIntroExit();
   };
 
   const existing = localStorage.getItem(TOKEN_KEY);
@@ -587,8 +588,108 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+async function runIntroExit() {
+  if (introExitStarted) return;
+  introExitStarted = true;
+
+  const intro = document.getElementById("intro");
+  const introGuy = document.getElementById("intro-guy");
+  const mountEl = document.getElementById("lil-guy");
+  const wrap = introGuy?.querySelector(".lg-wrap");
+  const layout = getLayout();
+  const reduced = prefersReducedMotion();
+
+  const revealApp = () => document.body.classList.remove("is-booting");
+  const tearDownIntro = () => intro?.remove();
+
+  if (!intro || !introGuy || !wrap) {
+    revealApp();
+    return;
+  }
+
+  if (layout !== "grid" || !mountEl) {
+    revealApp();
+    intro.classList.add("is-exiting");
+    setTimeout(() => {
+      if (lilGuyController) {
+        lilGuyController.destroy();
+        lilGuyController = null;
+      }
+      tearDownIntro();
+    }, 700);
+    return;
+  }
+
+  if (reduced) {
+    revealApp();
+    mountEl.appendChild(wrap);
+    tearDownIntro();
+    mountEl.addEventListener("dblclick", (e) => e.preventDefault());
+    if (lilGuyWander) lilGuyWander.stop();
+    lilGuyWander = startLittleGuyWander(mountEl);
+    return;
+  }
+
+  // Let the entrance bounce read before flying home.
+  await introMinHold;
+
+  revealApp();
+
+  // Two frames: one for the is-booting class flip to take effect, one so
+  // the hero's fade-up has its final layout box for measurement.
+  await new Promise((r) => requestAnimationFrame(r));
+  await new Promise((r) => requestAnimationFrame(r));
+
+  const fromRect = introGuy.getBoundingClientRect();
+  const toRect = mountEl.getBoundingClientRect();
+  if (toRect.width === 0 || toRect.height === 0) {
+    // Hero hasn't laid out — bail to a clean state.
+    mountEl.appendChild(wrap);
+    tearDownIntro();
+    if (lilGuyWander) lilGuyWander.stop();
+    lilGuyWander = startLittleGuyWander(mountEl);
+    return;
+  }
+
+  const fcx = fromRect.left + fromRect.width / 2;
+  const fcy = fromRect.top + fromRect.height / 2;
+  const tcx = toRect.left + toRect.width / 2;
+  const tcy = toRect.top + toRect.height / 2;
+  const dx = tcx - fcx;
+  const dy = tcy - fcy;
+  const scale = toRect.width / fromRect.width;
+
+  // Cancel the entrance keyframes so we can drive transform via transition.
+  introGuy.style.animation = "none";
+  introGuy.style.willChange = "transform";
+  introGuy.style.transition =
+    "transform 1200ms cubic-bezier(0.22, 1, 0.36, 1)";
+
+  intro.classList.add("is-exiting");
+
+  requestAnimationFrame(() => {
+    introGuy.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+  });
+
+  const handOff = () => {
+    introGuy.removeEventListener("transitionend", handOff);
+    mountEl.appendChild(wrap);
+    tearDownIntro();
+    mountEl.addEventListener("dblclick", (e) => e.preventDefault());
+    if (lilGuyWander) lilGuyWander.stop();
+    lilGuyWander = startLittleGuyWander(mountEl);
+  };
+  introGuy.addEventListener("transitionend", handOff, { once: true });
+  // Safety in case transitionend doesn't fire (tab hidden, etc.).
+  setTimeout(handOff, 1600);
+}
+
 (async () => {
   try {
+    const introMount = document.getElementById("intro-guy");
+    if (introMount) {
+      lilGuyController = mountLittleGuy(introMount);
+    }
     const [config, registry] = await Promise.all([
       loadJSON("./config.json"),
       loadJSON("./apps.json"),

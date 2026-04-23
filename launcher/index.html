@@ -18,15 +18,13 @@
       html, body { background: #f6f1e7; margin: 0; }
     </style>
 
-    <link
-      rel="apple-touch-startup-image"
-      href="./icons/splash-1170x2532.png"
-      media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
-    />
-
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
+  <body class="is-booting">
+    <div id="intro" class="intro" aria-hidden="true">
+      <div id="intro-guy" class="intro-guy"></div>
+    </div>
+
     <div
       id="city-root"
       style="position: fixed; inset: 0; z-index: 0;"

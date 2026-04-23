@@ -956,4 +956,77 @@
   .lg-wrap svg g[style*="lg-antenna"] circle {
     display: none;
   }
+
+  /* ---------- Intro (first-load entrance) ----------
+     Full-screen beige curtain that hosts the little guy while the rest
+     of the app wakes up. On exit, the curtain fades and the guy is
+     FLIPped into his hero slot by app.js. */
+  .intro {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: grid;
+    place-items: center;
+    background-color: var(--color-optimus-bg);
+    background-image:
+      radial-gradient(
+        900px 600px at 50% 35%,
+        rgba(201, 106, 71, 0.14),
+        transparent 60%
+      ),
+      radial-gradient(
+        700px 500px at 50% 90%,
+        rgba(64, 54, 120, 0.1),
+        transparent 60%
+      );
+    opacity: 1;
+    transition:
+      opacity 620ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      background-color 620ms ease;
+    pointer-events: none;
+  }
+  .intro-guy {
+    width: 220px;
+    height: 220px;
+    display: grid;
+    place-items: center;
+    animation: intro-enter 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    filter: drop-shadow(0 24px 60px rgba(110, 77, 176, 0.32));
+  }
+  @keyframes intro-enter {
+    0%   { transform: scale(0.15) translateY(28px); opacity: 0; }
+    40%  { transform: scale(1.18) translateY(-6px); opacity: 1; }
+    60%  { transform: scale(0.94) translateY(4px); }
+    78%  { transform: scale(1.04) translateY(-2px); }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+  }
+
+  body.is-booting #app {
+    opacity: 0;
+  }
+  body:not(.is-booting) #app {
+    opacity: 1;
+    transition: opacity 420ms ease;
+  }
+  /* Hold the staggered hero/tile/status entrances until the boot curtain
+     lifts, so they play fresh alongside the little guy's flight home
+     instead of finishing behind the curtain. */
+  body.is-booting .hero,
+  body.is-booting .tile,
+  body.is-booting .topbar,
+  body.is-booting .status-bar {
+    animation-play-state: paused;
+  }
+
+  .intro.is-exiting {
+    opacity: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .intro,
+    .intro-guy {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
 }
