@@ -318,6 +318,7 @@ export function mountLittleGuy(target, opts = {}) {
   let gazeEased = { x: 0, y: 0 };
   let tracking = false;
   let trackingStart = 0;
+  let gazeLockUntil = 0;
   let mood = 'neutral';
   let lastMoveTime = 0;
   let lastMoveSpeed = 0;
@@ -427,6 +428,7 @@ export function mountLittleGuy(target, opts = {}) {
 
   // ---- Pointer ----
   const onMove = (e) => {
+    if (performance.now() < gazeLockUntil) return;
     const r = wrap.getBoundingClientRect();
     const dx = e.clientX - (r.left + r.width / 2);
     const dy = e.clientY - (r.top + r.height / 2);
@@ -506,10 +508,38 @@ export function mountLittleGuy(target, opts = {}) {
     document.head.appendChild(s);
   }
 
+  const squash = () => {
+    if (destroyed) return;
+    bodyG.classList.remove('lg-body-squash');
+    void bodyG.getBoundingClientRect();
+    bodyG.classList.add('lg-body-squash');
+  };
+
+  const lookAt = ({ clientX, clientY }, duration = 900) => {
+    if (destroyed) return;
+    const r = wrap.getBoundingClientRect();
+    const dx = clientX - (r.left + r.width / 2);
+    const dy = clientY - (r.top + r.height / 2);
+    gaze = {
+      x: Math.max(-1, Math.min(1, dx / 140)),
+      y: Math.max(-1, Math.min(1, dy / 140)),
+    };
+    gazeLockUntil = performance.now() + duration;
+    setMood('surprised');
+    st(() => {
+      gazeLockUntil = 0;
+      tracking = false;
+      gaze = { x: 0, y: 0 };
+      setMood('neutral');
+    }, duration);
+  };
+
   return {
     say,
     on,
     emit,
+    squash,
+    lookAt,
     destroy() {
       destroyed = true;
       cancelAnimationFrame(rafId);

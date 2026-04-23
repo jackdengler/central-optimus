@@ -106,8 +106,24 @@ function startClock(config) {
   clockTimer = setInterval(() => updateHero(config), 30_000);
 }
 
+function nudgeBuddyTowardApp(app) {
+  const buddy = lilGuyController;
+  if (!buddy || !app) return;
+  const tile = document.querySelector(`.tile[data-app-id="${app.id}"]`);
+  if (tile && buddy.lookAt) {
+    const r = tile.getBoundingClientRect();
+    buddy.lookAt(
+      { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 },
+      1100,
+    );
+  }
+  buddy.squash?.();
+  buddy.say?.(`opening ${app.name}…`, { duration: 1400 });
+}
+
 function launchApp(app) {
   if (!app) return;
+  nudgeBuddyTowardApp(app);
   if (app.openInNew) {
     window.open(app.url, "_blank", "noopener,noreferrer");
     return;
@@ -133,13 +149,15 @@ function renderTiles(apps) {
     if (app.openInNew) {
       a.target = "_blank";
       a.rel = "noopener noreferrer";
-    } else if (app.url) {
-      a.addEventListener("click", (e) => {
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
+    }
+    a.addEventListener("click", (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
+      nudgeBuddyTowardApp(app);
+      if (!app.openInNew && app.url) {
         e.preventDefault();
         openEmbed(app);
-      });
-    }
+      }
+    });
     const color = app.color || "#c96a47";
     const shade = app.shade || darkenHex(color);
     a.style.setProperty("--tile-color", color);
