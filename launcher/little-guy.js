@@ -512,7 +512,91 @@ export function mountLittleGuy(target, opts = {}) {
     st(() => setMood('neutral'), 500);
     emit('pet');
   };
-  wrap.addEventListener('pointerdown', onTap);
+
+  // ---- Drag + tap dispatcher ----
+  const DRAG_THRESHOLD = 6;
+  const DRAG_MARGIN = 8;
+  let dragStart = null;
+  let dragging = false;
+
+  const clampPos = (x, y) => {
+    const maxX = Math.max(DRAG_MARGIN, window.innerWidth - size - DRAG_MARGIN);
+    const maxY = Math.max(DRAG_MARGIN, window.innerHeight - size - DRAG_MARGIN);
+    return {
+      x: Math.min(Math.max(DRAG_MARGIN, x), maxX),
+      y: Math.min(Math.max(DRAG_MARGIN, y), maxY),
+    };
+  };
+
+  const enterFixed = (left, top) => {
+    target.style.position = 'fixed';
+    target.style.margin = '0';
+    target.style.right = 'auto';
+    target.style.bottom = 'auto';
+    target.style.zIndex = '40';
+    const c = clampPos(left, top);
+    target.style.left = `${c.x}px`;
+    target.style.top = `${c.y}px`;
+  };
+
+  const setPosition = ({ x, y } = {}) => {
+    if (destroyed || typeof x !== 'number' || typeof y !== 'number') return;
+    enterFixed(x, y);
+  };
+
+  const resetPosition = () => {
+    if (destroyed) return;
+    target.style.position = '';
+    target.style.left = '';
+    target.style.top = '';
+    target.style.right = '';
+    target.style.bottom = '';
+    target.style.margin = '';
+    target.style.zIndex = '';
+  };
+
+  const onGrabDown = (e) => {
+    if (destroyed) return;
+    const r = target.getBoundingClientRect();
+    dragStart = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      originLeft: r.left,
+      originTop: r.top,
+    };
+    dragging = false;
+    try { wrap.setPointerCapture(e.pointerId); } catch {}
+  };
+  const onGrabMove = (e) => {
+    if (!dragStart || e.pointerId !== dragStart.pointerId) return;
+    const dx = e.clientX - dragStart.startX;
+    const dy = e.clientY - dragStart.startY;
+    if (!dragging && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+      dragging = true;
+      emit('drag-start');
+    }
+    if (dragging) {
+      enterFixed(dragStart.originLeft + dx, dragStart.originTop + dy);
+    }
+  };
+  const onGrabEnd = (e) => {
+    if (!dragStart || e.pointerId !== dragStart.pointerId) return;
+    const wasDrag = dragging;
+    try { wrap.releasePointerCapture(dragStart.pointerId); } catch {}
+    dragStart = null;
+    dragging = false;
+    if (wasDrag) {
+      const r = target.getBoundingClientRect();
+      emit('drag-end', { x: r.left, y: r.top });
+    } else {
+      onTap();
+    }
+  };
+  wrap.addEventListener('pointerdown', onGrabDown);
+  wrap.addEventListener('pointermove', onGrabMove);
+  wrap.addEventListener('pointerup', onGrabEnd);
+  wrap.addEventListener('pointercancel', onGrabEnd);
 
   // ---- Inject body-squash keyframes ----
   if (!document.getElementById('little-guy-squash')) {
@@ -570,6 +654,8 @@ export function mountLittleGuy(target, opts = {}) {
     squash,
     lookAt,
     setCosmetics,
+    setPosition,
+    resetPosition,
     destroy() {
       destroyed = true;
       cancelAnimationFrame(rafId);
@@ -583,7 +669,10 @@ export function mountLittleGuy(target, opts = {}) {
       window.removeEventListener('pointerup', end);
       window.removeEventListener('pointercancel', end);
       window.removeEventListener('touchend', end);
-      wrap.removeEventListener('pointerdown', onTap);
+      wrap.removeEventListener('pointerdown', onGrabDown);
+      wrap.removeEventListener('pointermove', onGrabMove);
+      wrap.removeEventListener('pointerup', onGrabEnd);
+      wrap.removeEventListener('pointercancel', onGrabEnd);
       bubble.remove();
       wrap.remove();
     },

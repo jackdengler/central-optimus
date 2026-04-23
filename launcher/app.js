@@ -7,6 +7,7 @@ const TOKEN_KEY = "co.gh.token";
 const LAYOUT_KEY = "co.layout";
 const PETS_KEY = "co.buddy.pets";
 const COSMETICS_KEY = "co.buddy.cosmetics";
+const POSITION_KEY = "co.buddy.position";
 let APPS = [];
 let citySceneInitialized = false;
 let lilGuyController = null;
@@ -605,6 +606,19 @@ function readCosmetics() {
 function writeCosmetics(list) {
   localStorage.setItem(COSMETICS_KEY, JSON.stringify(list));
 }
+function readBuddyPosition() {
+  try {
+    const raw = localStorage.getItem(POSITION_KEY);
+    if (!raw) return null;
+    const v = JSON.parse(raw);
+    if (typeof v?.x === "number" && typeof v?.y === "number") return v;
+  } catch {}
+  return null;
+}
+function writeBuddyPosition(pos) {
+  if (pos == null) localStorage.removeItem(POSITION_KEY);
+  else localStorage.setItem(POSITION_KEY, JSON.stringify(pos));
+}
 
 function applyPetMilestone(buddy, prev, next) {
   const crossed = PET_MILESTONES.filter(
@@ -626,7 +640,9 @@ function applyPetMilestone(buddy, prev, next) {
 function resetBuddy(buddy) {
   writePets(0);
   writeCosmetics([]);
+  writeBuddyPosition(null);
   buddy?.setCosmetics?.([]);
+  buddy?.resetPosition?.();
   buddy?.say?.("fresh start!", { duration: 2200 });
 }
 
@@ -634,6 +650,12 @@ function wireBuddyChatter(buddy, config) {
   if (!buddy?.on) return;
 
   buddy.setCosmetics?.(readCosmetics());
+  const savedPos = readBuddyPosition();
+  if (savedPos) buddy.setPosition?.(savedPos);
+
+  buddy.on("drag-end", (pos) => {
+    writeBuddyPosition(pos);
+  });
 
   buddy.on("pet", () => {
     const prev = readPets();
