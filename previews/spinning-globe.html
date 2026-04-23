@@ -176,6 +176,22 @@
         color: var(--muted);
       }
       .panel p { margin: 0; font-size: 0.92rem; color: var(--ink); }
+      .last-push {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 22px;
+        margin: 0;
+        z-index: 11;
+        text-align: center;
+        font-size: 0.66rem;
+        font-weight: 500;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+        opacity: 0.7;
+        pointer-events: none;
+        font-variant-numeric: tabular-nums;
+      }
     </style>
     <script>
       // Belt-and-suspenders: iOS Safari sometimes ignores user-scalable=no.
@@ -207,6 +223,9 @@
           <p>Rendering at iPhone 13 Pro size (390×844). On a real phone it fills the viewport.</p>
         </div>
       </main>
+
+      <!-- LAST_PUSH: update this string with current LA time on every commit -->
+      <p class="last-push">Last push · 2:55 AM PT — Thu Apr 23</p>
     </div>
 
 
