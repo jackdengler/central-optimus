@@ -17,7 +17,7 @@ export function mountGlobe(target, opts = {}) {
     radiusFactor = 1.2,
     offsetX = 0,
     offsetY = 0,
-    cameraDist = 1.7,
+    cameraDist = 1.45,
   } = opts;
 
   const TAU = Math.PI * 2;
