@@ -14,9 +14,9 @@ export function mountGlobe(target, opts = {}) {
     rotationSpeed = 0.00012,
     tilt = 0.34,
     blendMode = "multiply",
-    radiusFactor = 1.05,
-    offsetX = -0.18,
-    offsetY = 0.22,
+    radiusFactor = 0.7,
+    offsetX = -0.08,
+    offsetY = 0.06,
   } = opts;
 
   const TAU = Math.PI * 2;
@@ -57,9 +57,7 @@ export function mountGlobe(target, opts = {}) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     cx = w / 2 + w * offsetX;
     cy = h / 2 + h * offsetY;
-    // Scale by the LONGER side so tall portrait viewports still get filled
-    // (otherwise we'd see cream gaps above and below the sphere on mobile).
-    radius = Math.max(w, h) * radiusFactor;
+    radius = Math.min(w, h) * radiusFactor;
   };
 
   const ro = new ResizeObserver(resize);
@@ -91,15 +89,30 @@ export function mountGlobe(target, opts = {}) {
   }
 
   const makeArc = () => {
-    let a = (Math.random() * nodes.length) | 0;
-    let b = (Math.random() * nodes.length) | 0;
-    let tries = 0;
-    while (b === a && tries++ < 8) b = (Math.random() * nodes.length) | 0;
+    // Best-of-N for the most spread-out pair so the great circle has to
+    // traverse most of the visible globe; head/tail end up on the far side
+    // and stay hidden behind the sphere instead of popping in/out on screen.
+    let bestA = 0;
+    let bestB = 1 % nodes.length;
+    let bestDot = 1;
+    for (let i = 0; i < 18; i++) {
+      const ai = (Math.random() * nodes.length) | 0;
+      let bi = (Math.random() * nodes.length) | 0;
+      if (bi === ai) bi = (bi + 1) % nodes.length;
+      const va = sphericalToVec(nodes[ai].lat, nodes[ai].lon);
+      const vb = sphericalToVec(nodes[bi].lat, nodes[bi].lon);
+      const d = va.x * vb.x + va.y * vb.y + va.z * vb.z;
+      if (d < bestDot) {
+        bestDot = d;
+        bestA = ai;
+        bestB = bi;
+      }
+    }
     return {
-      a,
-      b,
-      t: -rand(0, 0.4),
-      speed: rand(0.00045, 0.00085),
+      a: bestA,
+      b: bestB,
+      t: -rand(0.1, 0.5),
+      speed: rand(0.00018, 0.00032),
       hue: Math.random() < 0.55 ? "warm" : "cool",
     };
   };
@@ -272,10 +285,13 @@ export function mountGlobe(target, opts = {}) {
       for (let s = 1; s < pts.length; s++) {
         const a0 = pts[s - 1];
         const b0 = pts[s];
-        if (a0.z < -0.05 && b0.z < -0.05) continue;
+        if (a0.z < -0.2 && b0.z < -0.2) continue;
         const headFrac = s / (pts.length - 1);
-        const depth = Math.max(0.2, ((a0.z + b0.z) * 0.5) * 0.5 + 0.55);
-        const alpha = (0.12 + 0.78 * headFrac) * depth;
+        const midZ = (a0.z + b0.z) * 0.5;
+        // Smooth front/back fade: invisible at z<-0.2, full at z>0.2.
+        const depth = Math.max(0, Math.min(1, midZ * 2.5 + 0.5));
+        const alpha = (0.12 + 0.82 * headFrac) * depth;
+        if (alpha <= 0.005) continue;
         ctx.strokeStyle = `rgba(${color}, ${alpha.toFixed(3)})`;
         ctx.lineWidth = 0.7 + 1.0 * headFrac;
         ctx.beginPath();
@@ -285,23 +301,58 @@ export function mountGlobe(target, opts = {}) {
       }
 
       const headPt = pts[pts.length - 1];
-      if (headPt && headPt.z >= -0.05) {
-        const da = Math.max(0.3, headPt.z * 0.5 + 0.55);
-        const grad = ctx.createRadialGradient(
-          headPt.p.x,
-          headPt.p.y,
-          0,
-          headPt.p.x,
-          headPt.p.y,
-          16,
-        );
-        grad.addColorStop(0, `rgba(255, 246, 255, ${(0.85 * da).toFixed(3)})`);
-        grad.addColorStop(0.4, `rgba(${color}, ${(0.5 * da).toFixed(3)})`);
-        grad.addColorStop(1, "rgba(255, 246, 255, 0)");
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(headPt.p.x, headPt.p.y, 16, 0, TAU);
-        ctx.fill();
+      const prevPt = pts[pts.length - 2];
+      if (headPt && prevPt && headPt.z >= -0.18) {
+        const da = Math.max(0, Math.min(1, headPt.z * 2.5 + 0.45));
+        if (da > 0.02) {
+          // Direction along last segment (screen-space).
+          const dx = headPt.p.x - prevPt.p.x;
+          const dy = headPt.p.y - prevPt.p.y;
+          const len = Math.hypot(dx, dy) || 1;
+          const ux = dx / len;
+          const uy = dy / len;
+          const nx = -uy;
+          const ny = ux;
+          const sz = 5;
+          const tipX = headPt.p.x + ux * sz * 1.6;
+          const tipY = headPt.p.y + uy * sz * 1.6;
+          const rearX = headPt.p.x - ux * sz * 0.8;
+          const rearY = headPt.p.y - uy * sz * 0.8;
+          const wingLX = headPt.p.x + nx * sz * 0.7;
+          const wingLY = headPt.p.y + ny * sz * 0.7;
+          const wingRX = headPt.p.x - nx * sz * 0.7;
+          const wingRY = headPt.p.y - ny * sz * 0.7;
+
+          // Soft halo
+          const grad = ctx.createRadialGradient(
+            headPt.p.x,
+            headPt.p.y,
+            0,
+            headPt.p.x,
+            headPt.p.y,
+            18,
+          );
+          grad.addColorStop(0, `rgba(255, 246, 255, ${(0.6 * da).toFixed(3)})`);
+          grad.addColorStop(0.4, `rgba(${color}, ${(0.42 * da).toFixed(3)})`);
+          grad.addColorStop(1, "rgba(255, 246, 255, 0)");
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(headPt.p.x, headPt.p.y, 18, 0, TAU);
+          ctx.fill();
+
+          // Directional kite
+          ctx.fillStyle = `rgba(255, 248, 255, ${(0.92 * da).toFixed(3)})`;
+          ctx.beginPath();
+          ctx.moveTo(tipX, tipY);
+          ctx.lineTo(wingLX, wingLY);
+          ctx.lineTo(rearX, rearY);
+          ctx.lineTo(wingRX, wingRY);
+          ctx.closePath();
+          ctx.fill();
+          ctx.strokeStyle = `rgba(${color}, ${(0.7 * da).toFixed(3)})`;
+          ctx.lineWidth = 0.6;
+          ctx.stroke();
+        }
       }
     }
   };
