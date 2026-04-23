@@ -3,6 +3,9 @@ import { mountLittleGuy } from "./little-guy.js";
 
 const TOKEN_KEY = "co.gh.token";
 const PIP_POS_KEY = "co.pip.pos";
+const PIP_SIZE_KEY = "co.pip.size";
+const PIP_MIN_SIZE = 72;
+const PIP_MAX_SIZE = 320;
 let APPS = [];
 let weatherController = null;
 let buddyController = null;
@@ -285,12 +288,27 @@ function applyPipPos(el, x, y) {
   el.style.bottom = "auto";
 }
 
+function applyPipSize(el, size) {
+  el.style.width = `${size}px`;
+  el.style.height = `${size}px`;
+}
+
 function loadPipPos() {
   try {
     const raw = localStorage.getItem(PIP_POS_KEY);
     if (!raw) return null;
     const p = JSON.parse(raw);
     if (typeof p?.x === "number" && typeof p?.y === "number") return p;
+  } catch (_) {}
+  return null;
+}
+
+function loadPipSize() {
+  try {
+    const raw = localStorage.getItem(PIP_SIZE_KEY);
+    if (!raw) return null;
+    const n = parseFloat(raw);
+    if (Number.isFinite(n) && n >= PIP_MIN_SIZE && n <= PIP_MAX_SIZE) return n;
   } catch (_) {}
   return null;
 }
@@ -303,6 +321,9 @@ function setupPip() {
 
   if (buddyController) buddyController.destroy();
   buddyController = mountLittleGuy(stage);
+
+  const storedSize = loadPipSize();
+  if (storedSize) applyPipSize(pip, storedSize);
 
   const placeDefault = () => {
     const margin = 16;
@@ -325,55 +346,119 @@ function setupPip() {
     applyPipPos(pip, x, y);
   });
 
-  let drag = null;
+  const pointers = new Map();
+  let gesture = null;
+
+  const savePos = () => {
+    const r = pip.getBoundingClientRect();
+    try {
+      localStorage.setItem(
+        PIP_POS_KEY,
+        JSON.stringify({ x: r.left, y: r.top }),
+      );
+    } catch (_) {}
+  };
+  const saveSize = () => {
+    try {
+      localStorage.setItem(PIP_SIZE_KEY, String(pip.offsetWidth));
+    } catch (_) {}
+  };
+
+  const startPinch = () => {
+    const pts = [...pointers.values()];
+    if (pts.length < 2) return;
+    const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+    const r = pip.getBoundingClientRect();
+    gesture = {
+      type: "pinch",
+      initialDist: Math.max(1, dist),
+      initialSize: r.width,
+      centerX: r.left + r.width / 2,
+      centerY: r.top + r.height / 2,
+      changed: false,
+    };
+    pip.classList.add("pip-dragging");
+  };
+
   const onDown = (e) => {
     if (e.button !== undefined && e.button !== 0) return;
-    const r = pip.getBoundingClientRect();
-    drag = {
-      startX: e.clientX,
-      startY: e.clientY,
-      offX: e.clientX - r.left,
-      offY: e.clientY - r.top,
-      moved: false,
-      pointerId: e.pointerId,
-    };
-    pip.setPointerCapture(e.pointerId);
-  };
-  const onMove = (e) => {
-    if (!drag) return;
-    const dx = e.clientX - drag.startX;
-    const dy = e.clientY - drag.startY;
-    if (!drag.moved && Math.hypot(dx, dy) > 5) {
-      drag.moved = true;
-      pip.classList.add("pip-dragging");
-    }
-    if (drag.moved) {
-      const { x, y } = clampPipPos(
-        e.clientX - drag.offX,
-        e.clientY - drag.offY,
-        pip,
-      );
-      applyPipPos(pip, x, y);
-    }
-  };
-  const onUp = (e) => {
-    if (!drag) return;
-    const wasDrag = drag.moved;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     try {
-      pip.releasePointerCapture(drag.pointerId);
+      pip.setPointerCapture(e.pointerId);
     } catch (_) {}
-    drag = null;
-    pip.classList.remove("pip-dragging");
-    if (wasDrag) {
+    if (pointers.size === 1) {
       const r = pip.getBoundingClientRect();
-      try {
-        localStorage.setItem(
-          PIP_POS_KEY,
-          JSON.stringify({ x: r.left, y: r.top }),
-        );
-      } catch (_) {}
+      gesture = {
+        type: "drag",
+        startX: e.clientX,
+        startY: e.clientY,
+        offX: e.clientX - r.left,
+        offY: e.clientY - r.top,
+        moved: false,
+      };
+    } else if (pointers.size === 2) {
+      startPinch();
     }
   };
+
+  const onMove = (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (!gesture) return;
+
+    if (gesture.type === "drag") {
+      const dx = e.clientX - gesture.startX;
+      const dy = e.clientY - gesture.startY;
+      if (!gesture.moved && Math.hypot(dx, dy) > 5) {
+        gesture.moved = true;
+        pip.classList.add("pip-dragging");
+      }
+      if (gesture.moved) {
+        const { x, y } = clampPipPos(
+          e.clientX - gesture.offX,
+          e.clientY - gesture.offY,
+          pip,
+        );
+        applyPipPos(pip, x, y);
+      }
+    } else if (gesture.type === "pinch") {
+      const pts = [...pointers.values()];
+      if (pts.length < 2) return;
+      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+      const raw = gesture.initialSize * (dist / gesture.initialDist);
+      const size = Math.max(PIP_MIN_SIZE, Math.min(PIP_MAX_SIZE, raw));
+      applyPipSize(pip, size);
+      const left = gesture.centerX - size / 2;
+      const top = gesture.centerY - size / 2;
+      const clamped = clampPipPos(left, top, pip);
+      applyPipPos(pip, clamped.x, clamped.y);
+      gesture.changed = true;
+    }
+  };
+
+  const onUp = (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.delete(e.pointerId);
+    try {
+      pip.releasePointerCapture(e.pointerId);
+    } catch (_) {}
+    if (!gesture) return;
+
+    if (gesture.type === "pinch") {
+      if (gesture.changed) {
+        saveSize();
+        savePos();
+      }
+      gesture = { type: "ended" };
+    }
+
+    if (pointers.size === 0) {
+      if (gesture?.type === "drag" && gesture.moved) savePos();
+      pip.classList.remove("pip-dragging");
+      gesture = null;
+    }
+  };
+
   pip.addEventListener("pointerdown", onDown);
   pip.addEventListener("pointermove", onMove);
   pip.addEventListener("pointerup", onUp);
