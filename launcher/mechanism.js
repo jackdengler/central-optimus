@@ -1201,6 +1201,143 @@ export function startMovement(canvas) {
     ctx.restore();
   }
 
+  /* Keyless works — the hand-winding/time-setting mechanism that enters
+     the movement at 3 o'clock via the crown stem. We don't draw the
+     full linkage (sliding pinion, setting lever, setting lever spring,
+     minute wheel, intermediate wheel) — just the recognizable core:
+     the winding stem as a straight steel rod, a winding pinion on it,
+     and the yoke spring that biases the pinion into winding position.
+     Placed inside the visible plate area (not at the true plate edge,
+     which sits off-screen at this zoom) so it actually shows up. */
+  function drawKeylessWorks(yaw) {
+    // Stem runs along v ≈ 0.12 in unit space (horizontal in plate frame).
+    const stemU0 = 0.42;  // outer — "toward the crown"
+    const stemU1 = 0.24;  // inner — where the pinion sits
+    const stemV  = 0.12;
+    const pinionU = 0.27;
+    const pinionV = stemV;
+
+    const [s0x, s0y] = U(stemU0, stemV, yaw);
+    const [s1x, s1y] = U(stemU1, stemV, yaw);
+    const [pcx, pcy] = U(pinionU, pinionV, yaw);
+
+    // Stem shaft — thick steel rod.
+    ctx.strokeStyle = col(C.steelBlue, 0.60);
+    ctx.lineWidth = Math.max(2.0, R * 0.012);
+    ctx.lineCap = "butt";
+    ctx.beginPath();
+    ctx.moveTo(s0x, s0y); ctx.lineTo(s1x, s1y);
+    ctx.stroke();
+
+    // Stem highlight.
+    ctx.strokeStyle = col(C.plateHi, 0.32);
+    ctx.lineWidth = Math.max(0.5, R * 0.0032);
+    ctx.stroke();
+
+    ctx.strokeStyle = col(C.shadow, 0.45);
+    ctx.lineWidth = Math.max(0.8, R * 0.005);
+    ctx.beginPath();
+    ctx.moveTo(s0x, s0y); ctx.lineTo(s1x, s1y);
+    ctx.stroke();
+
+    // Outer terminus — little collar where the stem passes under the
+    // case (the crown is outside the plate and not drawn).
+    const stemAngScreen = Math.atan2(s1y - s0y, s1x - s0x);
+    const outerPerpX = Math.cos(stemAngScreen + Math.PI / 2);
+    const outerPerpY = Math.sin(stemAngScreen + Math.PI / 2);
+    const collarR = Math.max(3.0, R * 0.016);
+    ctx.fillStyle = col(C.steel, 0.65);
+    ctx.beginPath();
+    ctx.ellipse(s0x, s0y, collarR * 0.55, collarR, stemAngScreen, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = col(C.shadow, 0.55);
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+
+    // Winding pinion — small toothed wheel on the stem.
+    const pinR = R * 0.024;
+    const pinTeeth = 10;
+    const pinTpitch = (Math.PI * 2) / pinTeeth;
+    // Pinion rotation is unrelated to any gear we drive; show it static
+    // (the keyless works only moves when the user winds).
+    const pinAng = stemAngScreen;
+
+    const pinBody = ctx.createRadialGradient(
+      pcx - pinR * 0.3, pcy - pinR * 0.3, 0, pcx, pcy, pinR,
+    );
+    pinBody.addColorStop(0, col(C.steel, 0.55));
+    pinBody.addColorStop(1, col(C.shadow, 0.62));
+    ctx.fillStyle = pinBody;
+    ctx.beginPath(); ctx.arc(pcx, pcy, pinR, 0, Math.PI * 2); ctx.fill();
+
+    ctx.strokeStyle = col(C.shadow, 0.62);
+    ctx.lineWidth = 0.5;
+    const pinBase = pinR * 0.80;
+    const pinTip  = pinR * 1.10;
+    ctx.beginPath();
+    for (let i = 0; i < pinTeeth; i++) {
+      const a = pinAng + i * pinTpitch;
+      const a0 = a - pinTpitch * 0.30;
+      const a1 = a + pinTpitch * 0.30;
+      const t0 = a - pinTpitch * 0.12;
+      const t1 = a + pinTpitch * 0.12;
+      if (i === 0) ctx.moveTo(pcx + Math.cos(a0) * pinBase, pcy + Math.sin(a0) * pinBase);
+      else         ctx.lineTo(pcx + Math.cos(a0) * pinBase, pcy + Math.sin(a0) * pinBase);
+      ctx.lineTo(pcx + Math.cos(t0) * pinTip,  pcy + Math.sin(t0) * pinTip);
+      ctx.lineTo(pcx + Math.cos(t1) * pinTip,  pcy + Math.sin(t1) * pinTip);
+      ctx.lineTo(pcx + Math.cos(a1) * pinBase, pcy + Math.sin(a1) * pinBase);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    // Pinion bore where the stem passes through it.
+    ctx.fillStyle = col(C.shadow, 0.72);
+    ctx.beginPath();
+    ctx.arc(pcx, pcy, pinR * 0.30, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Yoke — spring-loaded arm that presses the pinion into winding
+    // position. Anchored to a post and sweeping around to contact the
+    // pinion from below.
+    const yokeAnchorU = 0.38;
+    const yokeAnchorV = 0.19;
+    const yokeBendU   = 0.34;
+    const yokeBendV   = 0.155;
+    const yokeTipU    = pinionU + 0.015;
+    const yokeTipV    = pinionV + 0.018;
+    const [yax, yay] = U(yokeAnchorU, yokeAnchorV, yaw);
+    const [ybx, yby] = U(yokeBendU, yokeBendV, yaw);
+    const [ytx, yty] = U(yokeTipU, yokeTipV, yaw);
+
+    ctx.strokeStyle = col(C.steel, 0.55);
+    ctx.lineWidth = Math.max(1.2, R * 0.007);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(yax, yay);
+    ctx.quadraticCurveTo(ybx, yby, ytx, yty);
+    ctx.stroke();
+
+    ctx.strokeStyle = col(C.plateHi, 0.25);
+    ctx.lineWidth = Math.max(0.4, R * 0.0022);
+    ctx.stroke();
+
+    // Yoke anchor post with screw slot.
+    ctx.fillStyle = col(C.steel, 0.68);
+    ctx.beginPath();
+    ctx.arc(yax, yay, Math.max(1.8, R * 0.009), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = col(C.shadow, 0.55);
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+    ctx.strokeStyle = col(C.shadow, 0.70);
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(yax - Math.max(1.2, R * 0.006), yay);
+    ctx.lineTo(yax + Math.max(1.2, R * 0.006), yay);
+    ctx.stroke();
+  }
+
   /* Click and ratchet — sits on top of the barrel arbor. The ratchet
      wheel is concentric with the barrel and rotates with it; the click
      is a spring-loaded pawl with a hooked tooth that rides the ratchet
@@ -1661,6 +1798,7 @@ export function startMovement(canvas) {
       drawGear(gears[i], i, yaw, renderT, zoomFactor);
     }
     drawClickAndRatchet(renderT, yaw);
+    drawKeylessWorks(yaw);
     drawPallet(renderT, yaw);
     drawBalanceWheel(renderT, yaw, zoomFactor);
     drawRegulator(yaw);
