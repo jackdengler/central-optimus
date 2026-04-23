@@ -1179,85 +1179,274 @@ export function startMovement(canvas) {
      the gears readable through the rotor's footprint. */
   function drawRotor(t, yaw) {
     const ROTOR_PERIOD_MS = 28000;
-    const rotorAng = (t / ROTOR_PERIOD_MS) * Math.PI * 2;
+    // Non-uniform motion: base rotation plus a slow sinusoidal breathe
+    // in position. Real wrist-driven rotors never turn at a fixed rate,
+    // so adding this ±0.2 rad wobble breaks the "clock-hand" look.
+    const base    = (t / ROTOR_PERIOD_MS) * Math.PI * 2;
+    const breathe = 0.22 * Math.sin((t * Math.PI * 2) / 11000);
+    const rotorAng = base + breathe;
     const [ox, oy] = U(0, 0, yaw);
 
     const outerR   = 0.92 * R;
     const ringR    = 0.78 * R;
+    const weightR  = 0.88 * R;   // inner boundary of the heavy-metal band
     const bearingR = 0.06 * R;
+
+    const cresc = () => {
+      ctx.beginPath();
+      ctx.arc(0, 0, outerR, -Math.PI / 2, Math.PI / 2, false);
+      ctx.arc(0, 0, ringR,   Math.PI / 2, -Math.PI / 2, true);
+      ctx.closePath();
+    };
+
+    // ===== Parallax cast shadow on the plate below =====
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.rotate(yaw + rotorAng);
+    ctx.translate(R * 0.012, R * 0.020);
+    cresc();
+    ctx.fillStyle = col(C.shadow, 0.18);
+    ctx.fill();
+    ctx.restore();
 
     ctx.save();
     ctx.translate(ox, oy);
     ctx.rotate(yaw + rotorAng);
 
-    // Crescent weight — thick ring covering one half plane.
-    ctx.beginPath();
-    ctx.arc(0, 0, outerR, -Math.PI / 2, Math.PI / 2, false);
-    ctx.arc(0, 0, ringR,   Math.PI / 2, -Math.PI / 2, true);
-    ctx.closePath();
-
-    const grad = ctx.createLinearGradient(0, -outerR, 0, outerR);
-    grad.addColorStop(0.0, col(C.steelBlue, 0.42));
-    grad.addColorStop(0.5, col(C.steel,     0.28));
-    grad.addColorStop(1.0, col(C.steelBlue, 0.42));
-    ctx.fillStyle = grad;
+    // ===== Main crescent body =====
+    cresc();
+    const body = ctx.createLinearGradient(0, -outerR, 0, outerR);
+    body.addColorStop(0.0, col(C.steelBlue, 0.52));
+    body.addColorStop(0.5, col(C.steel,     0.36));
+    body.addColorStop(1.0, col(C.steelBlue, 0.52));
+    ctx.fillStyle = body;
     ctx.fill();
 
-    ctx.strokeStyle = col(C.shadow, 0.32);
-    ctx.lineWidth = 0.9;
-    ctx.stroke();
-
-    // Inner bevel highlight along the ring's inner edge.
+    // ===== Heavy-metal outer band (tungsten / gold mass inlay) =====
+    ctx.save();
     ctx.beginPath();
-    ctx.arc(0, 0, ringR + 1, Math.PI / 2, -Math.PI / 2, true);
-    ctx.strokeStyle = col(C.plateHi, 0.22);
-    ctx.lineWidth = 0.6;
+    ctx.arc(0, 0, outerR,  -Math.PI / 2, Math.PI / 2, false);
+    ctx.arc(0, 0, weightR,  Math.PI / 2, -Math.PI / 2, true);
+    ctx.closePath();
+    const weightGrad = ctx.createLinearGradient(0, -outerR, 0, outerR);
+    weightGrad.addColorStop(0.0, col(C.gold,      0.50));
+    weightGrad.addColorStop(0.5, col(C.plateDark, 0.55));
+    weightGrad.addColorStop(1.0, col(C.gold,      0.50));
+    ctx.fillStyle = weightGrad;
+    ctx.fill();
+    ctx.restore();
+    // Division groove between weight band and main body
+    ctx.beginPath();
+    ctx.arc(0, 0, weightR, -Math.PI / 2, Math.PI / 2);
+    ctx.strokeStyle = col(C.shadow, 0.50);
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, weightR + 0.6, -Math.PI / 2, Math.PI / 2);
+    ctx.strokeStyle = col(C.plateHi, 0.18);
+    ctx.lineWidth = 0.4;
     ctx.stroke();
 
-    // Two spokes connecting central bearing to the crescent.
-    const spokeW = 0.022 * R;
-    for (const sa of [-Math.PI / 3, Math.PI / 3]) {
-      const x1 = bearingR * 1.4 * Math.cos(sa);
-      const y1 = bearingR * 1.4 * Math.sin(sa);
-      const x2 = ringR    * 0.99 * Math.cos(sa);
-      const y2 = ringR    * 0.99 * Math.sin(sa);
+    // ===== Perlage on the crescent face =====
+    // Two offset rows of lensed spots, clipped to the main body only
+    // (skip the weight band, which is polished smooth on real rotors).
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(0, 0, weightR - 0.8, -Math.PI / 2, Math.PI / 2, false);
+    ctx.arc(0, 0, ringR   + 0.8,  Math.PI / 2, -Math.PI / 2, true);
+    ctx.closePath();
+    ctx.clip();
+    const spotR = 0.016 * R;
+    for (let row = 0; row < 2; row++) {
+      const rr = ringR + (weightR - ringR) * (row === 0 ? 0.32 : 0.68);
+      const n  = row === 0 ? 9 : 11;
+      for (let i = 0; i < n; i++) {
+        const a  = -Math.PI / 2 + (Math.PI * (i + 0.5)) / n;
+        const px = rr * Math.cos(a);
+        const py = rr * Math.sin(a);
+        ctx.beginPath();
+        ctx.arc(px, py, spotR, 0, Math.PI * 2);
+        ctx.strokeStyle = col(C.plateDark, 0.22);
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+        const sg = ctx.createRadialGradient(
+          px - spotR * 0.35, py - spotR * 0.35, 0, px, py, spotR,
+        );
+        sg.addColorStop(0, col(C.plateHi, 0.22));
+        sg.addColorStop(1, col(C.plateHi, 0.00));
+        ctx.fillStyle = sg;
+        ctx.beginPath(); ctx.arc(px, py, spotR, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    ctx.restore();
+
+    // ===== Skeletonized cutouts =====
+    // Three capsule slots punched through the main body. Lightens the
+    // rotor visually and lets the train below peek through.
+    const cutR     = (ringR + weightR) / 2;
+    const cutLen   = (weightR - ringR) * 0.55;
+    const cutHalfW = 0.010 * R;
+    const cutAngles = [-Math.PI / 3, 0, Math.PI / 3];
+    const capsule = (ca) => {
+      ctx.save();
+      ctx.rotate(ca);
       ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.strokeStyle = col(C.steel, 0.36);
-      ctx.lineWidth = spokeW;
-      ctx.lineCap = "round";
+      ctx.moveTo(cutR - cutLen / 2, -cutHalfW);
+      ctx.lineTo(cutR + cutLen / 2, -cutHalfW);
+      ctx.arc(cutR + cutLen / 2, 0, cutHalfW, -Math.PI / 2, Math.PI / 2);
+      ctx.lineTo(cutR - cutLen / 2, cutHalfW);
+      ctx.arc(cutR - cutLen / 2, 0, cutHalfW, Math.PI / 2, -Math.PI / 2);
+      ctx.closePath();
+      ctx.restore();
+    };
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    for (const ca of cutAngles) { capsule(ca); ctx.fillStyle = "#000"; ctx.fill(); }
+    ctx.restore();
+    // Anglage around each cutout (polished bevel).
+    for (const ca of cutAngles) {
+      capsule(ca);
+      ctx.strokeStyle = col(C.plateHi, 0.30);
+      ctx.lineWidth = 0.7;
       ctx.stroke();
-      // Spoke highlight.
-      ctx.strokeStyle = col(C.plateHi, 0.18);
-      ctx.lineWidth = spokeW * 0.32;
+      capsule(ca);
+      ctx.strokeStyle = col(C.shadow, 0.45);
+      ctx.lineWidth = 0.4;
       ctx.stroke();
     }
 
-    // Central ball bearing: housing → ball → drilled center.
-    const housing = ctx.createRadialGradient(0, 0, bearingR * 0.3, 0, 0, bearingR * 1.6);
-    housing.addColorStop(0, col(C.steel,  0.55));
-    housing.addColorStop(1, col(C.shadow, 0.45));
-    ctx.fillStyle = housing;
+    // ===== Polished anglage on the crescent edges =====
+    // Outer edge: shadow line + inner highlight (the bevel face).
     ctx.beginPath();
-    ctx.arc(0, 0, bearingR * 1.6, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.arc(0, 0, outerR, -Math.PI / 2, Math.PI / 2);
+    ctx.strokeStyle = col(C.shadow, 0.50);
+    ctx.lineWidth = 0.9;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, outerR - 0.8, -Math.PI / 2, Math.PI / 2);
+    ctx.strokeStyle = col(C.plateHi, 0.38);
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+    // Inner edge.
+    ctx.beginPath();
+    ctx.arc(0, 0, ringR, Math.PI / 2, -Math.PI / 2, true);
+    ctx.strokeStyle = col(C.shadow, 0.42);
+    ctx.lineWidth = 0.7;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, ringR + 0.8, Math.PI / 2, -Math.PI / 2, true);
+    ctx.strokeStyle = col(C.plateHi, 0.28);
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+    // Straight end caps of the crescent.
+    ctx.beginPath();
+    ctx.moveTo(0, -outerR); ctx.lineTo(0, -ringR);
+    ctx.moveTo(0,  outerR); ctx.lineTo(0,  ringR);
+    ctx.strokeStyle = col(C.shadow, 0.45);
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
 
-    const ball = ctx.createRadialGradient(-bearingR * 0.3, -bearingR * 0.3, 0, 0, 0, bearingR);
-    ball.addColorStop(0, col(C.plateHi, 0.50));
-    ball.addColorStop(1, col(C.steelBlue, 0.65));
-    ctx.fillStyle = ball;
-    ctx.beginPath();
-    ctx.arc(0, 0, bearingR, 0, Math.PI * 2);
-    ctx.fill();
+    // ===== Engraved text arc along the weight band =====
+    // Each character is rotated individually so it follows the curve.
+    ctx.save();
+    const engraveR = weightR - 0.022 * R;
+    const label = "·  ETA  2824  ·  TWENTY FIVE JEWELS  ·  SWISS  ·";
+    const fontPx = Math.max(7, 0.020 * R);
+    ctx.font = `600 ${fontPx}px -apple-system, system-ui, "Helvetica Neue", sans-serif`;
+    ctx.fillStyle = col(C.shadow, 0.60);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const arcLen = label.length * fontPx * 0.54;
+    const span   = Math.min(Math.PI * 0.88, arcLen / engraveR);
+    const startA = -span / 2;
+    for (let i = 0; i < label.length; i++) {
+      const a = startA + (span * (i + 0.5)) / label.length;
+      ctx.save();
+      ctx.rotate(a);
+      ctx.translate(engraveR, 0);
+      ctx.rotate(Math.PI / 2); // read outward along the curve
+      ctx.fillText(label[i], 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // ===== Spokes with anglage =====
+    const spokeW = 0.024 * R;
+    for (const sa of [-Math.PI / 3, Math.PI / 3]) {
+      const x1 = bearingR * 1.6 * Math.cos(sa);
+      const y1 = bearingR * 1.6 * Math.sin(sa);
+      const x2 = ringR    * 0.99 * Math.cos(sa);
+      const y2 = ringR    * 0.99 * Math.sin(sa);
+      // Core body
+      ctx.beginPath();
+      ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+      ctx.strokeStyle = col(C.steel, 0.44);
+      ctx.lineWidth = spokeW;
+      ctx.lineCap = "round";
+      ctx.stroke();
+      // Polished highlight (centerline)
+      ctx.strokeStyle = col(C.plateHi, 0.30);
+      ctx.lineWidth = spokeW * 0.32;
+      ctx.stroke();
+      // Shadow hairline (bottom edge)
+      const nx = -Math.sin(sa), ny = Math.cos(sa);
+      const off = spokeW * 0.38;
+      ctx.beginPath();
+      ctx.moveTo(x1 + nx * off, y1 + ny * off);
+      ctx.lineTo(x2 + nx * off, y2 + ny * off);
+      ctx.strokeStyle = col(C.shadow, 0.32);
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+
+    // ===== Jeweled ball bearing: chaton ring + housing + ball + screws =====
+    const chatonR = bearingR * 1.95;
+    // Chaton ring (gold-toned countersunk well)
+    const chatonGrad = ctx.createRadialGradient(0, 0, bearingR * 0.9, 0, 0, chatonR);
+    chatonGrad.addColorStop(0.00, col(C.gold,      0.55));
+    chatonGrad.addColorStop(0.75, col(C.plateDark, 0.55));
+    chatonGrad.addColorStop(1.00, col(C.shadow,    0.42));
+    ctx.fillStyle = chatonGrad;
+    ctx.beginPath(); ctx.arc(0, 0, chatonR, 0, Math.PI * 2); ctx.fill();
     ctx.strokeStyle = col(C.shadow, 0.55);
     ctx.lineWidth = 0.6;
     ctx.stroke();
 
-    ctx.fillStyle = col(C.shadow, 0.70);
+    // Housing countersink
+    const housing = ctx.createRadialGradient(0, 0, bearingR * 0.3, 0, 0, bearingR * 1.35);
+    housing.addColorStop(0, col(C.steel,  0.60));
+    housing.addColorStop(1, col(C.shadow, 0.55));
+    ctx.fillStyle = housing;
+    ctx.beginPath(); ctx.arc(0, 0, bearingR * 1.35, 0, Math.PI * 2); ctx.fill();
+
+    // Polished ball
+    const ball = ctx.createRadialGradient(
+      -bearingR * 0.35, -bearingR * 0.35, 0, 0, 0, bearingR,
+    );
+    ball.addColorStop(0.0, col(C.plateHi,   0.68));
+    ball.addColorStop(0.55, col(C.steel,    0.55));
+    ball.addColorStop(1.0, col(C.steelBlue, 0.75));
+    ctx.fillStyle = ball;
+    ctx.beginPath(); ctx.arc(0, 0, bearingR, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = col(C.shadow, 0.65);
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+
+    // Drilled center
+    ctx.fillStyle = col(C.shadow, 0.78);
     ctx.beginPath();
-    ctx.arc(0, 0, bearingR * 0.32, 0, Math.PI * 2);
+    ctx.arc(0, 0, bearingR * 0.28, 0, Math.PI * 2);
     ctx.fill();
+
+    // Three countersunk screws at 120° around the chaton
+    const screwR    = bearingR * 0.38;
+    const screwDist = (bearingR * 1.35 + chatonR) / 2;
+    for (let i = 0; i < 3; i++) {
+      const a  = -Math.PI / 2 + (i * Math.PI * 2) / 3;
+      const sx = screwDist * Math.cos(a);
+      const sy = screwDist * Math.sin(a);
+      drawBluedScrew(sx, sy, screwR, a + 0.6);
+    }
 
     ctx.restore();
   }
