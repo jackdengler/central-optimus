@@ -1256,7 +1256,9 @@ export function startMovement(canvas) {
 
   let start = performance.now();
   let yaw = 0.34;
-  const YAW_SPEED = reduced ? 0 : 0.00012 * 0.35;
+  // Ambient drift is intentionally near-imperceptible: ~25°/min, so
+  // the composition slowly breathes without ever reading as "spinning".
+  const YAW_SPEED = reduced ? 0 : 0.0000072;
 
   function frame(now) {
     const t = now - start;
