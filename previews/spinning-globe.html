@@ -168,20 +168,278 @@
       <button data-density="busy">Busy</button>
     </div>
 
-    <script type="module">
-      import { mountGlobe } from "../launcher/globe.js";
+    <!--
+      Inline copy of launcher/globe.js so this preview is a single self-contained
+      file that renders correctly when served via raw.githack.com or opened
+      locally. Keep in sync with launcher/globe.js when iterating.
+    -->
+    <script>
+      function mountGlobe(target, opts) {
+        opts = opts || {};
+        if (!target) throw new Error("mountGlobe: target element required");
+        var nodeCount = opts.nodeCount != null ? opts.nodeCount : 46;
+        var arcCount = opts.arcCount != null ? opts.arcCount : 7;
+        var rotationSpeed = opts.rotationSpeed != null ? opts.rotationSpeed : 0.00018;
+        var tilt = opts.tilt != null ? opts.tilt : 0.34;
+        var parallax = opts.parallax !== false;
+        var blendMode = opts.blendMode || "multiply";
+        var radiusFactor = opts.radiusFactor != null ? opts.radiusFactor : 0.42;
 
-      const target = document.getElementById("globe-bg");
-      let controller = mountGlobe(target);
+        var TAU = Math.PI * 2;
+        var reduced = false;
+        try { reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (_) {}
 
-      const presets = {
-        calm:    { nodeCount: 28, arcCount: 4, rotationSpeed: 0.00012 },
-        default: { nodeCount: 46, arcCount: 7, rotationSpeed: 0.00018 },
+        if (getComputedStyle(target).position === "static") {
+          target.style.position = "relative";
+        }
+
+        var canvas = document.createElement("canvas");
+        canvas.className = "co-globe";
+        Object.assign(canvas.style, {
+          position: "absolute", inset: "0", width: "100%", height: "100%",
+          display: "block", pointerEvents: "none", mixBlendMode: blendMode,
+        });
+        target.appendChild(canvas);
+        var ctx = canvas.getContext("2d");
+        var dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+        var w = 0, h = 0, cx = 0, cy = 0, radius = 0;
+
+        function resize() {
+          var r = target.getBoundingClientRect();
+          w = Math.max(1, Math.floor(r.width));
+          h = Math.max(1, Math.floor(r.height));
+          canvas.width = Math.floor(w * dpr);
+          canvas.height = Math.floor(h * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          cx = w / 2; cy = h / 2;
+          radius = Math.min(w, h) * radiusFactor;
+        }
+        var ro = new ResizeObserver(resize);
+        ro.observe(target);
+        resize();
+
+        function sphericalToVec(lat, lon) {
+          return {
+            x: Math.cos(lat) * Math.cos(lon),
+            y: Math.sin(lat),
+            z: Math.cos(lat) * Math.sin(lon),
+          };
+        }
+        function rand(a, b) { return a + Math.random() * (b - a); }
+
+        var nodes = [];
+        for (var i = 0; i < nodeCount; i++) {
+          var u = Math.random(), v = Math.random();
+          nodes.push({
+            lat: Math.asin(2 * u - 1),
+            lon: TAU * v,
+            pulse: Math.random() * TAU,
+            pulseSpeed: rand(0.0008, 0.0019),
+            base: rand(1.2, 2.2),
+          });
+        }
+        function makeArc() {
+          var a = (Math.random() * nodes.length) | 0;
+          var b = (Math.random() * nodes.length) | 0;
+          var tries = 0;
+          while (b === a && tries++ < 8) b = (Math.random() * nodes.length) | 0;
+          return {
+            a: a, b: b, t: -rand(0, 0.4),
+            speed: rand(0.00045, 0.00085),
+            hue: Math.random() < 0.55 ? "warm" : "cool",
+          };
+        }
+        var arcs = [];
+        for (var k = 0; k < arcCount; k++) arcs.push(makeArc());
+
+        function rot(v, ya, pi) {
+          var cy_ = Math.cos(ya), sy_ = Math.sin(ya);
+          var x = v.x * cy_ + v.z * sy_;
+          var z = -v.x * sy_ + v.z * cy_;
+          var y = v.y;
+          var cp = Math.cos(pi), sp = Math.sin(pi);
+          return { x: x, y: y * cp - z * sp, z: y * sp + z * cp };
+        }
+        function project(v) { return { x: cx + v.x * radius, y: cy + v.y * radius, z: v.z }; }
+        function slerp(a, b, t) {
+          var dot = Math.max(-1, Math.min(1, a.x * b.x + a.y * b.y + a.z * b.z));
+          var omega = Math.acos(dot);
+          if (omega < 1e-4) return { x: a.x, y: a.y, z: a.z };
+          var so = Math.sin(omega);
+          var k0 = Math.sin((1 - t) * omega) / so;
+          var k1 = Math.sin(t * omega) / so;
+          return { x: a.x * k0 + b.x * k1, y: a.y * k0 + b.y * k1, z: a.z * k0 + b.z * k1 };
+        }
+
+        function drawHalo() {
+          var grad = ctx.createRadialGradient(cx, cy, radius * 0.55, cx, cy, radius * 1.45);
+          grad.addColorStop(0, "rgba(184, 155, 232, 0)");
+          grad.addColorStop(0.55, "rgba(184, 155, 232, 0.10)");
+          grad.addColorStop(1, "rgba(184, 155, 232, 0)");
+          ctx.fillStyle = grad;
+          ctx.beginPath(); ctx.arc(cx, cy, radius * 1.45, 0, TAU); ctx.fill();
+        }
+        function drawDisc() {
+          var grad = ctx.createRadialGradient(cx - radius * 0.28, cy - radius * 0.32, radius * 0.18, cx, cy, radius);
+          grad.addColorStop(0, "rgba(234, 215, 255, 0.22)");
+          grad.addColorStop(0.55, "rgba(184, 155, 232, 0.10)");
+          grad.addColorStop(1, "rgba(110, 77, 176, 0.04)");
+          ctx.fillStyle = grad;
+          ctx.beginPath(); ctx.arc(cx, cy, radius, 0, TAU); ctx.fill();
+        }
+        var segs = 64;
+        function drawWireRing(vertsFn) {
+          var pts = new Array(segs + 1);
+          for (var j = 0; j <= segs; j++) pts[j] = vertsFn(j / segs);
+          for (var j2 = 0; j2 < segs; j2++) {
+            var a = pts[j2], b = pts[j2 + 1];
+            var sumZ = a.z + b.z;
+            var front = sumZ >= 0;
+            var depth = sumZ * 0.5;
+            var alpha = front ? 0.18 + 0.22 * (depth + 1) : 0.06 + 0.06 * (depth + 1);
+            ctx.strokeStyle = "rgba(152, 118, 212, " + alpha.toFixed(3) + ")";
+            ctx.lineWidth = front ? 0.75 : 0.5;
+            ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+          }
+        }
+        function drawWireframe(yaw, pitch) {
+          var latCount = 9;
+          for (var i2 = 1; i2 < latCount; i2++) {
+            var lat = -Math.PI / 2 + (i2 / latCount) * Math.PI;
+            (function (lat) {
+              drawWireRing(function (t) {
+                return project(rot(sphericalToVec(lat, t * TAU), yaw, pitch));
+              });
+            })(lat);
+          }
+          var lonCount = 12;
+          for (var i3 = 0; i3 < lonCount; i3++) {
+            var lon = (i3 / lonCount) * TAU;
+            (function (lon) {
+              drawWireRing(function (t) {
+                return project(rot(sphericalToVec(-Math.PI / 2 + t * Math.PI, lon), yaw, pitch));
+              });
+            })(lon);
+          }
+          ctx.beginPath(); ctx.arc(cx, cy, radius, 0, TAU);
+          ctx.strokeStyle = "rgba(152, 118, 212, 0.42)";
+          ctx.lineWidth = 0.9; ctx.stroke();
+        }
+        function drawNodes(yaw, pitch, time) {
+          for (var n2 = 0; n2 < nodes.length; n2++) {
+            var n = nodes[n2];
+            var v = rot(sphericalToVec(n.lat, n.lon), yaw, pitch);
+            if (v.z < -0.08) continue;
+            var p = project(v);
+            var phase = 0.5 + 0.5 * Math.sin(n.pulse + time * n.pulseSpeed);
+            var depth = Math.max(0.25, v.z * 0.5 + 0.55);
+            var r = n.base + phase * 1.1;
+            var halo = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 6);
+            halo.addColorStop(0, "rgba(255, 240, 255, " + (0.55 * depth).toFixed(3) + ")");
+            halo.addColorStop(0.4, "rgba(184, 155, 232, " + (0.22 * depth).toFixed(3) + ")");
+            halo.addColorStop(1, "rgba(184, 155, 232, 0)");
+            ctx.fillStyle = halo;
+            ctx.beginPath(); ctx.arc(p.x, p.y, r * 6, 0, TAU); ctx.fill();
+            ctx.fillStyle = "rgba(255, 246, 255, " + (0.92 * depth).toFixed(3) + ")";
+            ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, TAU); ctx.fill();
+          }
+        }
+        function drawArcs(yaw, pitch, dt) {
+          var arcSegs = 48;
+          for (var i4 = 0; i4 < arcs.length; i4++) {
+            var arc = arcs[i4];
+            arc.t += arc.speed * dt;
+            if (arc.t >= 1.1) { arcs[i4] = makeArc(); continue; }
+            var aN = nodes[arc.a], bN = nodes[arc.b];
+            if (!aN || !bN) continue;
+            var va = sphericalToVec(aN.lat, aN.lon);
+            var vb = sphericalToVec(bN.lat, bN.lon);
+            var head = Math.max(0, Math.min(1, arc.t));
+            var tail = Math.max(0, head - 0.42);
+            if (head <= 0) continue;
+            var pts = new Array(arcSegs + 1);
+            for (var s = 0; s <= arcSegs; s++) {
+              var tt = tail + (s / arcSegs) * (head - tail);
+              var v0 = slerp(va, vb, tt);
+              var lift = 1 + 0.18 * Math.sin(Math.PI * tt);
+              var v0l = { x: v0.x * lift, y: v0.y * lift, z: v0.z * lift };
+              var v = rot(v0l, yaw, pitch);
+              pts[s] = { p: project(v), z: v.z };
+            }
+            var color = arc.hue === "warm" ? "247, 168, 208" : "152, 118, 212";
+            for (var s2 = 1; s2 < pts.length; s2++) {
+              var a0 = pts[s2 - 1], b0 = pts[s2];
+              if (a0.z < -0.05 && b0.z < -0.05) continue;
+              var headFrac = s2 / (pts.length - 1);
+              var depthA = Math.max(0.2, ((a0.z + b0.z) * 0.5) * 0.5 + 0.55);
+              var alpha = (0.12 + 0.78 * headFrac) * depthA;
+              ctx.strokeStyle = "rgba(" + color + ", " + alpha.toFixed(3) + ")";
+              ctx.lineWidth = 0.7 + 1.0 * headFrac;
+              ctx.beginPath(); ctx.moveTo(a0.p.x, a0.p.y); ctx.lineTo(b0.p.x, b0.p.y); ctx.stroke();
+            }
+            var headPt = pts[pts.length - 1];
+            if (headPt && headPt.z >= -0.05) {
+              var da = Math.max(0.3, headPt.z * 0.5 + 0.55);
+              var grad = ctx.createRadialGradient(headPt.p.x, headPt.p.y, 0, headPt.p.x, headPt.p.y, 16);
+              grad.addColorStop(0, "rgba(255, 246, 255, " + (0.85 * da).toFixed(3) + ")");
+              grad.addColorStop(0.4, "rgba(" + color + ", " + (0.5 * da).toFixed(3) + ")");
+              grad.addColorStop(1, "rgba(255, 246, 255, 0)");
+              ctx.fillStyle = grad;
+              ctx.beginPath(); ctx.arc(headPt.p.x, headPt.p.y, 16, 0, TAU); ctx.fill();
+            }
+          }
+        }
+
+        var px = 0, py = 0, pxTarget = 0, pyTarget = 0;
+        function onPointer(e) {
+          if (!parallax) return;
+          var r = canvas.getBoundingClientRect();
+          pxTarget = ((e.clientX - r.left) / r.width - 0.5) * 0.22;
+          pyTarget = ((e.clientY - r.top) / r.height - 0.5) * 0.18;
+        }
+        window.addEventListener("pointermove", onPointer, { passive: true });
+
+        var yaw = 0, last = performance.now(), destroyed = false;
+        function frame(now) {
+          if (destroyed) return;
+          var dt = Math.min(64, now - last);
+          last = now;
+          if (!reduced) yaw += rotationSpeed * dt;
+          px += (pxTarget - px) * 0.06;
+          py += (pyTarget - py) * 0.06;
+          var yawApplied = yaw + px;
+          var pitchApplied = tilt + py;
+          ctx.clearRect(0, 0, w, h);
+          drawHalo(); drawDisc();
+          drawWireframe(yawApplied, pitchApplied);
+          drawArcs(yawApplied, pitchApplied, reduced ? 0 : dt);
+          drawNodes(yawApplied, pitchApplied, now);
+          requestAnimationFrame(frame);
+        }
+        requestAnimationFrame(frame);
+
+        return {
+          destroy: function () {
+            destroyed = true;
+            ro.disconnect();
+            window.removeEventListener("pointermove", onPointer);
+            canvas.remove();
+          },
+        };
+      }
+
+      var target = document.getElementById("globe-bg");
+      var controller = mountGlobe(target);
+      var presets = {
+        calm:    { nodeCount: 28, arcCount: 4,  rotationSpeed: 0.00012 },
+        default: { nodeCount: 46, arcCount: 7,  rotationSpeed: 0.00018 },
         busy:    { nodeCount: 80, arcCount: 14, rotationSpeed: 0.00026 },
       };
-      document.querySelectorAll(".controls button").forEach((b) => {
-        b.addEventListener("click", () => {
-          document.querySelectorAll(".controls button").forEach((x) => x.classList.remove("active"));
+      Array.prototype.forEach.call(document.querySelectorAll(".controls button"), function (b) {
+        b.addEventListener("click", function () {
+          Array.prototype.forEach.call(document.querySelectorAll(".controls button"), function (x) {
+            x.classList.remove("active");
+          });
           b.classList.add("active");
           controller.destroy();
           controller = mountGlobe(target, presets[b.dataset.density]);
