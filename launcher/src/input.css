@@ -35,7 +35,10 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     height: 100dvh;
-    touch-action: manipulation;
+    /* pan-y (not manipulation) so pinch-zoom is also blocked, not just
+       double-tap zoom. JS gesture/touchmove handlers in app.js back this
+       up for iOS Safari which sometimes ignores touch-action. */
+    touch-action: pan-y;
     overflow: hidden;
     overscroll-behavior: none;
     max-width: 100%;

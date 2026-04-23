@@ -8,6 +8,24 @@ function haptic(pattern) {
   } catch (_) {}
 }
 
+/* Block all pinch-zoom paths. The viewport meta has user-scalable=no
+   but iOS Safari ignores it in standalone PWA mode. We also stop the
+   WebKit gesture* events (two-finger zoom on iOS) and ctrl+wheel
+   (desktop trackpad pinch). touch-action on html/body in CSS handles
+   the passive case; this catches active gesture attempts. */
+(function lockPinchZoom() {
+  const swallow = (e) => { e.preventDefault(); };
+  ["gesturestart", "gesturechange", "gestureend"].forEach((evt) => {
+    document.addEventListener(evt, swallow, { passive: false });
+  });
+  document.addEventListener("touchmove", (e) => {
+    if (e.touches && e.touches.length > 1) e.preventDefault();
+  }, { passive: false });
+  document.addEventListener("wheel", (e) => {
+    if (e.ctrlKey) e.preventDefault();
+  }, { passive: false });
+})();
+
 const TOKEN_KEY = "co.gh.token";
 
 // Launch animation timing, taken from the prototype. The zoom runs 1100ms
