@@ -511,8 +511,10 @@ export function startMovement(canvas) {
       ctx.fill(); ctx.stroke();
     }
 
-    // Spokes (gear wheels, not escape).
-    if (g.kind !== "escape") {
+    // Spokes (gear wheels, not escape, not barrel — barrel gets a
+    // mainspring spiral instead since a real mainspring barrel is a
+    // solid cap with the spring coiled inside, not a spoked wheel).
+    if (g.kind !== "escape" && g.kind !== "barrel") {
       const spokes = g.kind === "barrel" ? 6 : 4;
       const spokeLW = Math.max(1, wR * 0.05);
       const rInner = Math.max(pR * 1.35, wR * 0.18);
@@ -635,6 +637,38 @@ export function startMovement(canvas) {
         ctx.arc(sx, sy, pR * 0.92, -Math.PI * 0.85, -Math.PI * 0.25);
         ctx.stroke();
       }
+    }
+
+    // Mainspring — tight Archimedean spiral inside the barrel cap.
+    // On a real watch this lives between the barrel disc and the
+    // barrel drum; coils wind / unwind as the watch runs, giving the
+    // barrel its 2 hr/rev output. Spiral rotates with the barrel.
+    if (g.kind === "barrel") {
+      const rOuter = wR * 0.78;
+      const rInner = Math.max(pR * 1.35, wR * 0.18);
+      const turns = 11;
+      const samples = turns * 48;
+      const thetaMax = turns * Math.PI * 2;
+
+      ctx.strokeStyle = col(C.steelBlue, 0.32);
+      ctx.lineWidth = Math.max(0.7, wR * 0.015);
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      for (let i = 0; i <= samples; i++) {
+        const theta = (i / samples) * thetaMax;
+        const rr = rInner + (rOuter - rInner) * (theta / thetaMax);
+        const a = angle + theta;
+        const x = sx + Math.cos(a) * rr;
+        const y = sy + Math.sin(a) * rr;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Subtle highlight pass on the coil — gives it a steel shimmer.
+      ctx.strokeStyle = col(C.plateHi, 0.14);
+      ctx.lineWidth = Math.max(0.3, wR * 0.006);
+      ctx.stroke();
     }
 
     // Central hub / arbor.
