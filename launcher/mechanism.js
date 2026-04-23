@@ -1167,6 +1167,101 @@ export function startMovement(canvas) {
     ctx.restore();
   }
 
+  /* Automatic-winding rotor — the oscillating weight on the back of a
+     real 2824-2. Skeletonized half-moon: heavy crescent ring on one
+     side, thin spokes connecting to a central ball bearing, the other
+     half open so the gear train below stays visible. Rotates slowly
+     around the unit origin (one revolution ≈ 28 s) — on a real watch
+     wrist motion drives it; here we fake gentle continuous spin so the
+     eye notices motion across the whole plate, not just the balance.
+     Drawn last (on top of gears + bridges) since on a real movement
+     it sits closest to the caseback. Translucent paint colors keep
+     the gears readable through the rotor's footprint. */
+  function drawRotor(t, yaw) {
+    const ROTOR_PERIOD_MS = 28000;
+    const rotorAng = (t / ROTOR_PERIOD_MS) * Math.PI * 2;
+    const [ox, oy] = U(0, 0, yaw);
+
+    const outerR   = 0.92 * R;
+    const ringR    = 0.78 * R;
+    const bearingR = 0.06 * R;
+
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.rotate(yaw + rotorAng);
+
+    // Crescent weight — thick ring covering one half plane.
+    ctx.beginPath();
+    ctx.arc(0, 0, outerR, -Math.PI / 2, Math.PI / 2, false);
+    ctx.arc(0, 0, ringR,   Math.PI / 2, -Math.PI / 2, true);
+    ctx.closePath();
+
+    const grad = ctx.createLinearGradient(0, -outerR, 0, outerR);
+    grad.addColorStop(0.0, col(C.steelBlue, 0.42));
+    grad.addColorStop(0.5, col(C.steel,     0.28));
+    grad.addColorStop(1.0, col(C.steelBlue, 0.42));
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    ctx.strokeStyle = col(C.shadow, 0.32);
+    ctx.lineWidth = 0.9;
+    ctx.stroke();
+
+    // Inner bevel highlight along the ring's inner edge.
+    ctx.beginPath();
+    ctx.arc(0, 0, ringR + 1, Math.PI / 2, -Math.PI / 2, true);
+    ctx.strokeStyle = col(C.plateHi, 0.22);
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+
+    // Two spokes connecting central bearing to the crescent.
+    const spokeW = 0.022 * R;
+    for (const sa of [-Math.PI / 3, Math.PI / 3]) {
+      const x1 = bearingR * 1.4 * Math.cos(sa);
+      const y1 = bearingR * 1.4 * Math.sin(sa);
+      const x2 = ringR    * 0.99 * Math.cos(sa);
+      const y2 = ringR    * 0.99 * Math.sin(sa);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.strokeStyle = col(C.steel, 0.36);
+      ctx.lineWidth = spokeW;
+      ctx.lineCap = "round";
+      ctx.stroke();
+      // Spoke highlight.
+      ctx.strokeStyle = col(C.plateHi, 0.18);
+      ctx.lineWidth = spokeW * 0.32;
+      ctx.stroke();
+    }
+
+    // Central ball bearing: housing → ball → drilled center.
+    const housing = ctx.createRadialGradient(0, 0, bearingR * 0.3, 0, 0, bearingR * 1.6);
+    housing.addColorStop(0, col(C.steel,  0.55));
+    housing.addColorStop(1, col(C.shadow, 0.45));
+    ctx.fillStyle = housing;
+    ctx.beginPath();
+    ctx.arc(0, 0, bearingR * 1.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    const ball = ctx.createRadialGradient(-bearingR * 0.3, -bearingR * 0.3, 0, 0, 0, bearingR);
+    ball.addColorStop(0, col(C.plateHi, 0.50));
+    ball.addColorStop(1, col(C.steelBlue, 0.65));
+    ctx.fillStyle = ball;
+    ctx.beginPath();
+    ctx.arc(0, 0, bearingR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = col(C.shadow, 0.55);
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+
+    ctx.fillStyle = col(C.shadow, 0.70);
+    ctx.beginPath();
+    ctx.arc(0, 0, bearingR * 0.32, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
   /* Shimmers — light glinting off polished anglage (the beveled bridge
      edge). Not traveling particles; each shimmer is an elongated
      specular streak aligned with the bridge tangent, tapering at both
@@ -1307,6 +1402,7 @@ export function startMovement(canvas) {
     drawPallet(renderT, yaw);
     drawBalanceWheel(renderT, yaw, zoomFactor);
     drawJewelsAndScrews(renderT, yaw, zoomFactor);
+    drawRotor(renderT, yaw);
 
     // Shimmers pause entirely while the app is open (they'd contradict
     // the frozen-mechanism rule otherwise).
