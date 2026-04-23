@@ -75,14 +75,14 @@ export function startMovement(canvas) {
       // unit space around v ≈ 0.12..0.20, u ≈ -0.42..0.20) lands as a
       // horizontal band across the lower spacer between the icon grid
       // and the version footer — out from behind the tappable icons.
-      RA  = W * 1.75;
+      RA  = W * 2.05;
       cxA = W * 1.00;
-      cyA = H * 0.70;
+      cyA = H * 0.68;
     } else {
       const longSide = Math.max(W, H);
-      RA  = longSide * 0.95;
+      RA  = longSide * 1.10;
       cxA = W * 1.02;
-      cyA = H * 0.72;
+      cyA = H * 0.70;
     }
     if (launch.mode === "idle") { cx = cxA; cy = cyA; R = RA; }
   }
