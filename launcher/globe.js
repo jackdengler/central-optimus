@@ -9,9 +9,9 @@ export function mountGlobe(target, opts = {}) {
   if (!target) throw new Error("mountGlobe: target element required");
 
   const {
-    nodeCount = 46,
-    arcCount = 7,
-    rotationSpeed = 0.00018,
+    nodeCount = 28,
+    arcCount = 4,
+    rotationSpeed = 0.00012,
     tilt = 0.34,
     blendMode = "multiply",
     radiusFactor = 0.42,
