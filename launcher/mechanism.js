@@ -70,20 +70,13 @@ export function startMovement(canvas) {
     canvas.height = Math.round(H * DPR);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     isPortrait = H >= W;
-    if (isPortrait) {
-      // Anchor so the gear train (gears 1..4 + balance, which live in
-      // unit space around v ≈ 0.12..0.20, u ≈ -0.42..0.20) lands as a
-      // horizontal band across the lower spacer between the icon grid
-      // and the version footer — out from behind the tappable icons.
-      RA  = W * 2.05;
-      cxA = W * 1.00;
-      cyA = H * 0.68;
-    } else {
-      const longSide = Math.max(W, H);
-      RA  = longSide * 1.10;
-      cxA = W * 1.02;
-      cyA = H * 0.70;
-    }
+    // Center the plate disc on the screen and size it so the disc
+    // diameter ≥ the long screen edge — the whole movement is always
+    // visible (every gear, bridge, balance, pallet) and the plate
+    // fills the canvas with no empty corners.
+    cxA = W * 0.5;
+    cyA = H * 0.5;
+    RA  = Math.max(W, H) * 0.52;
     if (launch.mode === "idle") { cx = cxA; cy = cyA; R = RA; }
   }
 
