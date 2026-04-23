@@ -1,5 +1,6 @@
 import { initWeather } from "./weather.js";
 import { mountLittleGuy } from "./little-guy.js";
+import { startMovement } from "./mechanism.js";
 
 function haptic(pattern) {
   if (typeof navigator === "undefined" || !navigator.vibrate) return;
@@ -12,25 +13,28 @@ const TOKEN_KEY = "co.gh.token";
 const PIP_POS_KEY = "co.pip.pos";
 const PIP_SIZE_KEY = "co.pip.size";
 const PIP_ONBOARDED_KEY = "co.mascot.onboarded";
-const RECENTS_KEY = "co.recents";
-const RECENTS_MAX = 3;
 const PIP_MIN_SIZE = 72;
 const PIP_MAX_SIZE = 320;
+
+// Launch animation timing, taken from the prototype. The zoom runs 1100ms
+// to the fourth wheel; the embed starts fading in at 720ms so the app
+// reveals from within the hub before the camera actually lands. A tiny
+// buffer on top of 1100ms gives the camera a moment to settle.
+const LAUNCH_ZOOM_MS = 1100;
+const LAUNCH_OVERLAY_DELAY_MS = 720;
+const LAUNCH_BUFFER_MS = 50;
+
+// Close animation timing. The overlay fades out first, then the camera
+// pulls back — otherwise the app and the mechanism both dissolve at the
+// same moment and the transition reads as a hard cut.
+const CLOSE_OVERLAY_FADE_MS = 180;
+
 let APPS = [];
 let weatherController = null;
 let buddyController = null;
 let clockTimer = null;
-
-const APP_GLYPHS = {
-  parlay: `<path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1.6a1.6 1.6 0 1 0 0 3.2V16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-2.2a1.6 1.6 0 1 0 0-3.2V8z"/><path d="M10 9v6M14 9v6"/>`,
-  "budget-together": `<circle cx="9.5" cy="12" r="4.5"/><circle cx="14.5" cy="12" r="4.5"/>`,
-  "upcoming-movies": `<rect x="4" y="6" width="16" height="13" rx="1.8"/><path d="M4 10h16M4 15h16"/><path d="M8 6v4M8 15v4M16 6v4M16 15v4"/>`,
-  cornerman: `<path d="M12 3l7.5 4.5v9L12 21l-7.5-4.5v-9L12 3z"/><path d="M9.5 12.5l2 2 3.5-4"/>`,
-  "polished-space": `<path d="M12 3.5l1.8 5.2 5.2 1.8-5.2 1.8L12 17.5l-1.8-5.2-5.2-1.8 5.2-1.8z"/><path d="M18.5 16.5l.55 1.45L20.5 18.5l-1.45.55L18.5 20.5l-.55-1.45L16.5 18.5l1.45-.55z"/>`,
-  tbd: `<path d="M4 7.5a1.5 1.5 0 0 1 1.5-1.5h13A1.5 1.5 0 0 1 20 7.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5v-9z"/><path d="M4.5 8l7.5 5.5L19.5 8"/><path d="M17 3.5l.6 1.4L19 5.5l-1.4.6L17 7.5l-.6-1.4L15 5.5l1.4-.6z"/>`,
-  "clean-script": `<path d="M7 4h8l4 4v11a1.5 1.5 0 0 1-1.5 1.5h-10.5A1.5 1.5 0 0 1 5.5 19V5.5A1.5 1.5 0 0 1 7 4z"/><path d="M14.5 4v4.5H19"/><path d="M8.5 12.5h7M8.5 15.5h7M8.5 18h4"/>`,
-};
-const DEFAULT_GLYPH = `<circle cx="12" cy="12" r="7"/><path d="M12 8v4l2.5 2"/>`;
+let watchCanvas = null;
+let reducedMotion = false;
 
 async function loadJSON(path) {
   const res = await fetch(path, { cache: "no-cache" });
@@ -48,226 +52,208 @@ async function verifyToken(token, expectedLogin) {
   });
   if (!res.ok) return false;
   const user = await res.json();
-  return typeof user.login === "string" && user.login.toLowerCase() === expectedLogin.toLowerCase();
+  return (
+    typeof user.login === "string" &&
+    user.login.toLowerCase() === expectedLogin.toLowerCase()
+  );
 }
 
-function darkenHex(hex, amount = 0.45) {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
-  if (!m) return "#1E40AF";
-  const n = parseInt(m[1], 16);
-  const r = Math.round(((n >> 16) & 0xff) * (1 - amount));
-  const g = Math.round(((n >> 8) & 0xff) * (1 - amount));
-  const b = Math.round((n & 0xff) * (1 - amount));
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+/* ---------- Live data (greeting, date, time, publish stamp) ---------- */
+
+const pad = (n) => String(n).padStart(2, "0");
+
+function fmtTime12(d) {
+  let h = d.getHours();
+  const m = d.getMinutes();
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12;
+  if (h === 0) h = 12;
+  return `${h}:${pad(m)} ${ampm}`;
 }
 
-const GREETING_BANDS = [
-  { until: 5, variants: ["Working late", "Still up", "Burning the oil"] },
-  { until: 11, variants: ["Morning", "Good morning", "Rise and shine"] },
-  { until: 17, variants: ["Afternoon", "Good afternoon"] },
-  { until: 22, variants: ["Evening", "Good evening"] },
-  { until: 24, variants: ["Working late", "Night owl"] },
-];
-
-function pickVariant(variants, seed) {
-  if (!variants.length) return "";
-  return variants[seed % variants.length];
+function fmtDate(d) {
+  const days = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
+  const months = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+  return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
 }
 
-function greetingFor(date, firstName, { sparse = false } = {}) {
-  if (sparse) {
-    const name = firstName ? `, ${firstName}` : "";
-    return `Getting set up${name}`;
-  }
-  const h = date.getHours();
-  const band = GREETING_BANDS.find((b) => h < b.until) || GREETING_BANDS[0];
-  const seed = date.getDate() + (date.getMonth() * 31);
-  const prefix = pickVariant(band.variants, seed);
-  const name = firstName ? `, ${firstName}` : "";
-  return `${prefix}${name}`;
+function greetingFor(d) {
+  const h = d.getHours();
+  if (h < 5) return "Still up,";
+  if (h < 12) return "Good morning,";
+  if (h < 17) return "Good afternoon,";
+  if (h < 21) return "Good evening,";
+  return "Good night,";
 }
 
-function formatDate(date) {
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  }).format(date);
+function titleCaseFirstName(config) {
+  const first = (config.firstName || config.githubUser || "")
+    .toString()
+    .split(/[\s.]/)[0];
+  if (!first) return "";
+  return first.charAt(0).toUpperCase() + first.slice(1);
 }
 
-function updateHero(config) {
+function tickClock(config) {
   const now = new Date();
-  const first = (config.firstName || config.githubUser || "").split(/[\s.]/)[0];
-  const pretty = first ? first.charAt(0).toUpperCase() + first.slice(1) : "";
-  const shell = document.getElementById("app");
-  const sparse = shell?.dataset.density === "sparse";
-  const g = document.getElementById("greeting-text");
-  const d = document.getElementById("hero-date");
-  if (g) g.textContent = greetingFor(now, pretty, { sparse });
-  if (d) d.textContent = formatDate(now);
+  const greet = document.getElementById("greet-time");
+  const name = document.getElementById("greet-name");
+  const date = document.getElementById("today-date");
+  const live = document.getElementById("live-time");
+  if (greet) greet.textContent = greetingFor(now);
+  if (name) name.textContent = titleCaseFirstName(config);
+  if (date) date.textContent = fmtDate(now);
+  if (live) live.textContent = fmtTime12(now);
 }
 
 function startClock(config) {
-  updateHero(config);
+  tickClock(config);
   if (clockTimer) clearInterval(clockTimer);
-  clockTimer = setInterval(() => updateHero(config), 30_000);
+  clockTimer = setInterval(() => tickClock(config), 10_000);
 }
 
-function loadRecents() {
-  try {
-    const raw = localStorage.getItem(RECENTS_KEY);
-    if (!raw) return [];
-    const list = JSON.parse(raw);
-    return Array.isArray(list) ? list.filter((x) => typeof x === "string") : [];
-  } catch (_) {
-    return [];
-  }
+function setPublishStamp() {
+  const el = document.getElementById("publish-time");
+  if (!el) return;
+  const now = new Date();
+  const ptFmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+  const ptDateFmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    month: "short",
+    day: "numeric",
+  });
+  el.textContent = `published ${ptDateFmt.format(now)} · ${ptFmt.format(now)} PT`;
 }
 
-function recordRecent(appId) {
-  if (!appId) return;
-  const existing = loadRecents().filter((id) => id !== appId);
-  const next = [appId, ...existing].slice(0, RECENTS_MAX);
-  try {
-    localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
-  } catch (_) {}
-  renderRecents(APPS);
-}
+/* ---------- App launch orchestration ----------
+   Each tile in the grid has data-app="<app-id>". On tap we trigger the
+   camera zoom toward the fourth wheel, then at 720ms begin opening the
+   embed (so the app reveals from within the spinning hub), and at
+   ~1150ms the camera lands. Close reverses: overlay fades out first,
+   then the camera pulls back for 800ms. */
 
-function launchApp(app) {
-  if (!app) return;
-  recordRecent(app.id);
-  if (app.openInNew) {
-    window.open(app.url, "_blank", "noopener,noreferrer");
+function launchApp(appId) {
+  const app = APPS.find((a) => a.id === appId);
+  if (!app) {
+    // Placeholder — app doesn't exist in registry. Still play the zoom
+    // so the icon feels alive, but bail out before navigating.
+    if (watchCanvas && !reducedMotion && watchCanvas._launch) {
+      watchCanvas._launch("fourthWheel");
+      setTimeout(() => watchCanvas._close && watchCanvas._close(), 900);
+    }
+    haptic(8);
     return;
   }
-  if (app.url) openEmbed(app);
+  haptic(8);
+
+  if (reducedMotion || !watchCanvas || !watchCanvas._launch) {
+    openEmbed(app);
+    return;
+  }
+
+  watchCanvas._launch("fourthWheel");
+  // Begin the crossfade on the shell so greeting/grid fade out during
+  // the dive, giving "pulled into the mechanism" rather than "cut to app."
+  const shell = document.getElementById("app");
+  if (shell) shell.classList.add("app-open");
+
+  setTimeout(() => openEmbed(app), LAUNCH_OVERLAY_DELAY_MS);
+  // (The iframe's own CSS opacity transition handles the final fade-in.)
+  void LAUNCH_ZOOM_MS;
+  void LAUNCH_BUFFER_MS;
 }
 
-function buildTile(app, idx, { showShortcut = true } = {}) {
-  const a = document.createElement("a");
-  a.className = "tile";
-  a.href = app.url || app.path;
-  a.dataset.appId = app.id;
-  if (app.openInNew) {
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
+function closeActiveApp() {
+  const wrap = document.getElementById("embed");
+  const shell = document.getElementById("app");
+  if (!wrap || wrap.hidden) return;
+
+  wrap.classList.remove("embed-open");
+
+  if (reducedMotion || !watchCanvas || !watchCanvas._close) {
+    hideEmbed();
+    if (shell) shell.classList.remove("app-open");
+    return;
   }
-  a.addEventListener("click", (e) => {
-    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
-    haptic(8);
-    recordRecent(app.id);
-    if (!app.openInNew && app.url) {
+
+  setTimeout(() => {
+    hideEmbed();
+    watchCanvas._close();
+    if (shell) shell.classList.remove("app-open");
+  }, CLOSE_OVERLAY_FADE_MS);
+}
+
+function wireLauncherGrid() {
+  const grid = document.getElementById("launcher-grid");
+  if (!grid) return;
+  grid.querySelectorAll("a.icon[data-app]").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
       e.preventDefault();
-      openEmbed(app);
+      const appId = el.dataset.app;
+      launchApp(appId);
+    });
+  });
+}
+
+function wireGlobalShortcuts() {
+  window.addEventListener("keydown", (e) => {
+    const active = document.activeElement;
+    const typing =
+      active &&
+      (active.tagName === "INPUT" ||
+        active.tagName === "TEXTAREA" ||
+        active.isContentEditable);
+    if (e.key === "Escape") {
+      closeActiveApp();
+      return;
+    }
+    if (
+      !typing &&
+      /^[1-9]$/.test(e.key) &&
+      !e.metaKey &&
+      !e.ctrlKey &&
+      !e.altKey
+    ) {
+      const idx = parseInt(e.key, 10) - 1;
+      const tile = document.querySelectorAll(
+        "#launcher-grid a.icon[data-app]",
+      )[idx];
+      if (tile) {
+        e.preventDefault();
+        tile.click();
+      }
     }
   });
-  const color = app.color || "#c96a47";
-  const shade = app.shade || darkenHex(color);
-  a.style.setProperty("--tile-color", color);
-  a.style.setProperty("--tile-shade", shade);
-  const glyph = APP_GLYPHS[app.id] || DEFAULT_GLYPH;
-  const shortcut =
-    showShortcut && idx < 9
-      ? `<span class="tile-shortcut" aria-hidden="true">${idx + 1}</span>`
-      : "";
-  a.innerHTML = `
-    <div class="tile-icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg>
-      ${shortcut}
-    </div>
-    <h2 class="tile-name"></h2>
-  `;
-  a.querySelector(".tile-name").textContent = app.name;
-  return a;
 }
 
-function renderTiles(apps) {
-  const grid = document.getElementById("grid");
-  const empty = document.getElementById("empty");
-  grid.hidden = false;
-  grid.innerHTML = "";
-  if (!apps.length) {
-    empty.hidden = false;
-    return;
-  }
-  empty.hidden = true;
-  apps.forEach((app, idx) => {
-    grid.appendChild(buildTile(app, idx));
-  });
-}
-
-function renderRecents(apps) {
-  const section = document.getElementById("recents-section");
-  const grid = document.getElementById("recents-grid");
-  if (!section || !grid) return;
-  const ids = loadRecents();
-  const recent = ids
-    .map((id) => apps.find((a) => a.id === id))
-    .filter(Boolean)
-    .slice(0, RECENTS_MAX);
-  if (!recent.length) {
-    section.hidden = true;
-    grid.innerHTML = "";
-    return;
-  }
-  section.hidden = false;
-  grid.innerHTML = "";
-  recent.forEach((app, idx) => {
-    grid.appendChild(buildTile(app, idx, { showShortcut: false }));
-  });
-}
-
-function populateStatus(apps) {
-  const count = apps.length;
-  const heroCount = document.getElementById("hero-app-count");
-  if (heroCount) heroCount.textContent = String(count);
-  const shell = document.getElementById("app");
-  if (shell) {
-    const density = count <= 3 ? "sparse" : count >= 9 ? "dense" : "normal";
-    shell.dataset.density = density;
-  }
-  wireAppsSearch(apps);
-}
-
-function wireAppsSearch(apps) {
-  const input = document.getElementById("apps-search");
-  if (!input) return;
-  const dense = apps.length >= 9;
-  input.hidden = !dense;
-  if (!dense) {
-    input.value = "";
-    filterGrid("");
-    return;
-  }
-  if (input.dataset.wired === "1") return;
-  input.dataset.wired = "1";
-  input.addEventListener("input", () => filterGrid(input.value));
-}
-
-function filterGrid(query) {
-  const grid = document.getElementById("grid");
-  if (!grid) return;
-  const q = query.trim().toLowerCase();
-  grid.querySelectorAll(".tile").forEach((el) => {
-    const name = el.querySelector(".tile-name")?.textContent?.toLowerCase() || "";
-    el.hidden = q.length > 0 && !name.includes(q);
-  });
-}
-
-function renderApps(apps, config) {
-  document.getElementById("app").hidden = false;
-  document.getElementById("app-header").hidden = false;
-  document.getElementById("hero").hidden = false;
-  document.getElementById("apps-section").hidden = false;
-  document.getElementById("status-bar").hidden = false;
-  document.body.classList.add("bg-optimus-bg", "text-optimus-text");
-  renderTiles(apps);
-  renderRecents(apps);
-  populateStatus(apps);
-  startClock(config || {});
-  loadBuildInfo();
-}
+/* ---------- Embed iframe (how each app actually opens) ---------- */
 
 function ensureEmbedShell() {
   let wrap = document.getElementById("embed");
@@ -295,7 +281,7 @@ function ensureEmbedShell() {
     if (location.hash) {
       history.pushState(null, "", location.pathname + location.search);
     }
-    hideEmbed();
+    closeActiveApp();
   });
   return wrap;
 }
@@ -315,7 +301,9 @@ function openEmbed(app) {
   const src = embedUrlFor(app);
   if (frame.src !== src) frame.src = src;
   wrap.hidden = false;
-  document.getElementById("app").hidden = true;
+  // Force reflow so the transition from opacity:0 → 1 plays.
+  void wrap.offsetWidth;
+  wrap.classList.add("embed-open");
   const hash = `#app/${app.id}`;
   if (location.hash !== hash) {
     history.pushState({ embed: app.id }, "", hash);
@@ -326,47 +314,23 @@ function hideEmbed() {
   const wrap = document.getElementById("embed");
   if (!wrap) return;
   wrap.hidden = true;
+  wrap.classList.remove("embed-open");
   const frame = document.getElementById("embed-frame");
   if (frame) frame.src = "about:blank";
-  document.getElementById("app").hidden = false;
 }
 
 function handleHash() {
   const m = location.hash.match(/^#app\/(.+)$/);
   if (!m) {
-    hideEmbed();
+    closeActiveApp();
     return;
   }
   const app = APPS.find((a) => a.id === m[1] && a.url);
   if (app) openEmbed(app);
-  else hideEmbed();
+  else closeActiveApp();
 }
 
 window.addEventListener("popstate", handleHash);
-
-function showApp(title) {
-  document.getElementById("app").hidden = false;
-  document.title = title;
-}
-
-function wireGlobalShortcuts() {
-  window.addEventListener("keydown", (e) => {
-    const active = document.activeElement;
-    const typing =
-      active &&
-      (active.tagName === "INPUT" ||
-        active.tagName === "TEXTAREA" ||
-        active.isContentEditable);
-    if (!typing && /^[1-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
-      const idx = parseInt(e.key, 10) - 1;
-      const app = APPS[idx];
-      if (app) {
-        e.preventDefault();
-        launchApp(app);
-      }
-    }
-  });
-}
 
 /* ---------- Pip (FaceTime-style mascot overlay) ---------- */
 
@@ -610,6 +574,11 @@ function setupPip() {
 
 /* ---------- Auth + bootstrap ---------- */
 
+function revealApp(title) {
+  document.getElementById("app").hidden = false;
+  document.title = title || "Central Optimus";
+}
+
 async function unlock(config, registry) {
   const dialog = document.getElementById("gate");
   const form = document.getElementById("gate-form");
@@ -624,11 +593,15 @@ async function unlock(config, registry) {
 
   const finish = () => {
     if (dialog.open) dialog.close();
-    showApp(config.title);
+    revealApp(config.title);
     APPS = registry.apps || [];
-    renderApps(APPS, config);
+    startClock(config);
+    setPublishStamp();
+    wireLauncherGrid();
     handleHash();
     setupPip();
+    startWatchCanvas();
+
     const lockBtn = document.getElementById("lock");
     if (lockBtn) {
       lockBtn.dataset.state = "unlocked";
@@ -637,18 +610,14 @@ async function unlock(config, registry) {
     }
 
     const weatherEl = document.getElementById("hero-weather");
-    const weatherSep = document.querySelector(".eyebrow-sep-weather");
     if (weatherEl) {
       if (weatherController) weatherController.destroy();
       weatherController = initWeather({
         mountEl: weatherEl,
         onUpdate: () => {
-          if (weatherSep) weatherSep.hidden = false;
-          setStatus("nominal", "All systems nominal");
+          weatherEl.hidden = false;
         },
-        onError: () => {
-          setStatus("degraded", "Weather offline");
-        },
+        onError: () => {},
       });
     }
   };
@@ -684,68 +653,16 @@ function lockAndReload() {
 
 document.getElementById("lock")?.addEventListener("click", lockAndReload);
 
-function formatUpdatedAgo(date, now = new Date()) {
-  const diffMs = now - date;
-  const diffSec = Math.round(diffMs / 1000);
-  if (diffSec < 60) return "just now";
-  const diffMin = Math.round(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHr = Math.round(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  const diffDay = Math.round(diffHr / 24);
-  if (diffDay < 7) return `${diffDay}d ago`;
-  return new Intl.DateTimeFormat(undefined, {
-    month: "short",
-    day: "numeric",
-  }).format(date);
-}
-
-async function loadBuildInfo() {
-  const wrap = document.getElementById("status-updated");
-  const timeEl = document.getElementById("status-updated-time");
-  if (!wrap || !timeEl) return;
+function startWatchCanvas() {
+  watchCanvas = document.querySelector(".watch-canvas");
+  if (!watchCanvas || watchCanvas._launch) return;
+  reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   try {
-    const res = await fetch("./build-info.json", { cache: "no-cache" });
-    if (!res.ok) return;
-    const info = await res.json();
-    const iso = info?.commitDate;
-    if (!iso) return;
-    const date = new Date(iso);
-    if (Number.isNaN(date.getTime())) return;
-    timeEl.dateTime = date.toISOString();
-    timeEl.title = date.toLocaleString();
-    timeEl.textContent = formatUpdatedAgo(date);
-    wrap.hidden = false;
-  } catch (_) {}
+    startMovement(watchCanvas);
+  } catch (err) {
+    console.warn("mechanism failed to start:", err);
+  }
 }
-
-function setStatus(state, label) {
-  const indicator = document.getElementById("status-indicator");
-  const text = document.getElementById("status-label");
-  if (indicator) indicator.dataset.status = state;
-  if (text && label) text.textContent = label;
-}
-
-function wireBuildReveal() {
-  const indicator = document.querySelector(".status-indicator");
-  const build = document.getElementById("status-build");
-  if (!indicator || !build) return;
-  let timer = null;
-  const reveal = () => {
-    build.hidden = !build.hidden;
-  };
-  const start = (e) => {
-    if (e.type === "pointerdown" && e.button !== undefined && e.button !== 0) return;
-    clearTimeout(timer);
-    timer = setTimeout(reveal, 700);
-  };
-  const cancel = () => clearTimeout(timer);
-  indicator.addEventListener("pointerdown", start);
-  indicator.addEventListener("pointerup", cancel);
-  indicator.addEventListener("pointerleave", cancel);
-  indicator.addEventListener("pointercancel", cancel);
-}
-wireBuildReveal();
 
 wireGlobalShortcuts();
 

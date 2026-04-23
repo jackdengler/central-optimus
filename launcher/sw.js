@@ -1,9 +1,10 @@
-const CACHE = "launcher-v11";
+const CACHE = "launcher-v12";
 const SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./mechanism.js",
   "./weather.js",
   "./little-guy.js",
   "./config.json",
