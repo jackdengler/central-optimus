@@ -1,5 +1,4 @@
 import { initWeather } from "./weather.js";
-import { mountLittleGuy } from "./little-guy.js";
 import { startMovement } from "./mechanism.js";
 
 function haptic(pattern) {
@@ -10,11 +9,6 @@ function haptic(pattern) {
 }
 
 const TOKEN_KEY = "co.gh.token";
-const PIP_POS_KEY = "co.pip.pos";
-const PIP_SIZE_KEY = "co.pip.size";
-const PIP_ONBOARDED_KEY = "co.mascot.onboarded";
-const PIP_MIN_SIZE = 72;
-const PIP_MAX_SIZE = 320;
 
 // Launch animation timing, taken from the prototype. The zoom runs 1100ms
 // to the fourth wheel; the embed starts fading in at 720ms so the app
@@ -31,7 +25,6 @@ const CLOSE_OVERLAY_FADE_MS = 180;
 
 let APPS = [];
 let weatherController = null;
-let buddyController = null;
 let clockTimer = null;
 let watchCanvas = null;
 let reducedMotion = false;
@@ -332,246 +325,6 @@ function handleHash() {
 
 window.addEventListener("popstate", handleHash);
 
-/* ---------- Pip (FaceTime-style mascot overlay) ---------- */
-
-function clampPipPos(x, y, el) {
-  const w = el.offsetWidth;
-  const h = el.offsetHeight;
-  const margin = 12;
-  const maxX = window.innerWidth - w - margin;
-  const maxY = window.innerHeight - h - margin;
-  return {
-    x: Math.min(maxX, Math.max(margin, x)),
-    y: Math.min(maxY, Math.max(margin, y)),
-  };
-}
-
-function applyPipPos(el, x, y) {
-  el.style.left = `${x}px`;
-  el.style.top = `${y}px`;
-  el.style.right = "auto";
-  el.style.bottom = "auto";
-}
-
-function applyPipSize(el, size) {
-  el.style.width = `${size}px`;
-  el.style.height = `${size}px`;
-}
-
-function loadPipPos() {
-  try {
-    const raw = localStorage.getItem(PIP_POS_KEY);
-    if (!raw) return null;
-    const p = JSON.parse(raw);
-    if (typeof p?.x === "number" && typeof p?.y === "number") return p;
-  } catch (_) {}
-  return null;
-}
-
-function loadPipSize() {
-  try {
-    const raw = localStorage.getItem(PIP_SIZE_KEY);
-    if (!raw) return null;
-    const n = parseFloat(raw);
-    if (Number.isFinite(n) && n >= PIP_MIN_SIZE && n <= PIP_MAX_SIZE) return n;
-  } catch (_) {}
-  return null;
-}
-
-function showPipHintOnce() {
-  const pip = document.getElementById("pip");
-  const hint = document.getElementById("pip-hint");
-  if (!pip || !hint) return;
-  try {
-    if (localStorage.getItem(PIP_ONBOARDED_KEY) === "1") return;
-  } catch (_) {}
-  hint.hidden = false;
-  requestAnimationFrame(() => {
-    hint.classList.add("pip-hint-show");
-  });
-  const dismiss = () => {
-    hint.classList.remove("pip-hint-show");
-    setTimeout(() => {
-      hint.hidden = true;
-    }, 260);
-    try {
-      localStorage.setItem(PIP_ONBOARDED_KEY, "1");
-    } catch (_) {}
-    pip.removeEventListener("pointerdown", dismiss);
-  };
-  setTimeout(dismiss, 4200);
-  pip.addEventListener("pointerdown", dismiss, { once: true });
-}
-
-function flashPipActive() {
-  const pip = document.getElementById("pip");
-  if (!pip) return;
-  haptic(12);
-  pip.classList.add("pip-active");
-  setTimeout(() => pip.classList.remove("pip-active"), 320);
-}
-
-function setupPip() {
-  const pip = document.getElementById("pip");
-  const stage = document.getElementById("pip-stage");
-  if (!pip || !stage) return;
-  pip.hidden = false;
-
-  if (buddyController) buddyController.destroy();
-  buddyController = mountLittleGuy(stage);
-
-  setTimeout(showPipHintOnce, 900);
-
-  const storedSize = loadPipSize();
-  if (storedSize) applyPipSize(pip, storedSize);
-
-  const placeDefault = () => {
-    const margin = 16;
-    const x = window.innerWidth - pip.offsetWidth - margin;
-    const y = window.innerHeight - pip.offsetHeight - margin;
-    applyPipPos(pip, x, y);
-  };
-
-  const stored = loadPipPos();
-  if (stored) {
-    const { x, y } = clampPipPos(stored.x, stored.y, pip);
-    applyPipPos(pip, x, y);
-  } else {
-    placeDefault();
-  }
-
-  window.addEventListener("resize", () => {
-    const r = pip.getBoundingClientRect();
-    const { x, y } = clampPipPos(r.left, r.top, pip);
-    applyPipPos(pip, x, y);
-  });
-
-  const pointers = new Map();
-  let gesture = null;
-
-  const savePos = () => {
-    const r = pip.getBoundingClientRect();
-    try {
-      localStorage.setItem(
-        PIP_POS_KEY,
-        JSON.stringify({ x: r.left, y: r.top }),
-      );
-    } catch (_) {}
-  };
-  const saveSize = () => {
-    try {
-      localStorage.setItem(PIP_SIZE_KEY, String(pip.offsetWidth));
-    } catch (_) {}
-  };
-
-  const startPinch = () => {
-    const pts = [...pointers.values()];
-    if (pts.length < 2) return;
-    const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-    const r = pip.getBoundingClientRect();
-    gesture = {
-      type: "pinch",
-      initialDist: Math.max(1, dist),
-      initialSize: r.width,
-      centerX: r.left + r.width / 2,
-      centerY: r.top + r.height / 2,
-      changed: false,
-    };
-    pip.classList.add("pip-dragging");
-  };
-
-  const onDown = (e) => {
-    if (e.button !== undefined && e.button !== 0) return;
-    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    try {
-      pip.setPointerCapture(e.pointerId);
-    } catch (_) {}
-    if (pointers.size === 1) {
-      const r = pip.getBoundingClientRect();
-      gesture = {
-        type: "drag",
-        startX: e.clientX,
-        startY: e.clientY,
-        offX: e.clientX - r.left,
-        offY: e.clientY - r.top,
-        moved: false,
-      };
-    } else if (pointers.size === 2) {
-      startPinch();
-    }
-  };
-
-  const onMove = (e) => {
-    if (!pointers.has(e.pointerId)) return;
-    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (!gesture) return;
-
-    if (gesture.type === "drag") {
-      const dx = e.clientX - gesture.startX;
-      const dy = e.clientY - gesture.startY;
-      if (!gesture.moved && Math.hypot(dx, dy) > 5) {
-        gesture.moved = true;
-        pip.classList.add("pip-dragging");
-      }
-      if (gesture.moved) {
-        const { x, y } = clampPipPos(
-          e.clientX - gesture.offX,
-          e.clientY - gesture.offY,
-          pip,
-        );
-        applyPipPos(pip, x, y);
-      }
-    } else if (gesture.type === "pinch") {
-      const pts = [...pointers.values()];
-      if (pts.length < 2) return;
-      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-      const raw = gesture.initialSize * (dist / gesture.initialDist);
-      const size = Math.max(PIP_MIN_SIZE, Math.min(PIP_MAX_SIZE, raw));
-      applyPipSize(pip, size);
-      const left = gesture.centerX - size / 2;
-      const top = gesture.centerY - size / 2;
-      const clamped = clampPipPos(left, top, pip);
-      applyPipPos(pip, clamped.x, clamped.y);
-      gesture.changed = true;
-    }
-  };
-
-  const onUp = (e) => {
-    if (!pointers.has(e.pointerId)) return;
-    pointers.delete(e.pointerId);
-    try {
-      pip.releasePointerCapture(e.pointerId);
-    } catch (_) {}
-    if (!gesture) return;
-
-    if (gesture.type === "pinch") {
-      if (gesture.changed) {
-        saveSize();
-        savePos();
-      }
-      gesture = { type: "ended" };
-    }
-
-    if (pointers.size === 0) {
-      if (gesture?.type === "drag") {
-        if (gesture.moved) {
-          savePos();
-          haptic([4, 20, 4]);
-        } else {
-          flashPipActive();
-        }
-      }
-      pip.classList.remove("pip-dragging");
-      gesture = null;
-    }
-  };
-
-  pip.addEventListener("pointerdown", onDown);
-  pip.addEventListener("pointermove", onMove);
-  pip.addEventListener("pointerup", onUp);
-  pip.addEventListener("pointercancel", onUp);
-}
-
 /* ---------- Auth + bootstrap ---------- */
 
 function revealApp(title) {
@@ -599,7 +352,6 @@ async function unlock(config, registry) {
     setPublishStamp();
     wireLauncherGrid();
     handleHash();
-    setupPip();
     startWatchCanvas();
 
     const lockBtn = document.getElementById("lock");
