@@ -287,14 +287,18 @@
   }
   .eyebrow {
     display: inline-flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.55rem;
+    gap: 0.35rem 0.55rem;
     margin: 0;
     font-size: 0.72rem;
     font-weight: 600;
     letter-spacing: 0.22em;
     text-transform: uppercase;
     color: color-mix(in oklab, var(--color-optimus-muted) 95%, transparent);
+  }
+  .eyebrow > span {
+    white-space: nowrap;
   }
   .eyebrow-sep {
     opacity: 0.55;
@@ -525,8 +529,11 @@
     text-align: center;
     max-width: 100%;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow-wrap: anywhere;
     text-shadow: 0 1px 0 rgba(255, 250, 241, 0.6);
   }
 
