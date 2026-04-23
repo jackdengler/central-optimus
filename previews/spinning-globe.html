@@ -83,9 +83,7 @@
         inset: 0;
         z-index: 1;
         pointer-events: none;
-        -webkit-mask-image: radial-gradient(120% 95% at 50% 45%, #000 38%, rgba(0,0,0,0.55) 70%, transparent 100%);
-        mask-image: radial-gradient(120% 95% at 50% 45%, #000 38%, rgba(0,0,0,0.55) 70%, transparent 100%);
-        opacity: 0.85;
+        opacity: 0.92;
       }
       .shell {
         position: relative;
@@ -193,10 +191,12 @@
         if (!target) throw new Error("mountGlobe: target element required");
         var nodeCount = opts.nodeCount != null ? opts.nodeCount : 46;
         var arcCount = opts.arcCount != null ? opts.arcCount : 7;
-        var rotationSpeed = opts.rotationSpeed != null ? opts.rotationSpeed : 0.00018;
+        var rotationSpeed = opts.rotationSpeed != null ? opts.rotationSpeed : 0.00012;
         var tilt = opts.tilt != null ? opts.tilt : 0.34;
         var blendMode = opts.blendMode || "multiply";
-        var radiusFactor = opts.radiusFactor != null ? opts.radiusFactor : 0.42;
+        var radiusFactor = opts.radiusFactor != null ? opts.radiusFactor : 1.05;
+        var offsetX = opts.offsetX != null ? opts.offsetX : -0.18;
+        var offsetY = opts.offsetY != null ? opts.offsetY : 0.22;
 
         var TAU = Math.PI * 2;
         var reduced = false;
@@ -224,8 +224,9 @@
           canvas.width = Math.floor(w * dpr);
           canvas.height = Math.floor(h * dpr);
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          cx = w / 2; cy = h / 2;
-          radius = Math.min(w, h) * radiusFactor;
+          cx = w / 2 + w * offsetX;
+          cy = h / 2 + h * offsetY;
+          radius = Math.max(w, h) * radiusFactor;
         }
         var ro = new ResizeObserver(resize);
         ro.observe(target);

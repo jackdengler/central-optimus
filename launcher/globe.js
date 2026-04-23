@@ -14,7 +14,9 @@ export function mountGlobe(target, opts = {}) {
     rotationSpeed = 0.00012,
     tilt = 0.34,
     blendMode = "multiply",
-    radiusFactor = 0.42,
+    radiusFactor = 1.05,
+    offsetX = -0.18,
+    offsetY = 0.22,
   } = opts;
 
   const TAU = Math.PI * 2;
@@ -53,9 +55,11 @@ export function mountGlobe(target, opts = {}) {
     canvas.width = Math.floor(w * dpr);
     canvas.height = Math.floor(h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    cx = w / 2;
-    cy = h / 2;
-    radius = Math.min(w, h) * radiusFactor;
+    cx = w / 2 + w * offsetX;
+    cy = h / 2 + h * offsetY;
+    // Scale by the LONGER side so tall portrait viewports still get filled
+    // (otherwise we'd see cream gaps above and below the sphere on mobile).
+    radius = Math.max(w, h) * radiusFactor;
   };
 
   const ro = new ResizeObserver(resize);
