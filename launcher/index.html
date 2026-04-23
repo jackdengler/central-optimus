@@ -31,22 +31,24 @@
       <section id="hero" class="hero" hidden>
         <div class="hero-top">
           <p class="eyebrow">
-            <span class="hero-dot" aria-hidden="true"></span>
-            <span id="hero-date">—</span>
-            <span class="eyebrow-sep" aria-hidden="true">·</span>
-            <span id="hero-time">—</span>
-            <span class="eyebrow-sep eyebrow-sep-weather" aria-hidden="true" hidden>·</span>
             <span id="hero-weather" hidden></span>
+            <span class="eyebrow-sep eyebrow-sep-weather" aria-hidden="true" hidden>·</span>
+            <span id="hero-date">—</span>
           </p>
           <div class="hero-actions" id="app-header">
           <button
             id="lock"
             type="button"
-            aria-label="Lock"
-            title="Lock"
+            aria-label="Sign out"
+            title="Sign out"
             class="icon-btn"
+            data-state="unlocked"
           >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
+            <svg class="lock-glyph lock-glyph-unlocked" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="11" width="16" height="10" rx="2.5" />
+              <path d="M8 11V7a4 4 0 0 1 7.5-2" />
+            </svg>
+            <svg class="lock-glyph lock-glyph-locked" viewBox="0 0 24 24" aria-hidden="true">
               <rect x="4" y="11" width="16" height="10" rx="2.5" />
               <path d="M8 11V8a4 4 0 0 1 8 0v3" />
             </svg>
@@ -59,17 +61,37 @@
           </h1>
         </div>
         <p class="hero-tagline">
-          Your private workspace — <span class="hero-count"><span id="hero-app-count">0</span> apps ready</span>.
+          Your private workspace.
+          <span class="hero-count"><span id="hero-app-count">0</span> apps ready.</span>
         </p>
+      </section>
+
+      <section id="recents-section" class="apps-section" hidden>
+        <div class="section-header">
+          <h2 class="section-title">Recents</h2>
+        </div>
+        <div
+          id="recents-grid"
+          class="grid"
+          aria-label="Recent apps"
+        ></div>
       </section>
 
       <section id="apps-section" class="apps-section" hidden>
         <div class="section-header">
-          <h2 class="section-title">All apps</h2>
+          <h2 class="section-title">All</h2>
           <span class="section-hint">
             Tap or press <kbd>1</kbd>–<kbd>9</kbd>
           </span>
         </div>
+        <input
+          id="apps-search"
+          class="apps-search"
+          type="search"
+          placeholder="Search apps"
+          aria-label="Filter apps"
+          hidden
+        />
         <div
           id="grid"
           class="grid"
@@ -80,20 +102,23 @@
       <p id="empty" class="empty-state" hidden>No apps registered yet.</p>
 
       <footer id="status-bar" class="status-bar" hidden>
-        <span class="status-indicator">
+        <span id="status-indicator" class="status-indicator" data-status="nominal">
           <span class="status-dot" aria-hidden="true"></span>
-          <span>All systems nominal</span>
+          <span id="status-label">All systems nominal</span>
         </span>
         <span class="status-meta">
-          <span id="status-count">0 apps</span>
-          <span class="status-sep" aria-hidden="true">·</span>
-          <span class="status-build">build 2026.04</span>
+          <span class="status-build" id="status-build" hidden>build 2026.04</span>
         </span>
       </footer>
     </main>
 
-    <div id="pip" class="pip" hidden role="button" aria-label="Hello little guy" tabindex="0">
-      <div id="pip-stage" class="pip-stage"></div>
+    <div id="pip" class="pip" hidden role="button" aria-label="Your assistant" tabindex="0">
+      <div class="pip-inner">
+        <div id="pip-stage" class="pip-stage"></div>
+      </div>
+      <div id="pip-hint" class="pip-hint" hidden aria-hidden="true">
+        Drag me anywhere. Tap to chat.
+      </div>
     </div>
 
     <dialog

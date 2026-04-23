@@ -161,7 +161,7 @@ function renderChip(mountEl, payload) {
   mountEl.setAttribute("aria-label", `${payload.label}, ${payload.temp}°F`);
 }
 
-export function initWeather({ mountEl, onUpdate } = {}) {
+export function initWeather({ mountEl, onUpdate, onError } = {}) {
   ensureStyles();
 
   const cached = loadCache();
@@ -180,7 +180,10 @@ export function initWeather({ mountEl, onUpdate } = {}) {
       coords = await requestCoords();
       if (coords) saveCoords(coords.lat, coords.lon);
     }
-    if (!coords) return;
+    if (!coords) {
+      onError?.(new Error("location unavailable"));
+      return;
+    }
     try {
       const payload = await fetchWeather(coords.lat, coords.lon);
       if (cancelled) return;
@@ -189,6 +192,7 @@ export function initWeather({ mountEl, onUpdate } = {}) {
       onUpdate?.(payload);
     } catch (err) {
       console.warn("weather fetch failed:", err);
+      onError?.(err);
     }
   };
 

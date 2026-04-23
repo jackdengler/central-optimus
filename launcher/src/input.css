@@ -180,17 +180,13 @@
   .icon-btn {
     display: inline-grid;
     place-items: center;
-    height: 40px;
-    width: 40px;
+    height: 32px;
+    width: 32px;
     border-radius: 999px;
-    border: 1px solid var(--color-optimus-border);
-    background: rgba(255, 250, 241, 0.7);
-    color: color-mix(in oklab, var(--color-optimus-ink) 75%, transparent);
-    backdrop-filter: saturate(160%) blur(14px);
-    -webkit-backdrop-filter: saturate(160%) blur(14px);
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.7),
-      0 1px 2px rgba(var(--color-optimus-shadow), 0.06);
+    border: 0;
+    background: transparent;
+    color: color-mix(in oklab, var(--color-optimus-muted) 90%, transparent);
+    box-shadow: none;
     transition:
       border-color 180ms ease,
       background-color 180ms ease,
@@ -201,25 +197,27 @@
   }
   .icon-btn:hover,
   .icon-btn:focus-visible {
-    border-color: var(--color-optimus-border-strong);
-    background: var(--color-optimus-surface);
     color: var(--color-optimus-ink);
     outline: none;
-    box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.9),
-      0 6px 14px -6px rgba(var(--color-optimus-shadow), 0.18);
   }
   .icon-btn:active {
-    transform: scale(0.94);
+    transform: scale(0.9);
   }
   .icon-btn svg {
-    height: 18px;
-    width: 18px;
+    height: 16px;
+    width: 16px;
     stroke: currentColor;
     fill: none;
-    stroke-width: 1.75;
+    stroke-width: 1.6;
     stroke-linecap: round;
     stroke-linejoin: round;
+  }
+  #lock .lock-glyph {
+    grid-area: 1 / 1;
+  }
+  #lock[data-state="unlocked"] .lock-glyph-locked,
+  #lock[data-state="locked"] .lock-glyph-unlocked {
+    display: none;
   }
   .icon-btn--wide {
     grid-auto-flow: column;
@@ -338,7 +336,7 @@
     color: var(--color-optimus-ink);
   }
   .greeting-punct {
-    color: var(--color-optimus-accent);
+    color: #8a6a4a;
   }
   .greeting-accent {
     background: linear-gradient(
@@ -360,7 +358,7 @@
   }
   .hero-count {
     color: var(--color-optimus-ink);
-    font-weight: 500;
+    font-weight: 600;
   }
 
   /* ---------- Section headers ---------- */
@@ -392,26 +390,67 @@
     }
   }
 
+  /* ---------- Density states ---------- */
+  .shell[data-density="sparse"] .section-hint,
+  .shell[data-density="sparse"] #recents-section {
+    display: none;
+  }
+  .shell[data-density="sparse"] .tile-icon {
+    height: clamp(96px, 26vw, 112px);
+    width: clamp(96px, 26vw, 112px);
+  }
+  .shell[data-density="sparse"] #grid {
+    grid-template-columns: repeat(auto-fit, minmax(96px, 112px));
+    justify-content: center;
+  }
+
+  .apps-search {
+    display: block;
+    width: 100%;
+    margin: 0 0 0.75rem;
+    padding: 0.65rem 0.9rem;
+    font-size: 0.92rem;
+    color: var(--color-optimus-ink);
+    background: var(--color-optimus-surface);
+    border: 1px solid var(--color-optimus-border);
+    border-radius: 0.75rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    transition: border-color 180ms ease, box-shadow 180ms ease;
+  }
+  .apps-search::placeholder {
+    color: var(--color-optimus-muted);
+  }
+  .apps-search:focus {
+    outline: none;
+    border-color: var(--color-optimus-border-strong);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.7),
+      0 0 0 3px color-mix(in oklab, var(--color-optimus-accent) 22%, transparent);
+  }
+
   /* ---------- App grid (home-screen style) ---------- */
   #grid,
+  #recents-grid,
   .grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 1.25rem 0.5rem;
-    padding: 0.5rem 0;
+    gap: 32px 24px;
+    padding: 8px 0;
   }
   @media (min-width: 560px) {
     #grid,
+    #recents-grid,
     .grid {
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 1.5rem 0.75rem;
+      gap: 32px 24px;
     }
   }
   @media (min-width: 860px) {
     #grid,
+    #recents-grid,
     .grid {
       grid-template-columns: repeat(6, minmax(0, 1fr));
-      gap: 1.75rem 1rem;
+      gap: 40px 24px;
     }
   }
 
@@ -421,8 +460,8 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 0.6rem;
-    padding: 0.25rem;
+    gap: 8px;
+    padding: 4px;
     color: var(--color-optimus-ink);
     text-decoration: none;
     animation: tile-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -436,8 +475,8 @@
     position: relative;
     display: grid;
     place-items: center;
-    height: clamp(68px, 18vw, 84px);
-    width: clamp(68px, 18vw, 84px);
+    height: clamp(64px, 18vw, 88px);
+    width: clamp(64px, 18vw, 88px);
     border-radius: 22%;
     color: rgba(255, 255, 255, 0.98);
     background:
@@ -526,7 +565,8 @@
     font-size: 0.82rem;
     font-weight: 500;
     letter-spacing: -0.003em;
-    line-height: 1.2;
+    line-height: 1.25;
+    min-height: 2.5em;
     color: var(--color-optimus-ink);
     text-align: center;
     max-width: 100%;
@@ -536,6 +576,7 @@
     -webkit-line-clamp: 2;
     line-clamp: 2;
     overflow-wrap: anywhere;
+    text-wrap: balance;
     text-shadow: 0 1px 0 rgba(255, 250, 241, 0.6);
   }
 
@@ -609,6 +650,9 @@
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
+    cursor: default;
+    user-select: none;
+    -webkit-user-select: none;
   }
   .status-dot {
     position: relative;
@@ -616,16 +660,22 @@
     height: 7px;
     width: 7px;
     border-radius: 999px;
-    background: #4a7c59;
-    box-shadow: 0 0 0 3px rgba(74, 124, 89, 0.18);
+    background: var(--status-color, #4a7c59);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--status-color, #4a7c59) 22%, transparent);
   }
   .status-dot::after {
     content: "";
     position: absolute;
     inset: -4px;
     border-radius: inherit;
-    border: 1px solid rgba(74, 124, 89, 0.4);
+    border: 1px solid color-mix(in oklab, var(--status-color, #4a7c59) 45%, transparent);
     animation: ping 2.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+  .status-indicator[data-status="degraded"] {
+    --status-color: #c79a3a;
+  }
+  .status-indicator[data-status="error"] {
+    --status-color: #c84a3a;
   }
   .status-meta {
     display: inline-flex;
@@ -652,7 +702,6 @@
       inset 0 1.5px 0 rgba(255, 255, 255, 0.75),
       inset 0 -1.5px 0 rgba(0, 0, 0, 0.15),
       0 0 0 1px rgba(255, 255, 255, 0.45);
-    overflow: hidden;
     cursor: grab;
     touch-action: none;
     -webkit-tap-highlight-color: transparent;
@@ -663,13 +712,16 @@
     -webkit-backdrop-filter: saturate(150%);
     bottom: max(env(safe-area-inset-bottom), 16px);
     right: max(env(safe-area-inset-right), 16px);
+    animation: pip-breathe 4s ease-in-out infinite;
   }
   .pip:hover {
     transform: scale(1.04);
+    animation-play-state: paused;
   }
   .pip.pip-dragging {
     cursor: grabbing;
     transform: scale(1.06);
+    animation: none;
     box-shadow:
       0 28px 56px -14px rgba(80, 50, 160, 0.55),
       0 8px 18px rgba(var(--color-optimus-shadow), 0.22),
@@ -677,6 +729,63 @@
       inset 0 -1.5px 0 rgba(0, 0, 0, 0.18),
       0 0 0 1px rgba(255, 255, 255, 0.55);
     transition: none;
+  }
+  .pip.pip-active {
+    animation: none;
+    transform: scale(1.08);
+    box-shadow:
+      0 28px 56px -14px rgba(80, 50, 160, 0.55),
+      0 8px 18px rgba(var(--color-optimus-shadow), 0.22),
+      inset 0 1.5px 0 rgba(255, 255, 255, 0.85),
+      0 0 0 6px rgba(142, 111, 204, 0.18),
+      0 0 0 1px rgba(255, 255, 255, 0.55);
+  }
+  @keyframes pip-breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+  }
+
+  .pip-hint {
+    position: absolute;
+    bottom: calc(100% + 10px);
+    right: 6px;
+    white-space: nowrap;
+    padding: 0.55rem 0.85rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--color-optimus-ink);
+    background: var(--color-optimus-surface);
+    border: 1px solid var(--color-optimus-border-strong);
+    border-radius: 0.75rem;
+    box-shadow:
+      0 10px 24px -10px rgba(var(--color-optimus-shadow), 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 220ms ease, transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  .pip-hint::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    right: 18px;
+    width: 10px;
+    height: 10px;
+    background: var(--color-optimus-surface);
+    border-right: 1px solid var(--color-optimus-border-strong);
+    border-bottom: 1px solid var(--color-optimus-border-strong);
+    transform: translateY(-50%) rotate(45deg);
+  }
+  .pip-hint.pip-hint-show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .pip-inner {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    overflow: hidden;
   }
   .pip-stage {
     position: absolute;

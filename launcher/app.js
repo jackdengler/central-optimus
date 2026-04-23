@@ -1,9 +1,19 @@
 import { initWeather } from "./weather.js";
 import { mountLittleGuy } from "./little-guy.js";
 
+function haptic(pattern) {
+  if (typeof navigator === "undefined" || !navigator.vibrate) return;
+  try {
+    navigator.vibrate(pattern);
+  } catch (_) {}
+}
+
 const TOKEN_KEY = "co.gh.token";
 const PIP_POS_KEY = "co.pip.pos";
 const PIP_SIZE_KEY = "co.pip.size";
+const PIP_ONBOARDED_KEY = "co.mascot.onboarded";
+const RECENTS_KEY = "co.recents";
+const RECENTS_MAX = 3;
 const PIP_MIN_SIZE = 72;
 const PIP_MAX_SIZE = 320;
 let APPS = [];
@@ -51,29 +61,37 @@ function darkenHex(hex, amount = 0.45) {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
 }
 
-function greetingFor(date, firstName) {
+const GREETING_BANDS = [
+  { until: 5, variants: ["Working late", "Still up", "Burning the oil"] },
+  { until: 11, variants: ["Morning", "Good morning", "Rise and shine"] },
+  { until: 17, variants: ["Afternoon", "Good afternoon"] },
+  { until: 22, variants: ["Evening", "Good evening"] },
+  { until: 24, variants: ["Working late", "Night owl"] },
+];
+
+function pickVariant(variants, seed) {
+  if (!variants.length) return "";
+  return variants[seed % variants.length];
+}
+
+function greetingFor(date, firstName, { sparse = false } = {}) {
+  if (sparse) {
+    const name = firstName ? `, ${firstName}` : "";
+    return `Getting set up${name}`;
+  }
   const h = date.getHours();
-  let prefix;
-  if (h < 5) prefix = "Working late";
-  else if (h < 12) prefix = "Good morning";
-  else if (h < 17) prefix = "Good afternoon";
-  else if (h < 22) prefix = "Good evening";
-  else prefix = "Good night";
+  const band = GREETING_BANDS.find((b) => h < b.until) || GREETING_BANDS[0];
+  const seed = date.getDate() + (date.getMonth() * 31);
+  const prefix = pickVariant(band.variants, seed);
   const name = firstName ? `, ${firstName}` : "";
   return `${prefix}${name}`;
 }
 
 function formatDate(date) {
   return new Intl.DateTimeFormat(undefined, {
-    weekday: "long",
-    month: "long",
+    weekday: "short",
+    month: "short",
     day: "numeric",
-  }).format(date);
-}
-function formatTime(date) {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
   }).format(date);
 }
 
@@ -81,12 +99,12 @@ function updateHero(config) {
   const now = new Date();
   const first = (config.firstName || config.githubUser || "").split(/[\s.]/)[0];
   const pretty = first ? first.charAt(0).toUpperCase() + first.slice(1) : "";
+  const shell = document.getElementById("app");
+  const sparse = shell?.dataset.density === "sparse";
   const g = document.getElementById("greeting-text");
   const d = document.getElementById("hero-date");
-  const t = document.getElementById("hero-time");
-  if (g) g.textContent = greetingFor(now, pretty);
+  if (g) g.textContent = greetingFor(now, pretty, { sparse });
   if (d) d.textContent = formatDate(now);
-  if (t) t.textContent = formatTime(now);
 }
 
 function startClock(config) {
@@ -95,13 +113,73 @@ function startClock(config) {
   clockTimer = setInterval(() => updateHero(config), 30_000);
 }
 
+function loadRecents() {
+  try {
+    const raw = localStorage.getItem(RECENTS_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list.filter((x) => typeof x === "string") : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function recordRecent(appId) {
+  if (!appId) return;
+  const existing = loadRecents().filter((id) => id !== appId);
+  const next = [appId, ...existing].slice(0, RECENTS_MAX);
+  try {
+    localStorage.setItem(RECENTS_KEY, JSON.stringify(next));
+  } catch (_) {}
+  renderRecents(APPS);
+}
+
 function launchApp(app) {
   if (!app) return;
+  recordRecent(app.id);
   if (app.openInNew) {
     window.open(app.url, "_blank", "noopener,noreferrer");
     return;
   }
   if (app.url) openEmbed(app);
+}
+
+function buildTile(app, idx, { showShortcut = true } = {}) {
+  const a = document.createElement("a");
+  a.className = "tile";
+  a.href = app.url || app.path;
+  a.dataset.appId = app.id;
+  if (app.openInNew) {
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+  }
+  a.addEventListener("click", (e) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
+    haptic(8);
+    recordRecent(app.id);
+    if (!app.openInNew && app.url) {
+      e.preventDefault();
+      openEmbed(app);
+    }
+  });
+  const color = app.color || "#c96a47";
+  const shade = app.shade || darkenHex(color);
+  a.style.setProperty("--tile-color", color);
+  a.style.setProperty("--tile-shade", shade);
+  const glyph = APP_GLYPHS[app.id] || DEFAULT_GLYPH;
+  const shortcut =
+    showShortcut && idx < 9
+      ? `<span class="tile-shortcut" aria-hidden="true">${idx + 1}</span>`
+      : "";
+  a.innerHTML = `
+    <div class="tile-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg>
+      ${shortcut}
+    </div>
+    <h2 class="tile-name"></h2>
+  `;
+  a.querySelector(".tile-name").textContent = app.name;
+  return a;
 }
 
 function renderTiles(apps) {
@@ -115,36 +193,28 @@ function renderTiles(apps) {
   }
   empty.hidden = true;
   apps.forEach((app, idx) => {
-    const a = document.createElement("a");
-    a.className = "tile";
-    a.href = app.url || app.path;
-    a.dataset.appId = app.id;
-    if (app.openInNew) {
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-    }
-    a.addEventListener("click", (e) => {
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
-      if (!app.openInNew && app.url) {
-        e.preventDefault();
-        openEmbed(app);
-      }
-    });
-    const color = app.color || "#c96a47";
-    const shade = app.shade || darkenHex(color);
-    a.style.setProperty("--tile-color", color);
-    a.style.setProperty("--tile-shade", shade);
-    const glyph = APP_GLYPHS[app.id] || DEFAULT_GLYPH;
-    const shortcut = idx < 9 ? `<span class="tile-shortcut" aria-hidden="true">${idx + 1}</span>` : "";
-    a.innerHTML = `
-      <div class="tile-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg>
-        ${shortcut}
-      </div>
-      <h2 class="tile-name"></h2>
-    `;
-    a.querySelector(".tile-name").textContent = app.name;
-    grid.appendChild(a);
+    grid.appendChild(buildTile(app, idx));
+  });
+}
+
+function renderRecents(apps) {
+  const section = document.getElementById("recents-section");
+  const grid = document.getElementById("recents-grid");
+  if (!section || !grid) return;
+  const ids = loadRecents();
+  const recent = ids
+    .map((id) => apps.find((a) => a.id === id))
+    .filter(Boolean)
+    .slice(0, RECENTS_MAX);
+  if (!recent.length) {
+    section.hidden = true;
+    grid.innerHTML = "";
+    return;
+  }
+  section.hidden = false;
+  grid.innerHTML = "";
+  recent.forEach((app, idx) => {
+    grid.appendChild(buildTile(app, idx, { showShortcut: false }));
   });
 }
 
@@ -152,8 +222,37 @@ function populateStatus(apps) {
   const count = apps.length;
   const heroCount = document.getElementById("hero-app-count");
   if (heroCount) heroCount.textContent = String(count);
-  const statusCount = document.getElementById("status-count");
-  if (statusCount) statusCount.textContent = `${count} ${count === 1 ? "app" : "apps"}`;
+  const shell = document.getElementById("app");
+  if (shell) {
+    const density = count <= 3 ? "sparse" : count >= 9 ? "dense" : "normal";
+    shell.dataset.density = density;
+  }
+  wireAppsSearch(apps);
+}
+
+function wireAppsSearch(apps) {
+  const input = document.getElementById("apps-search");
+  if (!input) return;
+  const dense = apps.length >= 9;
+  input.hidden = !dense;
+  if (!dense) {
+    input.value = "";
+    filterGrid("");
+    return;
+  }
+  if (input.dataset.wired === "1") return;
+  input.dataset.wired = "1";
+  input.addEventListener("input", () => filterGrid(input.value));
+}
+
+function filterGrid(query) {
+  const grid = document.getElementById("grid");
+  if (!grid) return;
+  const q = query.trim().toLowerCase();
+  grid.querySelectorAll(".tile").forEach((el) => {
+    const name = el.querySelector(".tile-name")?.textContent?.toLowerCase() || "";
+    el.hidden = q.length > 0 && !name.includes(q);
+  });
 }
 
 function renderApps(apps, config) {
@@ -164,6 +263,7 @@ function renderApps(apps, config) {
   document.getElementById("status-bar").hidden = false;
   document.body.classList.add("bg-optimus-bg", "text-optimus-text");
   renderTiles(apps);
+  renderRecents(apps);
   populateStatus(apps);
   startClock(config || {});
 }
@@ -313,6 +413,39 @@ function loadPipSize() {
   return null;
 }
 
+function showPipHintOnce() {
+  const pip = document.getElementById("pip");
+  const hint = document.getElementById("pip-hint");
+  if (!pip || !hint) return;
+  try {
+    if (localStorage.getItem(PIP_ONBOARDED_KEY) === "1") return;
+  } catch (_) {}
+  hint.hidden = false;
+  requestAnimationFrame(() => {
+    hint.classList.add("pip-hint-show");
+  });
+  const dismiss = () => {
+    hint.classList.remove("pip-hint-show");
+    setTimeout(() => {
+      hint.hidden = true;
+    }, 260);
+    try {
+      localStorage.setItem(PIP_ONBOARDED_KEY, "1");
+    } catch (_) {}
+    pip.removeEventListener("pointerdown", dismiss);
+  };
+  setTimeout(dismiss, 4200);
+  pip.addEventListener("pointerdown", dismiss, { once: true });
+}
+
+function flashPipActive() {
+  const pip = document.getElementById("pip");
+  if (!pip) return;
+  haptic(12);
+  pip.classList.add("pip-active");
+  setTimeout(() => pip.classList.remove("pip-active"), 320);
+}
+
 function setupPip() {
   const pip = document.getElementById("pip");
   const stage = document.getElementById("pip-stage");
@@ -321,6 +454,8 @@ function setupPip() {
 
   if (buddyController) buddyController.destroy();
   buddyController = mountLittleGuy(stage);
+
+  setTimeout(showPipHintOnce, 900);
 
   const storedSize = loadPipSize();
   if (storedSize) applyPipSize(pip, storedSize);
@@ -453,7 +588,14 @@ function setupPip() {
     }
 
     if (pointers.size === 0) {
-      if (gesture?.type === "drag" && gesture.moved) savePos();
+      if (gesture?.type === "drag") {
+        if (gesture.moved) {
+          savePos();
+          haptic([4, 20, 4]);
+        } else {
+          flashPipActive();
+        }
+      }
       pip.classList.remove("pip-dragging");
       gesture = null;
     }
@@ -486,6 +628,12 @@ async function unlock(config, registry) {
     renderApps(APPS, config);
     handleHash();
     setupPip();
+    const lockBtn = document.getElementById("lock");
+    if (lockBtn) {
+      lockBtn.dataset.state = "unlocked";
+      lockBtn.setAttribute("aria-label", "Sign out");
+      lockBtn.title = "Sign out";
+    }
 
     const weatherEl = document.getElementById("hero-weather");
     const weatherSep = document.querySelector(".eyebrow-sep-weather");
@@ -495,6 +643,10 @@ async function unlock(config, registry) {
         mountEl: weatherEl,
         onUpdate: () => {
           if (weatherSep) weatherSep.hidden = false;
+          setStatus("nominal", "All systems nominal");
+        },
+        onError: () => {
+          setStatus("degraded", "Weather offline");
         },
       });
     }
@@ -530,6 +682,34 @@ function lockAndReload() {
 }
 
 document.getElementById("lock")?.addEventListener("click", lockAndReload);
+
+function setStatus(state, label) {
+  const indicator = document.getElementById("status-indicator");
+  const text = document.getElementById("status-label");
+  if (indicator) indicator.dataset.status = state;
+  if (text && label) text.textContent = label;
+}
+
+function wireBuildReveal() {
+  const indicator = document.querySelector(".status-indicator");
+  const build = document.getElementById("status-build");
+  if (!indicator || !build) return;
+  let timer = null;
+  const reveal = () => {
+    build.hidden = !build.hidden;
+  };
+  const start = (e) => {
+    if (e.type === "pointerdown" && e.button !== undefined && e.button !== 0) return;
+    clearTimeout(timer);
+    timer = setTimeout(reveal, 700);
+  };
+  const cancel = () => clearTimeout(timer);
+  indicator.addEventListener("pointerdown", start);
+  indicator.addEventListener("pointerup", cancel);
+  indicator.addEventListener("pointerleave", cancel);
+  indicator.addEventListener("pointercancel", cancel);
+}
+wireBuildReveal();
 
 wireGlobalShortcuts();
 

@@ -21,7 +21,7 @@
     },
     {
       "id": "upcoming-movies",
-      "name": "Upcoming Movies",
+      "name": "Movies",
       "subtitle": "Release radar",
       "blurb": "Every film on your watchlist, sorted by date.",
       "url": "https://jackdengler.github.io/upcoming-movies/",
