@@ -1,6 +1,7 @@
 import { initCityScene } from "./city-scene.js";
 import { mountLittleGuy } from "./little-guy.js";
 import { startLittleGuyWander } from "./little-guy-wander.js";
+import { initWeather } from "./weather.js";
 
 const TOKEN_KEY = "co.gh.token";
 const LAYOUT_KEY = "co.layout";
@@ -8,6 +9,7 @@ let APPS = [];
 let citySceneInitialized = false;
 let lilGuyController = null;
 let lilGuyWander = null;
+let weatherController = null;
 let paletteIndex = 0;
 let paletteResults = [];
 let clockTimer = null;
@@ -530,6 +532,30 @@ function pickBuddyGreeting(firstName) {
   return base;
 }
 
+const WEATHER_LINES = {
+  clear: ["beautiful out", "sunny vibes", "nice day"],
+  hot: ["it's toasty", "stay cool", "hot one today"],
+  cold: ["bundle up", "chilly out", "brrr"],
+  rain: ["bring a jacket", "drizzly", "umbrella day"],
+  snow: ["snow day!", "flurries", "bundle up, snowy"],
+  storm: ["stormy out", "thunder rolling"],
+  fog: ["foggy", "spooky vibes"],
+  cloudy: ["grey day", "bit cloudy"],
+};
+
+function reactToWeather(buddy, payload, seenKindsRef) {
+  if (!buddy?.say || !payload?.kind) return;
+  if (seenKindsRef.current.has(payload.kind)) return;
+  seenKindsRef.current.add(payload.kind);
+  const pool = WEATHER_LINES[payload.kind] || WEATHER_LINES.cloudy;
+  const line = pool[Math.floor(Math.random() * pool.length)];
+  const temp = Number.isFinite(payload.temp) ? ` · ${payload.temp}°` : "";
+  setTimeout(() => buddy.say(`${line}${temp}`, { duration: 3200 }), 4800);
+  if (payload.kind === "clear" || payload.kind === "snow") {
+    setTimeout(() => buddy.emit?.("weather-happy"), 4800);
+  }
+}
+
 function wireBuddyChatter(buddy, config) {
   if (!buddy?.on) return;
   buddy.on("pet", () => {
@@ -573,6 +599,20 @@ async function unlock(config, registry) {
       mountEl.addEventListener("dblclick", (e) => e.preventDefault());
       lilGuyWander = startLittleGuyWander(mountEl);
       wireBuddyChatter(lilGuyController, config);
+    }
+
+    const weatherEl = document.getElementById("hero-weather");
+    const weatherSep = document.querySelector(".eyebrow-sep-weather");
+    if (weatherEl && getLayout() === "grid") {
+      if (weatherController) weatherController.destroy();
+      const seenKindsRef = { current: new Set() };
+      weatherController = initWeather({
+        mountEl: weatherEl,
+        onUpdate: (payload) => {
+          if (weatherSep) weatherSep.hidden = false;
+          reactToWeather(lilGuyController, payload, seenKindsRef);
+        },
+      });
     }
   };
 
