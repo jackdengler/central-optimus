@@ -919,9 +919,4 @@
     background: color-mix(in oklab, var(--color-optimus-surface-2) 85%, white);
   }
 
-  /* Keep the antenna stems but hide the glowing tip orbs — the stationary
-     aura constellation anchored at his home fills the orb role now. */
-  .lg-wrap svg g[style*="lg-antenna"] circle {
-    display: none;
-  }
 }

@@ -27,11 +27,6 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <div
-      id="city-root"
-      style="position: fixed; inset: 0; z-index: 0;"
-    ></div>
-
     <main id="app" class="shell" hidden>
       <section id="hero" class="hero" hidden>
         <div class="hero-top">
@@ -86,7 +81,6 @@
           <h1 class="greeting">
             <span id="greeting-text">Welcome</span><span class="greeting-punct">.</span>
           </h1>
-          <div id="lil-guy" style="flex-shrink: 0; margin-left: -1rem;"></div>
         </div>
         <p class="hero-tagline">
           Your private workspace — <span class="hero-count"><span id="hero-app-count">0</span> apps ready</span>.
@@ -154,24 +148,6 @@
     >
       <form method="dialog" class="flex flex-col gap-4">
         <h2 class="text-lg font-semibold tracking-tight">Settings</h2>
-        <fieldset class="flex flex-col gap-2">
-          <legend class="text-xs font-medium uppercase tracking-[0.18em] text-optimus-muted mb-2">Layout</legend>
-          <label class="flex items-center gap-3 rounded-xl border border-optimus-border bg-optimus-surface-2 px-3 py-2.5 cursor-pointer">
-            <input type="radio" name="layout" value="balloons" class="accent-optimus-accent" />
-            <span class="text-sm font-medium">Balloons</span>
-          </label>
-          <label class="flex items-center gap-3 rounded-xl border border-optimus-border bg-optimus-surface-2 px-3 py-2.5 cursor-pointer">
-            <input type="radio" name="layout" value="grid" class="accent-optimus-accent" />
-            <span class="text-sm font-medium">Grid</span>
-          </label>
-        </fieldset>
-        <button
-          id="settings-reset-buddy"
-          type="button"
-          class="btn-ghost"
-        >
-          Reset buddy
-        </button>
         <button
           id="settings-lock"
           type="button"

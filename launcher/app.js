@@ -1,17 +1,7 @@
-import { initCityScene } from "./city-scene.js";
-import { mountLittleGuy } from "./little-guy.js";
-import { startLittleGuyWander } from "./little-guy-wander.js";
 import { initWeather } from "./weather.js";
 
 const TOKEN_KEY = "co.gh.token";
-const LAYOUT_KEY = "co.layout";
-const PETS_KEY = "co.buddy.pets";
-const COSMETICS_KEY = "co.buddy.cosmetics";
-const POSITION_KEY = "co.buddy.position";
 let APPS = [];
-let citySceneInitialized = false;
-let lilGuyController = null;
-let lilGuyWander = null;
 let weatherController = null;
 let paletteIndex = 0;
 let paletteResults = [];
@@ -27,14 +17,6 @@ const APP_GLYPHS = {
   "clean-script": `<path d="M7 4h8l4 4v11a1.5 1.5 0 0 1-1.5 1.5h-10.5A1.5 1.5 0 0 1 5.5 19V5.5A1.5 1.5 0 0 1 7 4z"/><path d="M14.5 4v4.5H19"/><path d="M8.5 12.5h7M8.5 15.5h7M8.5 18h4"/>`,
 };
 const DEFAULT_GLYPH = `<circle cx="12" cy="12" r="7"/><path d="M12 8v4l2.5 2"/>`;
-
-function getLayout() {
-  const v = localStorage.getItem(LAYOUT_KEY);
-  return v === "balloons" ? "balloons" : "grid";
-}
-function setLayout(v) {
-  localStorage.setItem(LAYOUT_KEY, v === "balloons" ? "balloons" : "grid");
-}
 
 async function loadJSON(path) {
   const res = await fetch(path, { cache: "no-cache" });
@@ -109,24 +91,8 @@ function startClock(config) {
   clockTimer = setInterval(() => updateHero(config), 30_000);
 }
 
-function nudgeBuddyTowardApp(app) {
-  const buddy = lilGuyController;
-  if (!buddy || !app) return;
-  const tile = document.querySelector(`.tile[data-app-id="${app.id}"]`);
-  if (tile && buddy.lookAt) {
-    const r = tile.getBoundingClientRect();
-    buddy.lookAt(
-      { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 },
-      1100,
-    );
-  }
-  buddy.squash?.();
-  buddy.say?.(`opening ${app.name}…`, { duration: 1400 });
-}
-
 function launchApp(app) {
   if (!app) return;
-  nudgeBuddyTowardApp(app);
   if (app.openInNew) {
     window.open(app.url, "_blank", "noopener,noreferrer");
     return;
@@ -155,7 +121,6 @@ function renderTiles(apps) {
     }
     a.addEventListener("click", (e) => {
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
-      nudgeBuddyTowardApp(app);
       if (!app.openInNew && app.url) {
         e.preventDefault();
         openEmbed(app);
@@ -192,71 +157,20 @@ function populateStatus(apps) {
 }
 
 function renderApps(apps, config) {
-  const layout = getLayout();
-  const main = document.getElementById("app");
-  const header = document.getElementById("app-header");
-  const hero = document.getElementById("hero");
-  const section = document.getElementById("apps-section");
-  const grid = document.getElementById("grid");
-  const status = document.getElementById("status-bar");
-  const body = document.body;
-
-  if (layout === "grid") {
-    if (main) main.hidden = false;
-    if (header) header.hidden = false;
-    if (hero) hero.hidden = false;
-    if (section) section.hidden = false;
-    if (grid) grid.hidden = false;
-    if (status) status.hidden = false;
-    body.classList.add("bg-optimus-bg", "text-optimus-text");
-    renderTiles(apps);
-    populateStatus(apps);
-    startClock(config || {});
-    return;
-  }
-
-  if (main) main.hidden = true;
-  if (header) header.hidden = true;
-  if (hero) hero.hidden = true;
-  if (section) section.hidden = true;
-  if (grid) grid.hidden = true;
-  if (status) status.hidden = true;
-  if (citySceneInitialized) return;
-  const container = document.getElementById("city-root");
-  if (!container || !apps.length) return;
-  initCityScene({
-    container,
-    apps: apps.map((a) => ({
-      name: a.name,
-      url: a.url,
-      iconUrl: a.iconUrl,
-      color: a.color || "#3B82F6",
-      shade: a.shade || darkenHex(a.color || "#3B82F6"),
-      _app: a,
-    })),
-    onLaunch: (balloonApp) => launchApp(balloonApp._app || balloonApp),
-    onSettings: openSettings,
-  });
-  citySceneInitialized = true;
+  document.getElementById("app").hidden = false;
+  document.getElementById("app-header").hidden = false;
+  document.getElementById("hero").hidden = false;
+  document.getElementById("apps-section").hidden = false;
+  document.getElementById("status-bar").hidden = false;
+  document.body.classList.add("bg-optimus-bg", "text-optimus-text");
+  renderTiles(apps);
+  populateStatus(apps);
+  startClock(config || {});
 }
 
 function openSettings() {
   const dialog = document.getElementById("settings");
   if (!dialog) return;
-  const current = getLayout();
-  dialog
-    .querySelectorAll('input[name="layout"]')
-    .forEach((input) => {
-      input.checked = input.value === current;
-      input.onchange = () => {
-        if (!input.checked) return;
-        const next = input.value;
-        if (next === current) return;
-        setLayout(next);
-        dialog.close();
-        location.reload();
-      };
-    });
   if (!dialog.open) dialog.showModal();
 }
 
@@ -507,178 +421,6 @@ function wireGlobalShortcuts() {
   });
 }
 
-/* ---------- Buddy ---------- */
-
-const PET_QUIPS = [
-  "boop!",
-  "hi!",
-  "hehe",
-  "that tickles",
-  "yep",
-  "whoa",
-  "again?",
-  "*sparkles*",
-];
-
-const BUDDY_GREETINGS = {
-  lateNight: ["still up?", "the stars are out", "can't sleep?"],
-  morning: ["morning!", "rise and shine", "new day"],
-  midday: ["hey", "afternoon", "whatcha up to?"],
-  evening: ["evening", "welcome back", "good to see ya"],
-  night: ["getting late", "winding down?", "cozy vibes"],
-};
-
-function buddyGreetingBucket(date) {
-  const h = date.getHours();
-  if (h < 5) return "lateNight";
-  if (h < 11) return "morning";
-  if (h < 17) return "midday";
-  if (h < 22) return "evening";
-  return "night";
-}
-
-function pickBuddyGreeting(firstName) {
-  const bucket = buddyGreetingBucket(new Date());
-  const pool = BUDDY_GREETINGS[bucket];
-  const base = pool[Math.floor(Math.random() * pool.length)];
-  if (!firstName) return base;
-  if (bucket === "morning") return `${base.replace(/!$/, "")}, ${firstName}!`;
-  if (bucket === "evening") return `${base}, ${firstName}`;
-  if (bucket === "lateNight") {
-    return base.endsWith("?")
-      ? `${base.slice(0, -1)}, ${firstName}?`
-      : `${base}, ${firstName}`;
-  }
-  if (Math.random() < 0.5) return `${base}, ${firstName}`;
-  return base;
-}
-
-const WEATHER_LINES = {
-  clear: ["beautiful out", "sunny vibes", "nice day"],
-  hot: ["it's toasty", "stay cool", "hot one today"],
-  cold: ["bundle up", "chilly out", "brrr"],
-  rain: ["bring a jacket", "drizzly", "umbrella day"],
-  snow: ["snow day!", "flurries", "bundle up, snowy"],
-  storm: ["stormy out", "thunder rolling"],
-  fog: ["foggy", "spooky vibes"],
-  cloudy: ["grey day", "bit cloudy"],
-};
-
-function reactToWeather(buddy, payload, seenKindsRef) {
-  if (!buddy?.say || !payload?.kind) return;
-  if (seenKindsRef.current.has(payload.kind)) return;
-  seenKindsRef.current.add(payload.kind);
-  const pool = WEATHER_LINES[payload.kind] || WEATHER_LINES.cloudy;
-  const line = pool[Math.floor(Math.random() * pool.length)];
-  const temp = Number.isFinite(payload.temp) ? ` · ${payload.temp}°` : "";
-  setTimeout(() => buddy.say(`${line}${temp}`, { duration: 3200 }), 4800);
-  if (payload.kind === "clear" || payload.kind === "snow") {
-    setTimeout(() => buddy.emit?.("weather-happy"), 4800);
-  }
-}
-
-const PET_MILESTONES = [
-  { count: 1, line: "first pet!" },
-  { count: 5, line: "hehe, keep going" },
-  { count: 10, line: "shades unlocked", unlock: "sunglasses" },
-  { count: 25, line: "a party hat for me?", unlock: "hat" },
-  { count: 50, line: "cozy and styled", unlock: "scarf" },
-  { count: 100, line: "pet master" },
-  { count: 250, line: "legendary friend" },
-];
-
-function readPets() {
-  const n = parseInt(localStorage.getItem(PETS_KEY) || "0", 10);
-  return Number.isFinite(n) && n >= 0 ? n : 0;
-}
-function writePets(n) {
-  localStorage.setItem(PETS_KEY, String(n));
-}
-function readCosmetics() {
-  try {
-    const raw = localStorage.getItem(COSMETICS_KEY);
-    const v = raw ? JSON.parse(raw) : [];
-    return Array.isArray(v) ? v : [];
-  } catch {
-    return [];
-  }
-}
-function writeCosmetics(list) {
-  localStorage.setItem(COSMETICS_KEY, JSON.stringify(list));
-}
-function readBuddyPosition() {
-  try {
-    const raw = localStorage.getItem(POSITION_KEY);
-    if (!raw) return null;
-    const v = JSON.parse(raw);
-    if (typeof v?.x === "number" && typeof v?.y === "number") return v;
-  } catch {}
-  return null;
-}
-function writeBuddyPosition(pos) {
-  if (pos == null) localStorage.removeItem(POSITION_KEY);
-  else localStorage.setItem(POSITION_KEY, JSON.stringify(pos));
-}
-
-function applyPetMilestone(buddy, prev, next) {
-  const crossed = PET_MILESTONES.filter(
-    (m) => m.count > prev && m.count <= next,
-  );
-  if (!crossed.length) return;
-  const m = crossed[crossed.length - 1];
-  if (m.unlock) {
-    const cosmetics = readCosmetics();
-    if (!cosmetics.includes(m.unlock)) {
-      cosmetics.push(m.unlock);
-      writeCosmetics(cosmetics);
-      buddy.setCosmetics?.(cosmetics);
-    }
-  }
-  buddy.say?.(m.line, { duration: 2400 });
-}
-
-function resetBuddy(buddy) {
-  writePets(0);
-  writeCosmetics([]);
-  writeBuddyPosition(null);
-  buddy?.setCosmetics?.([]);
-  buddy?.resetPosition?.();
-  buddy?.say?.("fresh start!", { duration: 2200 });
-}
-
-function wireBuddyChatter(buddy, config) {
-  if (!buddy?.on) return;
-
-  buddy.setCosmetics?.(readCosmetics());
-  const savedPos = readBuddyPosition();
-  if (savedPos) buddy.setPosition?.(savedPos);
-
-  buddy.on("drag-end", (pos) => {
-    writeBuddyPosition(pos);
-  });
-
-  buddy.on("pet", () => {
-    const prev = readPets();
-    const next = prev + 1;
-    writePets(next);
-    const milestone = PET_MILESTONES.find(
-      (m) => m.count > prev && m.count <= next,
-    );
-    if (milestone) {
-      applyPetMilestone(buddy, prev, next);
-    } else if (Math.random() < 0.55) {
-      const quip = PET_QUIPS[Math.floor(Math.random() * PET_QUIPS.length)];
-      buddy.say(quip, { duration: 1500 });
-    }
-  });
-
-  const first = (config?.firstName || "").split(/[\s.]/)[0];
-  const pretty = first ? first.charAt(0).toUpperCase() + first.slice(1) : "";
-  setTimeout(() => {
-    buddy.say(pickBuddyGreeting(pretty), { duration: 3400 });
-  }, 950);
-}
-
 /* ---------- Auth + bootstrap ---------- */
 
 async function unlock(config, registry) {
@@ -699,26 +441,15 @@ async function unlock(config, registry) {
     APPS = registry.apps || [];
     renderApps(APPS, config);
     handleHash();
-    const mountEl = document.getElementById("lil-guy");
-    if (mountEl && getLayout() === "grid") {
-      if (lilGuyController) lilGuyController.destroy();
-      if (lilGuyWander) lilGuyWander.stop();
-      lilGuyController = mountLittleGuy(mountEl);
-      mountEl.addEventListener("dblclick", (e) => e.preventDefault());
-      lilGuyWander = startLittleGuyWander(mountEl);
-      wireBuddyChatter(lilGuyController, config);
-    }
 
     const weatherEl = document.getElementById("hero-weather");
     const weatherSep = document.querySelector(".eyebrow-sep-weather");
-    if (weatherEl && getLayout() === "grid") {
+    if (weatherEl) {
       if (weatherController) weatherController.destroy();
-      const seenKindsRef = { current: new Set() };
       weatherController = initWeather({
         mountEl: weatherEl,
-        onUpdate: (payload) => {
+        onUpdate: () => {
           if (weatherSep) weatherSep.hidden = false;
-          reactToWeather(lilGuyController, payload, seenKindsRef);
         },
       });
     }
@@ -756,10 +487,6 @@ function lockAndReload() {
 document.getElementById("lock")?.addEventListener("click", lockAndReload);
 document.getElementById("settings-lock")?.addEventListener("click", lockAndReload);
 document.getElementById("header-settings")?.addEventListener("click", openSettings);
-document.getElementById("settings-reset-buddy")?.addEventListener("click", () => {
-  resetBuddy(lilGuyController);
-  document.getElementById("settings")?.close();
-});
 
 wirePalette();
 wireGlobalShortcuts();
