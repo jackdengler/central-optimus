@@ -1,5 +1,6 @@
 import { initWeather } from "./weather.js";
 import { mountLittleGuy } from "./little-guy.js";
+import { mountGlobe } from "./globe.js";
 
 const TOKEN_KEY = "co.gh.token";
 const PIP_POS_KEY = "co.pip.pos";
@@ -9,6 +10,7 @@ const PIP_MAX_SIZE = 320;
 let APPS = [];
 let weatherController = null;
 let buddyController = null;
+let globeController = null;
 let clockTimer = null;
 
 const APP_GLYPHS = {
@@ -532,6 +534,12 @@ function lockAndReload() {
 document.getElementById("lock")?.addEventListener("click", lockAndReload);
 
 wireGlobalShortcuts();
+
+const globeMount = document.getElementById("globe-bg");
+if (globeMount) {
+  if (globeController) globeController.destroy();
+  globeController = mountGlobe(globeMount);
+}
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

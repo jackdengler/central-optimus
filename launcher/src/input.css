@@ -89,6 +89,39 @@
 }
 
 @layer components {
+  /* ---------- Globe background ---------- */
+  .globe-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    /* Soft mask so the globe fades toward the page edges instead of cutting off */
+    -webkit-mask-image: radial-gradient(
+      120% 95% at 50% 45%,
+      #000 38%,
+      rgba(0, 0, 0, 0.55) 70%,
+      transparent 100%
+    );
+    mask-image: radial-gradient(
+      120% 95% at 50% 45%,
+      #000 38%,
+      rgba(0, 0, 0, 0.55) 70%,
+      transparent 100%
+    );
+    opacity: 0.85;
+    animation: globe-fade-in 1400ms cubic-bezier(0.2, 0.8, 0.2, 1) 200ms both;
+  }
+  @keyframes globe-fade-in {
+    from { opacity: 0; }
+    to { opacity: 0.85; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .globe-bg {
+      animation: none;
+      opacity: 0.7;
+    }
+  }
+
   /* ---------- Shell ---------- */
   .shell {
     position: relative;
