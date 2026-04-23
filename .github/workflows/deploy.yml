@@ -82,6 +82,8 @@ jobs:
           if [ -d apps ] && [ -n "$(ls -A apps 2>/dev/null | grep -v '^\.gitkeep$' || true)" ]; then
             cp -R apps/. _site/apps/
           fi
+          # Stamp the build so the launcher footer shows real deploy time.
+          printf '{"builtAt":"%s"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > _site/build.json
           touch _site/.nojekyll
 
       - name: Publish _site to gh-pages:/ (preserving /preview/)

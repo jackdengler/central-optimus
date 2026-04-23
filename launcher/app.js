@@ -83,28 +83,10 @@ function fmtTime12(d) {
 }
 
 function fmtDate(d) {
-  const days = [
-    "Sunday",
-    "Monday",
-    "Tuesday",
-    "Wednesday",
-    "Thursday",
-    "Friday",
-    "Saturday",
-  ];
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const months = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
   ];
   return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
 }
@@ -144,10 +126,18 @@ function startClock(config) {
   clockTimer = setInterval(() => tickClock(config), 10_000);
 }
 
-function setPublishStamp() {
+async function setPublishStamp() {
   const el = document.getElementById("publish-time");
   if (!el) return;
-  const now = new Date();
+  let when = new Date();
+  try {
+    const res = await fetch("./build.json", { cache: "no-cache" });
+    if (res.ok) {
+      const info = await res.json();
+      const d = info?.builtAt ? new Date(info.builtAt) : null;
+      if (d && !Number.isNaN(d.valueOf())) when = d;
+    }
+  } catch {}
   const ptFmt = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/Los_Angeles",
     hour: "numeric",
@@ -159,7 +149,7 @@ function setPublishStamp() {
     month: "short",
     day: "numeric",
   });
-  el.textContent = `published ${ptDateFmt.format(now)} · ${ptFmt.format(now)} PT`;
+  el.textContent = `published ${ptDateFmt.format(when)} · ${ptFmt.format(when)} PT`;
 }
 
 /* ---------- App launch orchestration ----------
