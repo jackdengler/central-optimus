@@ -133,17 +133,13 @@ function renderTiles(apps) {
     const glyph = APP_GLYPHS[app.id] || DEFAULT_GLYPH;
     const shortcut = idx < 9 ? `<span class="tile-shortcut" aria-hidden="true">${idx + 1}</span>` : "";
     a.innerHTML = `
-      ${shortcut}
       <div class="tile-icon" aria-hidden="true">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg>
+        ${shortcut}
       </div>
-      <div class="tile-meta">
-        <h2 class="tile-name"></h2>
-        <p class="tile-subtitle"></p>
-      </div>
+      <h2 class="tile-name"></h2>
     `;
     a.querySelector(".tile-name").textContent = app.name;
-    a.querySelector(".tile-subtitle").textContent = app.subtitle || "";
     grid.appendChild(a);
   });
 }
