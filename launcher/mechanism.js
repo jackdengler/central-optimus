@@ -240,15 +240,6 @@ export function startMovement(canvas) {
     { px: balance.x,  py: balance.y,  size: 0.032, kind: "balance" },
   ];
 
-  const screws = [
-    { r: 0.55, a: -0.55, size: 0.030 },
-    { r: 0.62, a:  0.55, size: 0.030 },
-    { r: 0.60, a:  2.20, size: 0.030 },
-    { r: 0.56, a: -2.55, size: 0.030 },
-    { r: 0.35, a:  1.10, size: 0.024 },
-    { r: 0.40, a: -1.25, size: 0.024 },
-  ];
-
   /* Bridges — each bridge anchors to two pivots (= a real bridge
      spanning two jewel holes). bowFactor produces the curved outline. */
   function bridgeArc(p1, p2, bowFactor, n) {
@@ -1106,13 +1097,6 @@ export function startMovement(canvas) {
     jewels.forEach((j) => {
       const [x, y] = U(j.px, j.py, yaw);
       drawJewel(j, x, y);
-    });
-    screws.forEach((s) => {
-      const [x, y] = U(Math.cos(s.a) * s.r, Math.sin(s.a) * s.r, yaw);
-      const sz = s.size * R;
-      // Slot rotates slowly with yaw so the screw reads as set into
-      // the plate rather than floating on it.
-      drawBluedScrew(x, y, sz, s.a + yaw * 0.6);
     });
   }
 
