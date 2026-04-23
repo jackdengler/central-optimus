@@ -1201,6 +1201,82 @@ export function startMovement(canvas) {
     ctx.restore();
   }
 
+  /* Date wheel — large thin ring sitting just inside the plate's outer
+     engraving dots. On a real movement it has the date numerals printed
+     on its top face (dial side) and 31 shallow teeth on its outer edge
+     where it meshes with the date driving wheel. From the caseback we
+     see only the ring and teeth, not the numerals — we approximate the
+     numerals with regularly-spaced tick dots. Rotates once per 31 days
+     (essentially still for our purposes). */
+  function drawDateWheel(t, yaw) {
+    const [ox, oy] = U(0, 0, yaw);
+    const innerR = 0.860 * R;
+    const outerR = 0.900 * R;
+    const tipR   = 0.918 * R;
+    const teeth  = 31;
+    const pitch  = (Math.PI * 2) / teeth;
+
+    // One rev per 31 days. Add a tiny offset so the ring isn't aligned
+    // to yaw at t=0 (looks less mechanical-reset-at-launch).
+    const dateAng =
+      yaw + 0.17 + (t / (31 * 24 * 3600 * 1000)) * Math.PI * 2;
+
+    // Ring body — annulus with a soft radial gradient so it reads as
+    // a stamped metal ring, not a flat band.
+    const ringGrad = ctx.createRadialGradient(ox, oy, innerR, ox, oy, outerR);
+    ringGrad.addColorStop(0.0, col(C.plateHi,   0.16));
+    ringGrad.addColorStop(0.5, col(C.plateMid,  0.20));
+    ringGrad.addColorStop(1.0, col(C.plateDark, 0.24));
+    ctx.fillStyle = ringGrad;
+    ctx.beginPath();
+    ctx.arc(ox, oy, outerR, 0, Math.PI * 2);
+    ctx.arc(ox, oy, innerR, 0, Math.PI * 2, true);
+    ctx.fill("evenodd");
+
+    // Inner and outer rim accents.
+    ctx.strokeStyle = col(C.plateHi, 0.24);
+    ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.arc(ox, oy, innerR, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = col(C.plateDark, 0.30);
+    ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.arc(ox, oy, outerR, 0, Math.PI * 2); ctx.stroke();
+
+    // Outer teeth — shallow, symmetric (meshes with the date driver's
+    // finger once per day).
+    ctx.strokeStyle = col(C.shadow, 0.38);
+    ctx.lineWidth = 0.5;
+    ctx.fillStyle = col(C.plateMid, 0.22);
+    ctx.beginPath();
+    for (let i = 0; i < teeth; i++) {
+      const a = dateAng + i * pitch;
+      const aB0 = a - pitch * 0.42;
+      const aB1 = a + pitch * 0.42;
+      const aT0 = a - pitch * 0.14;
+      const aT1 = a + pitch * 0.14;
+      if (i === 0) ctx.moveTo(ox + Math.cos(aB0) * outerR, oy + Math.sin(aB0) * outerR);
+      else         ctx.lineTo(ox + Math.cos(aB0) * outerR, oy + Math.sin(aB0) * outerR);
+      ctx.lineTo(ox + Math.cos(aT0) * tipR, oy + Math.sin(aT0) * tipR);
+      ctx.lineTo(ox + Math.cos(aT1) * tipR, oy + Math.sin(aT1) * tipR);
+      ctx.lineTo(ox + Math.cos(aB1) * outerR, oy + Math.sin(aB1) * outerR);
+    }
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    // Numeral suggestion — small dots at each date position. Every 5th
+    // date gets a bigger, darker dot so the "5, 10, 15, 20, 25, 30"
+    // cadence reads across the ring.
+    const numR = (innerR + outerR) / 2;
+    for (let i = 0; i < teeth; i++) {
+      const a = dateAng + i * pitch;
+      const major = i % 5 === 0;
+      const dotR = major ? Math.max(1.8, R * 0.0028) : Math.max(1.0, R * 0.0018);
+      ctx.fillStyle = col(C.plateDark, major ? 0.55 : 0.32);
+      ctx.beginPath();
+      ctx.arc(ox + Math.cos(a) * numR, oy + Math.sin(a) * numR, dotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   /* Keyless works — the hand-winding/time-setting mechanism that enters
      the movement at 3 o'clock via the crown stem. We don't draw the
      full linkage (sliding pinion, setting lever, setting lever spring,
@@ -1793,6 +1869,7 @@ export function startMovement(canvas) {
     drawPerlage(yaw);
     drawCotes(yaw);
     drawEngraving(yaw);
+    drawDateWheel(renderT, yaw);
     drawBridges(yaw);
     for (let i = 0; i < gears.length; i++) {
       drawGear(gears[i], i, yaw, renderT, zoomFactor);
