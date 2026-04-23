@@ -71,14 +71,18 @@ export function startMovement(canvas) {
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     isPortrait = H >= W;
     if (isPortrait) {
-      RA  = W * 1.75;
-      cxA = W * 0.92;
-      cyA = H * 0.95;
+      // Anchor so the gear train (gears 1..4 + balance, which live in
+      // unit space around v ≈ 0.12..0.20, u ≈ -0.42..0.20) lands as a
+      // horizontal band across the lower spacer between the icon grid
+      // and the version footer — out from behind the tappable icons.
+      RA  = W * 2.05;
+      cxA = W * 1.00;
+      cyA = H * 0.68;
     } else {
       const longSide = Math.max(W, H);
-      RA  = longSide * 0.95;
-      cxA = W * 0.96;
-      cyA = H * 0.92;
+      RA  = longSide * 1.10;
+      cxA = W * 1.02;
+      cyA = H * 0.70;
     }
     if (launch.mode === "idle") { cx = cxA; cy = cyA; R = RA; }
   }
@@ -124,14 +128,16 @@ export function startMovement(canvas) {
        fourth:   70w / 10p          — 7.5×  third
        escape:   15w /  7p          — 10×   fourth
 
-     4 Hz balance → escape rotates 32 rpm; cascading backward gives
-     fourth ≈ 3.2 rpm (seconds-hand driver), third ≈ 0.43 rpm,
-     center ≈ 17 min/rev, barrel ≈ 2 hr/rev. */
+     A real 2824-2 beats at 4 Hz, but at full caliber speed behind the
+     launcher the balance reads as fidgety in peripheral vision. We run
+     it at 2 Hz instead — historically real for older calibers and visibly
+     calmer. Whole train halves: escape 16 rpm, fourth ≈ 1.6 rpm (still
+     unmistakably alive), third ≈ 0.21 rpm, center ≈ 34 min/rev. */
 
   const MODULE = 0.0038;
   const pr = (teeth) => (teeth * MODULE) / 2;
 
-  const ESCAPE_RAD_PER_S = (4.0 * 2 * Math.PI * 2) / 15;
+  const ESCAPE_RAD_PER_S = (2.0 * 2 * Math.PI * 2) / 15;
   const S_ESC    = ESCAPE_RAD_PER_S / 1000;
   const S_FOUR   = S_ESC    / (70 / 7);
   const S_THIRD  = S_FOUR   / (75 / 10);
@@ -211,7 +217,7 @@ export function startMovement(canvas) {
   const escG = gears[4];
   const balance = {
     x: escG.x + 0.28, y: escG.y - 0.05,
-    r: 0.17, freqHz: 4.0, amp: 0.52 * Math.PI,
+    r: 0.17, freqHz: 2.0, amp: 0.52 * Math.PI,
   };
 
   // Register fourth wheel as the shared launch target for all apps.
@@ -1252,7 +1258,9 @@ export function startMovement(canvas) {
 
   let start = performance.now();
   let yaw = 0.34;
-  const YAW_SPEED = reduced ? 0 : 0.00012 * 0.35;
+  // Ambient drift is intentionally near-imperceptible: ~25°/min, so
+  // the composition slowly breathes without ever reading as "spinning".
+  const YAW_SPEED = reduced ? 0 : 0.0000072;
 
   function frame(now) {
     const t = now - start;
