@@ -266,6 +266,7 @@ function renderApps(apps, config) {
   renderRecents(apps);
   populateStatus(apps);
   startClock(config || {});
+  loadBuildInfo();
 }
 
 function ensureEmbedShell() {
@@ -682,6 +683,41 @@ function lockAndReload() {
 }
 
 document.getElementById("lock")?.addEventListener("click", lockAndReload);
+
+function formatUpdatedAgo(date, now = new Date()) {
+  const diffMs = now - date;
+  const diffSec = Math.round(diffMs / 1000);
+  if (diffSec < 60) return "just now";
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}h ago`;
+  const diffDay = Math.round(diffHr / 24);
+  if (diffDay < 7) return `${diffDay}d ago`;
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+async function loadBuildInfo() {
+  const wrap = document.getElementById("status-updated");
+  const timeEl = document.getElementById("status-updated-time");
+  if (!wrap || !timeEl) return;
+  try {
+    const res = await fetch("./build-info.json", { cache: "no-cache" });
+    if (!res.ok) return;
+    const info = await res.json();
+    const iso = info?.commitDate;
+    if (!iso) return;
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return;
+    timeEl.dateTime = date.toISOString();
+    timeEl.title = date.toLocaleString();
+    timeEl.textContent = formatUpdatedAgo(date);
+    wrap.hidden = false;
+  } catch (_) {}
+}
 
 function setStatus(state, label) {
   const indicator = document.getElementById("status-indicator");

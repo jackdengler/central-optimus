@@ -70,6 +70,15 @@ jobs:
           fi
           touch _site/.nojekyll
 
+      - name: Write build info
+        run: |
+          set -euo pipefail
+          COMMIT_DATE=$(git log -1 --format=%cI)
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          DEPLOY_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          printf '{"commitDate":"%s","commitSha":"%s","deployDate":"%s"}\n' \
+            "$COMMIT_DATE" "$COMMIT_SHA" "$DEPLOY_DATE" > _site/build-info.json
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3

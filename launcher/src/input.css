@@ -682,6 +682,10 @@
     align-items: center;
     gap: 0.5rem;
   }
+  .status-updated {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
   .status-sep {
     opacity: 0.55;
   }
