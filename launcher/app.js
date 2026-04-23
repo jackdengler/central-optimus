@@ -4,7 +4,7 @@ import { startLittleGuyWander } from "./little-guy-wander.js";
 
 const TOKEN_KEY = "co.gh.token";
 const LAYOUT_KEY = "co.layout";
-const INTRO_MIN_MS = 1200;
+const INTRO_MIN_MS = 1600;
 let APPS = [];
 let citySceneInitialized = false;
 let lilGuyController = null;
@@ -588,6 +588,46 @@ if ("serviceWorker" in navigator) {
   });
 }
 
+function spawnIntroHalo(x, y) {
+  const halo = document.createElement("div");
+  halo.className = "intro-halo";
+  halo.style.left = `${x}px`;
+  halo.style.top = `${y}px`;
+  document.body.appendChild(halo);
+  setTimeout(() => halo.remove(), 1500);
+}
+
+function spawnIntroSpark(x, y, opts = {}) {
+  const {
+    size = 6 + Math.random() * 10,
+    dist = 24 + Math.random() * 48,
+    dur = 700 + Math.random() * 400,
+    angle = Math.random() * Math.PI * 2,
+    startScale = 0.5 + Math.random() * 0.4,
+    endScale = 0.1,
+  } = opts;
+  const el = document.createElement("div");
+  el.className = "intro-spark";
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  el.style.width = `${size}px`;
+  el.style.height = `${size}px`;
+  el.style.setProperty("--dx", `${Math.cos(angle) * dist}px`);
+  el.style.setProperty("--dy", `${Math.sin(angle) * dist}px`);
+  el.style.setProperty("--s0", String(startScale));
+  el.style.setProperty("--s1", String(endScale));
+  el.style.setProperty("--dur", `${dur}ms`);
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), dur + 80);
+}
+
+function emitBurst(x, y, count, opts = {}) {
+  for (let i = 0; i < count; i++) {
+    const angle = (i / count) * Math.PI * 2 + Math.random() * 0.3;
+    spawnIntroSpark(x, y, { ...opts, angle });
+  }
+}
+
 async function runIntroExit() {
   if (introExitStarted) return;
   introExitStarted = true;
@@ -643,7 +683,6 @@ async function runIntroExit() {
   const fromRect = introGuy.getBoundingClientRect();
   const toRect = mountEl.getBoundingClientRect();
   if (toRect.width === 0 || toRect.height === 0) {
-    // Hero hasn't laid out — bail to a clean state.
     mountEl.appendChild(wrap);
     tearDownIntro();
     if (lilGuyWander) lilGuyWander.stop();
@@ -655,33 +694,119 @@ async function runIntroExit() {
   const fcy = fromRect.top + fromRect.height / 2;
   const tcx = toRect.left + toRect.width / 2;
   const tcy = toRect.top + toRect.height / 2;
-  const dx = tcx - fcx;
-  const dy = tcy - fcy;
-  const scale = toRect.width / fromRect.width;
 
-  // Cancel the entrance keyframes so we can drive transform via transition.
-  introGuy.style.animation = "none";
-  introGuy.style.willChange = "transform";
-  introGuy.style.transition =
-    "transform 1200ms cubic-bezier(0.22, 1, 0.36, 1)";
-
-  intro.classList.add("is-exiting");
-
-  requestAnimationFrame(() => {
-    introGuy.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+  // Before we launch, punctuate: halo + radial burst at his takeoff point.
+  spawnIntroHalo(fcx, fcy);
+  emitBurst(fcx, fcy, 14, {
+    dist: 40 + Math.random() * 30,
+    size: 8 + Math.random() * 6,
+    dur: 900,
   });
 
-  const handOff = () => {
-    introGuy.removeEventListener("transitionend", handOff);
-    mountEl.appendChild(wrap);
-    tearDownIntro();
-    mountEl.addEventListener("dblclick", (e) => e.preventDefault());
-    if (lilGuyWander) lilGuyWander.stop();
-    lilGuyWander = startLittleGuyWander(mountEl);
+  // Cancel the entrance keyframes so we can drive transform frame-by-frame.
+  introGuy.style.animation = "none";
+  introGuy.classList.add("is-flying");
+  introGuy.style.willChange = "transform";
+  introGuy.style.transition = "";
+
+  // Fade the curtain on its own timeline (shorter than the flight so the
+  // last stretch lands against the revealed app).
+  intro.classList.add("is-exiting");
+
+  const duration = 1500;
+  const scaleEnd = toRect.width / fromRect.width;
+
+  // Quadratic-bezier control point: lift the midpoint up so he arcs
+  // rather than sliding in a straight line, scaled by travel distance.
+  const travel = Math.hypot(tcx - fcx, tcy - fcy);
+  const lift = Math.max(110, travel * 0.28);
+  const mx = (fcx + tcx) / 2;
+  const my = (fcy + tcy) / 2 - lift;
+
+  const easeInOut = (t) =>
+    t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+  const bezier = (u, a, b, c) => {
+    const iu = 1 - u;
+    return iu * iu * a + 2 * iu * u * b + u * u * c;
   };
-  introGuy.addEventListener("transitionend", handOff, { once: true });
-  // Safety in case transitionend doesn't fire (tab hidden, etc.).
-  setTimeout(handOff, 1600);
+  const bezierTangent = (u, a, b, c) =>
+    2 * (1 - u) * (b - a) + 2 * u * (c - b);
+
+  let lastSparkT = 0;
+  const startedAt = performance.now();
+
+  await new Promise((resolve) => {
+    const step = (now) => {
+      const raw = Math.min(1, (now - startedAt) / duration);
+      const t = easeInOut(raw);
+
+      const px = bezier(t, fcx, mx, tcx);
+      const py = bezier(t, fcy, my, tcy);
+      const tx = px - fcx;
+      const ty = py - fcy;
+
+      // Mid-flight scale pulse and subtle lean from velocity tangent.
+      const scaleBump = 1 + Math.sin(t * Math.PI) * 0.12;
+      const scale = scaleEnd + (1 - scaleEnd) * (1 - t);
+      const s = scale * scaleBump;
+
+      const vx = bezierTangent(t, fcx, mx, tcx);
+      const vy = bezierTangent(t, fcy, my, tcy);
+      const lean =
+        (Math.atan2(vy, vx) * 180) / Math.PI * 0.08 * Math.sin(t * Math.PI);
+
+      introGuy.style.transform = `translate(${tx}px, ${ty}px) scale(${s}) rotate(${lean}deg)`;
+
+      // Sparkle trail: drop a few particles ~every 60ms along the path.
+      if (now - lastSparkT > 60 && raw < 0.92) {
+        lastSparkT = now;
+        const jitter = () => (Math.random() - 0.5) * 40;
+        for (let i = 0; i < 2; i++) {
+          spawnIntroSpark(px + jitter(), py + jitter(), {
+            size: 5 + Math.random() * 7,
+            dist: 16 + Math.random() * 22,
+            dur: 600 + Math.random() * 300,
+            startScale: 0.4,
+          });
+        }
+      }
+
+      if (raw < 1) {
+        requestAnimationFrame(step);
+      } else {
+        resolve();
+      }
+    };
+    requestAnimationFrame(step);
+  });
+
+  // Landing: hand the wrap into the hero slot, pop a burst + halo at the
+  // landing point, and trigger his tap reaction so he squashes on arrival.
+  mountEl.appendChild(wrap);
+  tearDownIntro();
+  mountEl.addEventListener("dblclick", (e) => e.preventDefault());
+
+  const landed = wrap.getBoundingClientRect();
+  const lcx = landed.left + landed.width / 2;
+  const lcy = landed.top + landed.height / 2;
+  spawnIntroHalo(lcx, lcy);
+  emitBurst(lcx, lcy, 12, {
+    dist: 34 + Math.random() * 24,
+    size: 6 + Math.random() * 6,
+    dur: 800,
+  });
+
+  try {
+    wrap.dispatchEvent(
+      new PointerEvent("pointerdown", { bubbles: true, cancelable: true }),
+    );
+  } catch {
+    /* PointerEvent missing in very old browsers — skip the squash. */
+  }
+
+  if (lilGuyWander) lilGuyWander.stop();
+  lilGuyWander = startLittleGuyWander(mountEl);
 }
 
 (async () => {
@@ -689,6 +814,24 @@ async function runIntroExit() {
     const introMount = document.getElementById("intro-guy");
     if (introMount) {
       lilGuyController = mountLittleGuy(introMount);
+      // A shimmer of sparkles around his materialization point so he
+      // feels like he's beaming in, not just popping up.
+      if (!prefersReducedMotion()) {
+        const fireMaterializeBurst = () => {
+          const r = introMount.getBoundingClientRect();
+          const cx = r.left + r.width / 2;
+          const cy = r.top + r.height / 2;
+          spawnIntroHalo(cx, cy);
+          emitBurst(cx, cy, 10, {
+            dist: 30 + Math.random() * 20,
+            size: 6 + Math.random() * 6,
+            dur: 900,
+          });
+        };
+        // Fire once the entrance keyframe has settled him at scale 1.22,
+        // so sparks appear to bloom from him rather than empty air.
+        setTimeout(fireMaterializeBurst, 360);
+      }
     }
     const [config, registry] = await Promise.all([
       loadJSON("./config.json"),

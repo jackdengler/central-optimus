@@ -990,15 +990,79 @@
     height: 220px;
     display: grid;
     place-items: center;
-    animation: intro-enter 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: intro-enter 1200ms cubic-bezier(0.16, 1, 0.3, 1) both;
     filter: drop-shadow(0 24px 60px rgba(110, 77, 176, 0.32));
+    will-change: transform, filter;
+  }
+  .intro-guy.is-flying {
+    animation: none;
+    filter: drop-shadow(0 18px 40px rgba(110, 77, 176, 0.45))
+            drop-shadow(0 0 28px rgba(232, 212, 255, 0.55));
+    transition: filter 500ms ease;
   }
   @keyframes intro-enter {
-    0%   { transform: scale(0.15) translateY(28px); opacity: 0; }
-    40%  { transform: scale(1.18) translateY(-6px); opacity: 1; }
-    60%  { transform: scale(0.94) translateY(4px); }
-    78%  { transform: scale(1.04) translateY(-2px); }
+    0%   { transform: scale(0.05) translateY(40px); opacity: 0; }
+    32%  { transform: scale(1.22) translateY(-10px); opacity: 1; }
+    52%  { transform: scale(0.9)  translateY(6px); }
+    72%  { transform: scale(1.06) translateY(-3px); }
+    88%  { transform: scale(0.98) translateY(1px); }
     100% { transform: scale(1) translateY(0); opacity: 1; }
+  }
+
+  /* Expanding ring that pulses outward from his materialization point. */
+  .intro-halo {
+    position: fixed;
+    pointer-events: none;
+    z-index: 81;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    transform: translate(-50%, -50%) scale(0.2);
+    border: 2px solid rgba(232, 212, 255, 0.75);
+    box-shadow:
+      0 0 60px 10px rgba(232, 212, 255, 0.35),
+      inset 0 0 30px rgba(201, 170, 240, 0.35);
+    opacity: 0;
+    animation: intro-halo 1400ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  }
+  @keyframes intro-halo {
+    0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.1); }
+    25%  { opacity: 0.9; }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(2.4); }
+  }
+
+  /* Sparkle particle used for the materialization burst, the flight
+     trail, and the landing burst. Positioned in viewport coords. */
+  .intro-spark {
+    position: fixed;
+    pointer-events: none;
+    z-index: 82;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      #ffffff 0%,
+      #f3e2ff 35%,
+      rgba(184, 155, 232, 0.6) 65%,
+      rgba(184, 155, 232, 0) 85%
+    );
+    transform: translate(-50%, -50%) scale(var(--s0, 0.6));
+    opacity: 0;
+    animation: intro-spark var(--dur, 900ms) cubic-bezier(0.2, 0.8, 0.25, 1) forwards;
+  }
+  @keyframes intro-spark {
+    0%   {
+      transform: translate(-50%, -50%) scale(var(--s0, 0.6));
+      opacity: 0;
+    }
+    18%  {
+      opacity: 1;
+    }
+    100% {
+      transform:
+        translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px)))
+        scale(var(--s1, 0.1));
+      opacity: 0;
+    }
   }
 
   body.is-booting #app {
