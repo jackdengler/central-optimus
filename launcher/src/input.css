@@ -96,7 +96,7 @@
   }
   @keyframes watch-fade-in {
     from { opacity: 0; }
-    to   { opacity: 0.92; }
+    to   { opacity: 0.42; }
   }
 
   .bg-noise {
