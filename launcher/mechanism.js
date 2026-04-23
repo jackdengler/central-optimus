@@ -1201,6 +1201,103 @@ export function startMovement(canvas) {
     ctx.restore();
   }
 
+  /* Regulator index — the fine-timing lever that sits on the balance
+     cock. Arm pivots near the balance staff jewel and extends out to
+     a short curved scale (+ / − ends). Two tiny curb pins at the tip
+     grip the hairspring between them; sliding the lever changes the
+     spring's effective length and hence the rate. Purely decorative
+     here (static position) — real regulators don't move unless the
+     watch is being adjusted. */
+  function drawRegulator(yaw) {
+    // Scale arc — short curve around the balance staff, above the wheel.
+    const scaleR = balance.r * 1.25;
+    const scaleCenterAng = -Math.PI / 2 - 0.25; // above-and-slightly-left
+    const scaleSpan = 0.55;
+    const scaleStart = scaleCenterAng - scaleSpan / 2;
+    const scaleEnd   = scaleCenterAng + scaleSpan / 2;
+
+    ctx.strokeStyle = col(C.plateDark, 0.50);
+    ctx.lineWidth = Math.max(0.5, R * 0.0025);
+    ctx.beginPath();
+    const arcSamples = 18;
+    for (let i = 0; i <= arcSamples; i++) {
+      const a = scaleStart + (scaleEnd - scaleStart) * (i / arcSamples);
+      const [x, y] = U(
+        balance.x + Math.cos(a) * scaleR,
+        balance.y + Math.sin(a) * scaleR,
+        yaw,
+      );
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Tick marks — longer at ends (for + / −), shorter between.
+    const ticks = 7;
+    for (let i = 0; i <= ticks; i++) {
+      const a = scaleStart + (scaleEnd - scaleStart) * (i / ticks);
+      const end = i === 0 || i === ticks;
+      const t0 = scaleR - (end ? 0.020 : 0.010);
+      const t1 = scaleR + (end ? 0.014 : 0.006);
+      const [x0, y0] = U(balance.x + Math.cos(a) * t0, balance.y + Math.sin(a) * t0, yaw);
+      const [x1, y1] = U(balance.x + Math.cos(a) * t1, balance.y + Math.sin(a) * t1, yaw);
+      ctx.strokeStyle = col(C.plateDark, end ? 0.65 : 0.45);
+      ctx.lineWidth = end ? Math.max(0.9, R * 0.0035) : Math.max(0.5, R * 0.002);
+      ctx.beginPath();
+      ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
+      ctx.stroke();
+    }
+
+    // Lever arm — pivots near balance staff jewel, extends to scale midpoint.
+    // Pivot sits at a tiny offset from balance center (the regulator is
+    // concentric with the balance staff but pivots around it on a friction fit).
+    const pivotR = balance.r * 0.18;
+    const leverAng = scaleCenterAng + 0.08; // slightly biased to the "+"
+    const pivotX = balance.x + Math.cos(leverAng) * pivotR;
+    const pivotY = balance.y + Math.sin(leverAng) * pivotR;
+    const tipX   = balance.x + Math.cos(leverAng) * (scaleR + 0.005);
+    const tipY   = balance.y + Math.sin(leverAng) * (scaleR + 0.005);
+
+    const [px, py] = U(pivotX, pivotY, yaw);
+    const [tx, ty] = U(tipX, tipY, yaw);
+
+    // Arm body — thin steel lever.
+    ctx.strokeStyle = col(C.steel, 0.58);
+    ctx.lineWidth = Math.max(1.2, R * 0.007);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(px, py); ctx.lineTo(tx, ty);
+    ctx.stroke();
+
+    // Highlight streak down the arm.
+    ctx.strokeStyle = col(C.plateHi, 0.30);
+    ctx.lineWidth = Math.max(0.4, R * 0.0022);
+    ctx.stroke();
+
+    // Pivot boss at base of arm.
+    ctx.fillStyle = col(C.steel, 0.70);
+    ctx.beginPath();
+    ctx.arc(px, py, Math.max(1.4, R * 0.007), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = col(C.shadow, 0.55);
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    // Curb pins at tip — two tiny parallel pins straddling the hairspring.
+    const pinGap = Math.max(1.6, R * 0.006);
+    const tipPerpAng = leverAng + Math.PI / 2;
+    const [pinAx, pinAy] = [
+      tx + Math.cos(tipPerpAng) * pinGap,
+      ty + Math.sin(tipPerpAng) * pinGap,
+    ];
+    const [pinBx, pinBy] = [
+      tx - Math.cos(tipPerpAng) * pinGap,
+      ty - Math.sin(tipPerpAng) * pinGap,
+    ];
+    ctx.fillStyle = col(C.shadow, 0.75);
+    ctx.beginPath(); ctx.arc(pinAx, pinAy, Math.max(0.9, R * 0.003), 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(pinBx, pinBy, Math.max(0.9, R * 0.003), 0, Math.PI * 2); ctx.fill();
+  }
+
   /* Automatic-winding rotor — the oscillating weight on the back of a
      real 2824-2. Skeletonized half-moon: heavy crescent ring on one
      side, thin spokes connecting to a central ball bearing, the other
@@ -1435,6 +1532,7 @@ export function startMovement(canvas) {
     }
     drawPallet(renderT, yaw);
     drawBalanceWheel(renderT, yaw, zoomFactor);
+    drawRegulator(yaw);
     drawJewelsAndScrews(renderT, yaw, zoomFactor);
     drawRotor(renderT, yaw);
 
