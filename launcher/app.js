@@ -497,7 +497,40 @@ const PET_QUIPS = [
   "*sparkles*",
 ];
 
-function wireBuddyChatter(buddy) {
+const BUDDY_GREETINGS = {
+  lateNight: ["still up?", "the stars are out", "can't sleep?"],
+  morning: ["morning!", "rise and shine", "new day"],
+  midday: ["hey", "afternoon", "whatcha up to?"],
+  evening: ["evening", "welcome back", "good to see ya"],
+  night: ["getting late", "winding down?", "cozy vibes"],
+};
+
+function buddyGreetingBucket(date) {
+  const h = date.getHours();
+  if (h < 5) return "lateNight";
+  if (h < 11) return "morning";
+  if (h < 17) return "midday";
+  if (h < 22) return "evening";
+  return "night";
+}
+
+function pickBuddyGreeting(firstName) {
+  const bucket = buddyGreetingBucket(new Date());
+  const pool = BUDDY_GREETINGS[bucket];
+  const base = pool[Math.floor(Math.random() * pool.length)];
+  if (!firstName) return base;
+  if (bucket === "morning") return `${base.replace(/!$/, "")}, ${firstName}!`;
+  if (bucket === "evening") return `${base}, ${firstName}`;
+  if (bucket === "lateNight") {
+    return base.endsWith("?")
+      ? `${base.slice(0, -1)}, ${firstName}?`
+      : `${base}, ${firstName}`;
+  }
+  if (Math.random() < 0.5) return `${base}, ${firstName}`;
+  return base;
+}
+
+function wireBuddyChatter(buddy, config) {
   if (!buddy?.on) return;
   buddy.on("pet", () => {
     if (Math.random() < 0.55) {
@@ -505,6 +538,11 @@ function wireBuddyChatter(buddy) {
       buddy.say(quip, { duration: 1500 });
     }
   });
+  const first = (config?.firstName || "").split(/[\s.]/)[0];
+  const pretty = first ? first.charAt(0).toUpperCase() + first.slice(1) : "";
+  setTimeout(() => {
+    buddy.say(pickBuddyGreeting(pretty), { duration: 3400 });
+  }, 950);
 }
 
 /* ---------- Auth + bootstrap ---------- */
@@ -534,7 +572,7 @@ async function unlock(config, registry) {
       lilGuyController = mountLittleGuy(mountEl);
       mountEl.addEventListener("dblclick", (e) => e.preventDefault());
       lilGuyWander = startLittleGuyWander(mountEl);
-      wireBuddyChatter(lilGuyController);
+      wireBuddyChatter(lilGuyController, config);
     }
   };
 
