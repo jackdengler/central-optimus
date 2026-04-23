@@ -14,10 +14,10 @@ export function mountGlobe(target, opts = {}) {
     rotationSpeed = 0.00012,
     tilt = 0.18,
     blendMode = "multiply",
-    radiusFactor = 1.0,
+    radiusFactor = 1.2,
     offsetX = 0,
     offsetY = 0,
-    cameraDist = 2.6,
+    cameraDist = 1.7,
   } = opts;
 
   const TAU = Math.PI * 2;
