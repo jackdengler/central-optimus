@@ -95,8 +95,6 @@
         inset: 0;
         z-index: 1;
         pointer-events: none;
-        -webkit-mask-image: radial-gradient(130% 110% at 50% 50%, #000 65%, transparent 110%);
-        mask-image: radial-gradient(130% 110% at 50% 50%, #000 65%, transparent 110%);
         opacity: 0.92;
       }
       .shell {
@@ -225,7 +223,7 @@
       </main>
 
       <!-- LAST_PUSH: update this string with current LA time on every commit -->
-      <p class="last-push">Last push · 3:12 AM PT — Thu Apr 23</p>
+      <p class="last-push">Last push · 10:08 AM PT — Thu Apr 23</p>
     </div>
 
 
@@ -241,12 +239,12 @@
         var nodeCount = opts.nodeCount != null ? opts.nodeCount : 46;
         var arcCount = opts.arcCount != null ? opts.arcCount : 7;
         var rotationSpeed = opts.rotationSpeed != null ? opts.rotationSpeed : 0.00012;
-        var tilt = opts.tilt != null ? opts.tilt : 0.18;
+        var tilt = opts.tilt != null ? opts.tilt : 0.3;
         var blendMode = opts.blendMode || "multiply";
-        var radiusFactor = opts.radiusFactor != null ? opts.radiusFactor : 1.2;
+        var radiusFactor = opts.radiusFactor != null ? opts.radiusFactor : 1.4;
         var offsetX = opts.offsetX != null ? opts.offsetX : 0;
-        var offsetY = opts.offsetY != null ? opts.offsetY : 0;
-        var cameraDist = opts.cameraDist != null ? opts.cameraDist : 1.45;
+        var offsetY = opts.offsetY != null ? opts.offsetY : 0.55;
+        var cameraDist = opts.cameraDist != null ? opts.cameraDist : 2.2;
 
         var TAU = Math.PI * 2;
         var reduced = false;

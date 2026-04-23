@@ -12,12 +12,12 @@ export function mountGlobe(target, opts = {}) {
     nodeCount = 28,
     arcCount = 4,
     rotationSpeed = 0.00012,
-    tilt = 0.18,
+    tilt = 0.3,
     blendMode = "multiply",
-    radiusFactor = 1.2,
+    radiusFactor = 1.4,
     offsetX = 0,
-    offsetY = 0,
-    cameraDist = 1.45,
+    offsetY = 0.55,
+    cameraDist = 2.2,
   } = opts;
 
   const TAU = Math.PI * 2;
