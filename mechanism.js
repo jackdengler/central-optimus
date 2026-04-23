@@ -70,20 +70,13 @@ export function startMovement(canvas) {
     canvas.height = Math.round(H * DPR);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     isPortrait = H >= W;
-    if (isPortrait) {
-      // Anchor so the gear train (gears 1..4 + balance, which live in
-      // unit space around v ≈ 0.12..0.20, u ≈ -0.42..0.20) lands as a
-      // horizontal band across the lower spacer between the icon grid
-      // and the version footer — out from behind the tappable icons.
-      RA  = W * 2.05;
-      cxA = W * 1.00;
-      cyA = H * 0.68;
-    } else {
-      const longSide = Math.max(W, H);
-      RA  = longSide * 1.10;
-      cxA = W * 1.02;
-      cyA = H * 0.70;
-    }
+    // Center the plate disc on the screen and size it so the disc
+    // diameter ≥ the long screen edge — the whole movement is always
+    // visible (every gear, bridge, balance, pallet) and the plate
+    // fills the canvas with no empty corners.
+    cxA = W * 0.5;
+    cyA = H * 0.5;
+    RA  = Math.max(W, H) * 0.52;
     if (launch.mode === "idle") { cx = cxA; cy = cyA; R = RA; }
   }
 
@@ -1257,10 +1250,12 @@ export function startMovement(canvas) {
   }
 
   let start = performance.now();
-  let yaw = 0.34;
-  // Ambient drift is intentionally near-imperceptible: ~25°/min, so
-  // the composition slowly breathes without ever reading as "spinning".
-  const YAW_SPEED = reduced ? 0 : 0.0000072;
+  // Static yaw — the composition holds still as a backdrop. Aliveness
+  // comes from the gear train and balance, not from the whole frame
+  // rotating. The 0.34 rad tilt stays as a one-time "watchmaker's
+  // loupe" angle so the bridges read on a diagonal.
+  const yaw = 0.34;
+  const YAW_SPEED = 0;
 
   function frame(now) {
     const t = now - start;
@@ -1299,10 +1294,7 @@ export function startMovement(canvas) {
       launch.eased = 1;
     }
 
-    // Yaw locks during launch so the composition doesn't drift.
-    if (!reduced && launch.eased < 0.02) {
-      yaw = 0.34 + t * YAW_SPEED;
-    }
+    // Yaw is static — see declaration above.
 
     // While the app is fully open, hold the clock still — the gears,
     // balance, pallet, and jewels all sit perfectly static behind it.
