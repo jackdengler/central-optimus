@@ -30,6 +30,9 @@
     text-rendering: optimizeLegibility;
     min-height: 100dvh;
     touch-action: manipulation;
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+    max-width: 100%;
   }
   body {
     background-color: var(--color-optimus-bg);
