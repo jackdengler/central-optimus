@@ -484,6 +484,29 @@ function wireGlobalShortcuts() {
   });
 }
 
+/* ---------- Buddy ---------- */
+
+const PET_QUIPS = [
+  "boop!",
+  "hi!",
+  "hehe",
+  "that tickles",
+  "yep",
+  "whoa",
+  "again?",
+  "*sparkles*",
+];
+
+function wireBuddyChatter(buddy) {
+  if (!buddy?.on) return;
+  buddy.on("pet", () => {
+    if (Math.random() < 0.55) {
+      const quip = PET_QUIPS[Math.floor(Math.random() * PET_QUIPS.length)];
+      buddy.say(quip, { duration: 1500 });
+    }
+  });
+}
+
 /* ---------- Auth + bootstrap ---------- */
 
 async function unlock(config, registry) {
@@ -511,6 +534,7 @@ async function unlock(config, registry) {
       lilGuyController = mountLittleGuy(mountEl);
       mountEl.addEventListener("dblclick", (e) => e.preventDefault());
       lilGuyWander = startLittleGuyWander(mountEl);
+      wireBuddyChatter(lilGuyController);
     }
   };
 

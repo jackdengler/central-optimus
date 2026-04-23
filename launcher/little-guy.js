@@ -64,6 +64,40 @@ export function mountLittleGuy(target, opts = {}) {
       @media (prefers-reduced-motion: reduce) {
         .lg-wrap, .lg-wrap * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
       }
+      .lg-bubble {
+        position: absolute;
+        left: 50%;
+        bottom: 100%;
+        transform: translate(-50%, -4px) scale(.92);
+        opacity: 0;
+        pointer-events: none;
+        padding: 6px 11px;
+        border-radius: 14px;
+        background: linear-gradient(180deg, rgba(38,24,70,.96), rgba(22,14,48,.96));
+        color: #F5E8FF;
+        font: 500 12.5px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, system-ui, sans-serif;
+        max-width: 220px;
+        text-align: center;
+        white-space: normal;
+        box-shadow: 0 8px 28px rgba(80, 50, 160, .35), 0 0 0 1px rgba(232, 212, 255, .14);
+        transition: opacity 220ms ease, transform 260ms cubic-bezier(.2,.8,.2,1);
+        z-index: 3;
+        margin-bottom: 6px;
+      }
+      .lg-bubble::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        border: 6px solid transparent;
+        border-top-color: rgba(22, 14, 48, .96);
+        filter: drop-shadow(0 2px 2px rgba(80, 50, 160, .25));
+      }
+      .lg-bubble.lg-bubble-show {
+        opacity: 1;
+        transform: translate(-50%, -10px) scale(1);
+      }
     `;
     document.head.appendChild(style);
   }
@@ -211,6 +245,52 @@ export function mountLittleGuy(target, opts = {}) {
 
   target.appendChild(wrap);
 
+  // ---- Speech bubble ----
+  const bubble = document.createElement('div');
+  bubble.className = 'lg-bubble';
+  bubble.setAttribute('role', 'status');
+  bubble.setAttribute('aria-live', 'polite');
+  bubble.hidden = true;
+  target.appendChild(bubble);
+
+  let bubbleHideTimer = 0;
+  let bubbleRemoveTimer = 0;
+  const say = (text, opts = {}) => {
+    if (destroyed) return;
+    const msg = typeof text === 'string' ? text.trim() : '';
+    if (!msg) return;
+    const { duration = 2800 } = opts;
+    clearTimeout(bubbleHideTimer);
+    clearTimeout(bubbleRemoveTimer);
+    bubble.textContent = msg;
+    bubble.hidden = false;
+    requestAnimationFrame(() => {
+      if (destroyed) return;
+      bubble.classList.add('lg-bubble-show');
+    });
+    if (duration > 0) {
+      bubbleHideTimer = setTimeout(() => {
+        bubble.classList.remove('lg-bubble-show');
+        bubbleRemoveTimer = setTimeout(() => { bubble.hidden = true; }, 300);
+      }, duration);
+    }
+  };
+
+  // ---- Event bus ----
+  const listeners = new Map();
+  const on = (event, handler) => {
+    if (!listeners.has(event)) listeners.set(event, new Set());
+    listeners.get(event).add(handler);
+    return () => listeners.get(event)?.delete(handler);
+  };
+  const emit = (event, data) => {
+    const set = listeners.get(event);
+    if (!set) return;
+    set.forEach((fn) => {
+      try { fn(data); } catch (err) { console.error(`lil-guy ${event} handler:`, err); }
+    });
+  };
+
   // ---- Handles ----
   const q = s => wrap.querySelector(s);
   const bodyG  = q('[data-body]');
@@ -336,6 +416,7 @@ export function mountLittleGuy(target, opts = {}) {
     blushR.setAttribute('opacity', big ? '1.3' : '1');
     blushL.setAttribute('rx', big ? '9' : '7');
     blushR.setAttribute('rx', big ? '9' : '7');
+    emit('mood', m);
   };
 
   const moodInterval = setInterval(() => {
@@ -407,6 +488,7 @@ export function mountLittleGuy(target, opts = {}) {
     }
     setMood('surprised');
     st(() => setMood('neutral'), 500);
+    emit('pet');
   };
   wrap.addEventListener('pointerdown', onTap);
 
@@ -425,17 +507,24 @@ export function mountLittleGuy(target, opts = {}) {
   }
 
   return {
+    say,
+    on,
+    emit,
     destroy() {
       destroyed = true;
       cancelAnimationFrame(rafId);
       clearInterval(moodInterval);
+      clearTimeout(bubbleHideTimer);
+      clearTimeout(bubbleRemoveTimer);
       timers.forEach(id => clearTimeout(id));
       timers.clear();
+      listeners.clear();
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', end);
       window.removeEventListener('pointercancel', end);
       window.removeEventListener('touchend', end);
       wrap.removeEventListener('pointerdown', onTap);
+      bubble.remove();
       wrap.remove();
     },
   };
