@@ -1,7 +1,166 @@
-<!doctype html><meta charset="utf-8"><title>central-optimus</title>
-<body style="font-family:system-ui;padding:2rem;max-width:40rem;margin:auto;color:#1f1b16;background:#f6f1e7;">
-<h1>central-optimus</h1>
-<p>This is the gh-pages root. Production launcher will land here once
-the refactored main deploy workflow runs. Branch previews are under
-<code>/preview/&lt;branch-slug&gt;/</code>.</p>
-</body>
+<!doctype html>
+<html lang="en" class="ios">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#f6f1e7" />
+    <title>Central Optimus</title>
+
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="./icons/icon.svg" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
+
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Optimus" />
+    <style>
+      html, body { background: #f6f1e7; margin: 0; }
+    </style>
+
+    <link
+      rel="apple-touch-startup-image"
+      href="./icons/splash-1170x2532.png"
+      media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+    />
+
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main id="app" class="shell" hidden>
+      <section id="hero" class="hero" hidden>
+        <div class="hero-top">
+          <p class="eyebrow">
+            <span id="hero-weather" hidden></span>
+            <span class="eyebrow-sep eyebrow-sep-weather" aria-hidden="true" hidden>·</span>
+            <span id="hero-date">—</span>
+          </p>
+          <div class="hero-actions" id="app-header">
+          <button
+            id="lock"
+            type="button"
+            aria-label="Sign out"
+            title="Sign out"
+            class="icon-btn"
+            data-state="unlocked"
+          >
+            <svg class="lock-glyph lock-glyph-unlocked" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="11" width="16" height="10" rx="2.5" />
+              <path d="M8 11V7a4 4 0 0 1 7.5-2" />
+            </svg>
+            <svg class="lock-glyph lock-glyph-locked" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="11" width="16" height="10" rx="2.5" />
+              <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+            </svg>
+          </button>
+          </div>
+        </div>
+        <div class="hero-main">
+          <h1 class="greeting">
+            <span id="greeting-text">Welcome</span><span class="greeting-punct">.</span>
+          </h1>
+        </div>
+        <p class="hero-tagline">
+          Your private workspace.
+          <span class="hero-count"><span id="hero-app-count">0</span> apps ready.</span>
+        </p>
+      </section>
+
+      <section id="recents-section" class="apps-section" hidden>
+        <div class="section-header">
+          <h2 class="section-title">Recents</h2>
+        </div>
+        <div
+          id="recents-grid"
+          class="grid"
+          aria-label="Recent apps"
+        ></div>
+      </section>
+
+      <section id="apps-section" class="apps-section" hidden>
+        <div class="section-header">
+          <h2 class="section-title">All</h2>
+          <span class="section-hint">
+            Tap or press <kbd>1</kbd>–<kbd>9</kbd>
+          </span>
+        </div>
+        <input
+          id="apps-search"
+          class="apps-search"
+          type="search"
+          placeholder="Search apps"
+          aria-label="Filter apps"
+          hidden
+        />
+        <div
+          id="grid"
+          class="grid"
+          aria-label="Apps"
+        ></div>
+      </section>
+
+      <p id="empty" class="empty-state" hidden>No apps registered yet.</p>
+
+      <footer id="status-bar" class="status-bar" hidden>
+        <span id="status-indicator" class="status-indicator" data-status="nominal">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="status-label">All systems nominal</span>
+        </span>
+        <span class="status-meta">
+          <span class="status-updated" id="status-updated" hidden>
+            Updated <time id="status-updated-time" datetime=""></time>
+          </span>
+          <span class="status-build" id="status-build" hidden>build 2026.04</span>
+        </span>
+      </footer>
+    </main>
+
+    <div id="pip" class="pip" hidden role="button" aria-label="Your assistant" tabindex="0">
+      <div class="pip-inner">
+        <div id="pip-stage" class="pip-stage"></div>
+      </div>
+      <div id="pip-hint" class="pip-hint" hidden aria-hidden="true">
+        Drag me anywhere. Tap to chat.
+      </div>
+    </div>
+
+    <dialog
+      id="gate"
+      class="co-dialog w-[min(calc(100%-2rem),20rem)] rounded-2xl p-6"
+    >
+      <form method="dialog" id="gate-form">
+        <h2 class="mb-3 text-lg font-semibold tracking-tight">Sign in</h2>
+        <p class="mb-3 text-sm leading-snug text-optimus-muted">
+          Paste a GitHub personal access token for your account.
+          <a
+            class="text-optimus-accent font-medium underline-offset-2 hover:underline"
+            href="https://github.com/settings/personal-access-tokens/new"
+            target="_blank"
+            rel="noopener"
+            >Create one</a
+          >
+          (fine-grained, no permissions required).
+        </p>
+        <input
+          id="token"
+          type="password"
+          autocomplete="off"
+          spellcheck="false"
+          autofocus
+          required
+          placeholder="github_pat_..."
+          class="mb-3 w-full rounded-xl border border-optimus-border bg-optimus-surface px-4 py-3 text-base text-optimus-text placeholder-optimus-muted focus:outline-none focus:ring-2 focus:ring-optimus-accent/60"
+        />
+        <p id="gate-error" class="mb-3 text-sm text-red-600" hidden>Sign-in failed.</p>
+        <button
+          type="submit"
+          class="btn-primary"
+        >
+          Unlock
+        </button>
+      </form>
+    </dialog>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
