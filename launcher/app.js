@@ -1,10 +1,11 @@
 import { initWeather } from "./weather.js";
+import { mountLittleGuy } from "./little-guy.js";
 
 const TOKEN_KEY = "co.gh.token";
+const PIP_POS_KEY = "co.pip.pos";
 let APPS = [];
 let weatherController = null;
-let paletteIndex = 0;
-let paletteResults = [];
+let buddyController = null;
 let clockTimer = null;
 
 const APP_GLYPHS = {
@@ -164,12 +165,6 @@ function renderApps(apps, config) {
   startClock(config || {});
 }
 
-function openSettings() {
-  const dialog = document.getElementById("settings");
-  if (!dialog) return;
-  if (!dialog.open) dialog.showModal();
-}
-
 function ensureEmbedShell() {
   let wrap = document.getElementById("embed");
   if (wrap) return wrap;
@@ -250,138 +245,6 @@ function showApp(title) {
   document.title = title;
 }
 
-/* ---------- Command palette ---------- */
-
-function paletteOpen() {
-  const dialog = document.getElementById("palette");
-  const input = document.getElementById("palette-input");
-  if (!dialog || dialog.open) return;
-  input.value = "";
-  renderPalette("");
-  dialog.showModal();
-  requestAnimationFrame(() => input.focus());
-}
-
-function paletteClose() {
-  const dialog = document.getElementById("palette");
-  if (dialog && dialog.open) dialog.close();
-}
-
-function matchScore(app, q) {
-  if (!q) return 1;
-  const needle = q.toLowerCase();
-  const hay = `${app.name} ${app.subtitle || ""} ${app.blurb || ""} ${app.id}`.toLowerCase();
-  if (hay.includes(needle)) {
-    if (app.name.toLowerCase().startsWith(needle)) return 3;
-    if (app.name.toLowerCase().includes(needle)) return 2;
-    return 1;
-  }
-  let i = 0;
-  for (const ch of hay) {
-    if (ch === needle[i]) i++;
-    if (i === needle.length) return 0.5;
-  }
-  return 0;
-}
-
-function renderPalette(query) {
-  const list = document.getElementById("palette-results");
-  if (!list) return;
-  const scored = APPS
-    .map((app, idx) => ({ app, idx, score: matchScore(app, query) }))
-    .filter((x) => x.score > 0)
-    .sort((a, b) => b.score - a.score || a.idx - b.idx);
-  paletteResults = scored.map((x) => x.app);
-  paletteIndex = 0;
-  list.innerHTML = "";
-  if (!paletteResults.length) {
-    const li = document.createElement("li");
-    li.className = "palette-empty";
-    li.textContent = query ? `No matches for "${query}"` : "No apps registered.";
-    list.appendChild(li);
-    return;
-  }
-  paletteResults.forEach((app, i) => {
-    const li = document.createElement("li");
-    li.className = "palette-item";
-    li.setAttribute("role", "option");
-    li.setAttribute("aria-selected", i === 0 ? "true" : "false");
-    const color = app.color || "#c96a47";
-    const shade = app.shade || darkenHex(color);
-    li.style.setProperty("--tile-color", color);
-    li.style.setProperty("--tile-shade", shade);
-    const glyph = APP_GLYPHS[app.id] || DEFAULT_GLYPH;
-    li.innerHTML = `
-      <div class="palette-item-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24">${glyph}</svg>
-      </div>
-      <div class="palette-item-body">
-        <div class="palette-item-name"></div>
-        <div class="palette-item-subtitle"></div>
-      </div>
-      <kbd class="palette-item-hint">↵</kbd>
-    `;
-    li.querySelector(".palette-item-name").textContent = app.name;
-    li.querySelector(".palette-item-subtitle").textContent =
-      app.blurb || app.subtitle || "";
-    li.addEventListener("mousemove", () => setPaletteIndex(i));
-    li.addEventListener("click", (e) => {
-      e.preventDefault();
-      paletteLaunch(i);
-    });
-    list.appendChild(li);
-  });
-}
-
-function setPaletteIndex(i) {
-  if (i < 0 || i >= paletteResults.length) return;
-  paletteIndex = i;
-  const list = document.getElementById("palette-results");
-  if (!list) return;
-  [...list.children].forEach((child, idx) => {
-    if (child.classList.contains("palette-item")) {
-      child.setAttribute("aria-selected", idx === i ? "true" : "false");
-      if (idx === i) child.scrollIntoView({ block: "nearest" });
-    }
-  });
-}
-
-function paletteLaunch(i = paletteIndex) {
-  const app = paletteResults[i];
-  if (!app) return;
-  paletteClose();
-  launchApp(app);
-}
-
-function wirePalette() {
-  const dialog = document.getElementById("palette");
-  const input = document.getElementById("palette-input");
-  const form = document.getElementById("palette-form");
-  const openBtn = document.getElementById("palette-open");
-  if (!dialog || !input || !form) return;
-
-  openBtn?.addEventListener("click", paletteOpen);
-  input.addEventListener("input", () => renderPalette(input.value.trim()));
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    paletteLaunch();
-  });
-  dialog.addEventListener("click", (e) => {
-    if (e.target === dialog) paletteClose();
-  });
-  dialog.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setPaletteIndex(Math.min(paletteIndex + 1, paletteResults.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setPaletteIndex(Math.max(paletteIndex - 1, 0));
-    } else if (e.key === "Escape") {
-      paletteClose();
-    }
-  });
-}
-
 function wireGlobalShortcuts() {
   window.addEventListener("keydown", (e) => {
     const active = document.activeElement;
@@ -390,23 +253,7 @@ function wireGlobalShortcuts() {
       (active.tagName === "INPUT" ||
         active.tagName === "TEXTAREA" ||
         active.isContentEditable);
-    const paletteDialog = document.getElementById("palette");
-    const paletteOpenNow = paletteDialog && paletteDialog.open;
-
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-      e.preventDefault();
-      if (paletteOpenNow) paletteClose();
-      else paletteOpen();
-      return;
-    }
-
-    if (e.key === "/" && !typing && !paletteOpenNow) {
-      e.preventDefault();
-      paletteOpen();
-      return;
-    }
-
-    if (!typing && !paletteOpenNow && /^[1-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    if (!typing && /^[1-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
       const idx = parseInt(e.key, 10) - 1;
       const app = APPS[idx];
       if (app) {
@@ -415,6 +262,122 @@ function wireGlobalShortcuts() {
       }
     }
   });
+}
+
+/* ---------- Pip (FaceTime-style mascot overlay) ---------- */
+
+function clampPipPos(x, y, el) {
+  const w = el.offsetWidth;
+  const h = el.offsetHeight;
+  const margin = 12;
+  const maxX = window.innerWidth - w - margin;
+  const maxY = window.innerHeight - h - margin;
+  return {
+    x: Math.min(maxX, Math.max(margin, x)),
+    y: Math.min(maxY, Math.max(margin, y)),
+  };
+}
+
+function applyPipPos(el, x, y) {
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  el.style.right = "auto";
+  el.style.bottom = "auto";
+}
+
+function loadPipPos() {
+  try {
+    const raw = localStorage.getItem(PIP_POS_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw);
+    if (typeof p?.x === "number" && typeof p?.y === "number") return p;
+  } catch (_) {}
+  return null;
+}
+
+function setupPip() {
+  const pip = document.getElementById("pip");
+  const stage = document.getElementById("pip-stage");
+  if (!pip || !stage) return;
+  pip.hidden = false;
+
+  if (buddyController) buddyController.destroy();
+  buddyController = mountLittleGuy(stage);
+
+  const placeDefault = () => {
+    const margin = 16;
+    const x = window.innerWidth - pip.offsetWidth - margin;
+    const y = window.innerHeight - pip.offsetHeight - margin;
+    applyPipPos(pip, x, y);
+  };
+
+  const stored = loadPipPos();
+  if (stored) {
+    const { x, y } = clampPipPos(stored.x, stored.y, pip);
+    applyPipPos(pip, x, y);
+  } else {
+    placeDefault();
+  }
+
+  window.addEventListener("resize", () => {
+    const r = pip.getBoundingClientRect();
+    const { x, y } = clampPipPos(r.left, r.top, pip);
+    applyPipPos(pip, x, y);
+  });
+
+  let drag = null;
+  const onDown = (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    const r = pip.getBoundingClientRect();
+    drag = {
+      startX: e.clientX,
+      startY: e.clientY,
+      offX: e.clientX - r.left,
+      offY: e.clientY - r.top,
+      moved: false,
+      pointerId: e.pointerId,
+    };
+    pip.setPointerCapture(e.pointerId);
+  };
+  const onMove = (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(dx, dy) > 5) {
+      drag.moved = true;
+      pip.classList.add("pip-dragging");
+    }
+    if (drag.moved) {
+      const { x, y } = clampPipPos(
+        e.clientX - drag.offX,
+        e.clientY - drag.offY,
+        pip,
+      );
+      applyPipPos(pip, x, y);
+    }
+  };
+  const onUp = (e) => {
+    if (!drag) return;
+    const wasDrag = drag.moved;
+    try {
+      pip.releasePointerCapture(drag.pointerId);
+    } catch (_) {}
+    drag = null;
+    pip.classList.remove("pip-dragging");
+    if (wasDrag) {
+      const r = pip.getBoundingClientRect();
+      try {
+        localStorage.setItem(
+          PIP_POS_KEY,
+          JSON.stringify({ x: r.left, y: r.top }),
+        );
+      } catch (_) {}
+    }
+  };
+  pip.addEventListener("pointerdown", onDown);
+  pip.addEventListener("pointermove", onMove);
+  pip.addEventListener("pointerup", onUp);
+  pip.addEventListener("pointercancel", onUp);
 }
 
 /* ---------- Auth + bootstrap ---------- */
@@ -437,6 +400,7 @@ async function unlock(config, registry) {
     APPS = registry.apps || [];
     renderApps(APPS, config);
     handleHash();
+    setupPip();
 
     const weatherEl = document.getElementById("hero-weather");
     const weatherSep = document.querySelector(".eyebrow-sep-weather");
@@ -481,10 +445,7 @@ function lockAndReload() {
 }
 
 document.getElementById("lock")?.addEventListener("click", lockAndReload);
-document.getElementById("settings-lock")?.addEventListener("click", lockAndReload);
-document.getElementById("header-settings")?.addEventListener("click", openSettings);
 
-wirePalette();
 wireGlobalShortcuts();
 
 if ("serviceWorker" in navigator) {

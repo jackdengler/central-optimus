@@ -40,30 +40,6 @@
           </p>
           <div class="hero-actions" id="app-header">
           <button
-            id="palette-open"
-            type="button"
-            aria-label="Search apps (⌘K)"
-            title="Search apps (⌘K)"
-            class="icon-btn"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="11" cy="11" r="6.5" />
-              <path d="M20 20l-4.2-4.2" />
-            </svg>
-          </button>
-          <button
-            id="header-settings"
-            type="button"
-            aria-label="Settings"
-            title="Settings"
-            class="icon-btn"
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </button>
-          <button
             id="lock"
             type="button"
             aria-label="Lock"
@@ -116,54 +92,9 @@
       </footer>
     </main>
 
-    <dialog id="palette" class="palette">
-      <form method="dialog" id="palette-form" class="palette-form">
-        <div class="palette-input-wrap">
-          <svg class="palette-search-icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="11" cy="11" r="6.5" />
-            <path d="M20 20l-4.2-4.2" />
-          </svg>
-          <input
-            id="palette-input"
-            type="text"
-            autocomplete="off"
-            spellcheck="false"
-            placeholder="Search apps…"
-            aria-label="Search apps"
-          />
-          <kbd class="palette-esc">esc</kbd>
-        </div>
-        <ul id="palette-results" class="palette-results" role="listbox"></ul>
-        <div class="palette-footer">
-          <span class="palette-hint"><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
-          <span class="palette-hint"><kbd>↵</kbd> launch</span>
-          <span class="palette-hint"><kbd>esc</kbd> close</span>
-        </div>
-      </form>
-    </dialog>
-
-    <dialog
-      id="settings"
-      class="co-dialog w-[min(calc(100%-2rem),22rem)] rounded-2xl p-6"
-    >
-      <form method="dialog" class="flex flex-col gap-4">
-        <h2 class="text-lg font-semibold tracking-tight">Settings</h2>
-        <button
-          id="settings-lock"
-          type="button"
-          class="btn-ghost"
-        >
-          Lock &amp; sign out
-        </button>
-        <button
-          id="settings-close"
-          type="submit"
-          class="btn-primary"
-        >
-          Done
-        </button>
-      </form>
-    </dialog>
+    <div id="pip" class="pip" hidden role="button" aria-label="Hello little guy" tabindex="0">
+      <div id="pip-stage" class="pip-stage"></div>
+    </div>
 
     <dialog
       id="gate"

@@ -627,183 +627,62 @@
     opacity: 0.55;
   }
 
-  /* ---------- Command palette ---------- */
-  .palette {
-    width: min(calc(100% - 2rem), 34rem);
-    margin: clamp(3rem, 12vh, 8rem) auto auto;
-    padding: 0;
-    border: 1px solid var(--color-optimus-border-strong);
-    border-radius: 1.25rem;
-    background: color-mix(in oklab, var(--color-optimus-surface) 92%, transparent);
-    backdrop-filter: saturate(180%) blur(22px);
-    -webkit-backdrop-filter: saturate(180%) blur(22px);
-    color: var(--color-optimus-ink);
-    box-shadow:
-      0 40px 80px -20px rgba(var(--color-optimus-shadow), 0.4),
-      inset 0 1px 0 rgba(255, 255, 255, 0.85);
-    overflow: hidden;
-  }
-  .palette::backdrop {
-    background: rgba(30, 22, 14, 0.3);
-    backdrop-filter: blur(6px);
-  }
-  .palette[open] {
-    animation: palette-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  }
-  @keyframes palette-in {
-    from { opacity: 0; transform: translateY(-8px) scale(0.98); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-  }
-  .palette-form {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-  .palette-input-wrap {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    padding: 1rem 1.1rem;
-    border-bottom: 1px solid var(--color-optimus-border);
-  }
-  .palette-search-icon {
-    height: 18px;
-    width: 18px;
-    color: var(--color-optimus-muted);
-    flex-shrink: 0;
-  }
-  #palette-input {
-    flex: 1;
-    min-width: 0;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    font-size: 1.05rem;
-    font-weight: 500;
-    color: var(--color-optimus-ink);
-    outline: none;
-  }
-  #palette-input::placeholder {
-    color: var(--color-optimus-muted);
-    font-weight: 400;
-  }
-  .palette-esc {
-    opacity: 0.75;
-  }
-  .palette-results {
-    list-style: none;
-    margin: 0;
-    padding: 0.4rem;
-    max-height: 52vh;
-    overflow-y: auto;
-    min-height: 0;
-  }
-  .palette-results::-webkit-scrollbar {
-    width: 8px;
-  }
-  .palette-results::-webkit-scrollbar-thumb {
-    background: var(--color-optimus-border-strong);
+  /* ---------- PiP mascot overlay ---------- */
+  .pip {
+    position: fixed;
+    z-index: 60;
+    width: clamp(88px, 22vw, 124px);
+    height: clamp(88px, 22vw, 124px);
     border-radius: 999px;
-  }
-  .palette-item {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 0.85rem;
-    padding: 0.55rem 0.7rem;
-    border-radius: 0.75rem;
-    cursor: pointer;
-    user-select: none;
-    color: var(--color-optimus-ink);
-    text-decoration: none;
-  }
-  .palette-item[aria-selected="true"] {
-    background: color-mix(in oklab, var(--color-optimus-surface-2) 85%, var(--color-optimus-accent) 8%);
+    background:
+      radial-gradient(120% 90% at 30% 18%, rgba(255, 255, 255, 0.55), transparent 60%),
+      linear-gradient(160deg, #efe1ff 0%, #c7b1ec 55%, #8e6fcc 100%);
     box-shadow:
-      inset 0 0 0 1px var(--color-optimus-border),
-      0 1px 0 rgba(var(--color-optimus-shadow), 0.04);
+      0 18px 38px -12px rgba(80, 50, 160, 0.45),
+      0 4px 10px rgba(var(--color-optimus-shadow), 0.18),
+      inset 0 1.5px 0 rgba(255, 255, 255, 0.75),
+      inset 0 -1.5px 0 rgba(0, 0, 0, 0.15),
+      0 0 0 1px rgba(255, 255, 255, 0.45);
+    overflow: hidden;
+    cursor: grab;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      box-shadow 220ms ease;
+    backdrop-filter: saturate(150%);
+    -webkit-backdrop-filter: saturate(150%);
+    bottom: max(env(safe-area-inset-bottom), 16px);
+    right: max(env(safe-area-inset-right), 16px);
   }
-  .palette-item-icon {
-    height: 34px;
-    width: 34px;
-    border-radius: 10px;
-    display: grid;
-    place-items: center;
-    color: white;
-    background: linear-gradient(
-      158deg,
-      var(--tile-color, var(--color-optimus-accent)) 0%,
-      var(--tile-shade, var(--color-optimus-accent-2)) 100%
-    );
+  .pip:hover {
+    transform: scale(1.04);
+  }
+  .pip.pip-dragging {
+    cursor: grabbing;
+    transform: scale(1.06);
     box-shadow:
-      inset 0 1px 0 rgba(255, 255, 255, 0.3),
-      0 4px 10px -4px color-mix(in oklab, var(--tile-color, var(--color-optimus-accent)) 60%, transparent);
+      0 28px 56px -14px rgba(80, 50, 160, 0.55),
+      0 8px 18px rgba(var(--color-optimus-shadow), 0.22),
+      inset 0 1.5px 0 rgba(255, 255, 255, 0.85),
+      inset 0 -1.5px 0 rgba(0, 0, 0, 0.18),
+      0 0 0 1px rgba(255, 255, 255, 0.55);
+    transition: none;
   }
-  .palette-item-icon svg {
-    height: 18px;
-    width: 18px;
-    stroke: currentColor;
-    fill: none;
-    stroke-width: 1.75;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-  .palette-item-body {
-    min-width: 0;
+  .pip-stage {
+    position: absolute;
+    inset: 0;
     display: flex;
-    flex-direction: column;
-    gap: 0.1rem;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 12% 8% 4%;
+    pointer-events: none;
   }
-  .palette-item-name {
-    font-size: 0.95rem;
-    font-weight: 600;
-    letter-spacing: -0.008em;
-    line-height: 1.2;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .pip-stage > .lg-wrap {
+    pointer-events: auto;
   }
-  .palette-item-subtitle {
-    font-size: 0.78rem;
-    color: var(--color-optimus-muted);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .palette-item-hint {
-    font-size: 0.72rem;
-    color: var(--color-optimus-muted);
-  }
-  .palette-item[aria-selected="true"] .palette-item-hint {
-    color: var(--color-optimus-ink);
-  }
-  .palette-empty {
-    padding: 2rem 1rem;
-    text-align: center;
-    font-size: 0.9rem;
-    color: var(--color-optimus-muted);
-  }
-  .palette-footer {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 1.1rem;
-    padding: 0.65rem 1rem;
-    border-top: 1px solid var(--color-optimus-border);
-    background: color-mix(in oklab, var(--color-optimus-surface-2) 60%, transparent);
-    font-size: 0.72rem;
-    color: var(--color-optimus-muted);
-  }
-  .palette-hint {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-  }
-  @media (max-width: 520px) {
-    .palette-footer {
-      flex-wrap: wrap;
-      gap: 0.6rem;
-    }
+  @media (prefers-reduced-motion: reduce) {
+    .pip { transition: none; }
   }
 
   /* ---------- Dialogs ---------- */
