@@ -128,14 +128,16 @@ export function startMovement(canvas) {
        fourth:   70w / 10p          — 7.5×  third
        escape:   15w /  7p          — 10×   fourth
 
-     4 Hz balance → escape rotates 32 rpm; cascading backward gives
-     fourth ≈ 3.2 rpm (seconds-hand driver), third ≈ 0.43 rpm,
-     center ≈ 17 min/rev, barrel ≈ 2 hr/rev. */
+     A real 2824-2 beats at 4 Hz, but at full caliber speed behind the
+     launcher the balance reads as fidgety in peripheral vision. We run
+     it at 2 Hz instead — historically real for older calibers and visibly
+     calmer. Whole train halves: escape 16 rpm, fourth ≈ 1.6 rpm (still
+     unmistakably alive), third ≈ 0.21 rpm, center ≈ 34 min/rev. */
 
   const MODULE = 0.0038;
   const pr = (teeth) => (teeth * MODULE) / 2;
 
-  const ESCAPE_RAD_PER_S = (4.0 * 2 * Math.PI * 2) / 15;
+  const ESCAPE_RAD_PER_S = (2.0 * 2 * Math.PI * 2) / 15;
   const S_ESC    = ESCAPE_RAD_PER_S / 1000;
   const S_FOUR   = S_ESC    / (70 / 7);
   const S_THIRD  = S_FOUR   / (75 / 10);
@@ -215,7 +217,7 @@ export function startMovement(canvas) {
   const escG = gears[4];
   const balance = {
     x: escG.x + 0.28, y: escG.y - 0.05,
-    r: 0.17, freqHz: 4.0, amp: 0.52 * Math.PI,
+    r: 0.17, freqHz: 2.0, amp: 0.52 * Math.PI,
   };
 
   // Register fourth wheel as the shared launch target for all apps.
