@@ -76,7 +76,7 @@ export function startMovement(canvas) {
     // fills the canvas with no empty corners.
     cxA = W * 0.5;
     cyA = H * 0.5;
-    RA  = Math.max(W, H) * 0.52;
+    RA  = Math.max(W, H) * 1.04;
     if (launch.mode === "idle") { cx = cxA; cy = cyA; R = RA; }
   }
 
@@ -1252,9 +1252,9 @@ export function startMovement(canvas) {
   let start = performance.now();
   // Static yaw — the composition holds still as a backdrop. Aliveness
   // comes from the gear train and balance, not from the whole frame
-  // rotating. The 0.34 rad tilt stays as a one-time "watchmaker's
-  // loupe" angle so the bridges read on a diagonal.
-  const yaw = 0.34;
+  // rotating. 45° tilt — bridges and gear train read on a strong
+  // diagonal across the canvas.
+  const yaw = Math.PI / 4;
   const YAW_SPEED = 0;
 
   function frame(now) {
