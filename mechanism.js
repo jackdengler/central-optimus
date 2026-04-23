@@ -511,8 +511,10 @@ export function startMovement(canvas) {
       ctx.fill(); ctx.stroke();
     }
 
-    // Spokes (gear wheels, not escape).
-    if (g.kind !== "escape") {
+    // Spokes (gear wheels, not escape, not barrel — barrel gets a
+    // mainspring spiral instead since a real mainspring barrel is a
+    // solid cap with the spring coiled inside, not a spoked wheel).
+    if (g.kind !== "escape" && g.kind !== "barrel") {
       const spokes = g.kind === "barrel" ? 6 : 4;
       const spokeLW = Math.max(1, wR * 0.05);
       const rInner = Math.max(pR * 1.35, wR * 0.18);
@@ -635,6 +637,38 @@ export function startMovement(canvas) {
         ctx.arc(sx, sy, pR * 0.92, -Math.PI * 0.85, -Math.PI * 0.25);
         ctx.stroke();
       }
+    }
+
+    // Mainspring — tight Archimedean spiral inside the barrel cap.
+    // On a real watch this lives between the barrel disc and the
+    // barrel drum; coils wind / unwind as the watch runs, giving the
+    // barrel its 2 hr/rev output. Spiral rotates with the barrel.
+    if (g.kind === "barrel") {
+      const rOuter = wR * 0.78;
+      const rInner = Math.max(pR * 1.35, wR * 0.18);
+      const turns = 11;
+      const samples = turns * 48;
+      const thetaMax = turns * Math.PI * 2;
+
+      ctx.strokeStyle = col(C.steelBlue, 0.32);
+      ctx.lineWidth = Math.max(0.7, wR * 0.015);
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      for (let i = 0; i <= samples; i++) {
+        const theta = (i / samples) * thetaMax;
+        const rr = rInner + (rOuter - rInner) * (theta / thetaMax);
+        const a = angle + theta;
+        const x = sx + Math.cos(a) * rr;
+        const y = sy + Math.sin(a) * rr;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Subtle highlight pass on the coil — gives it a steel shimmer.
+      ctx.strokeStyle = col(C.plateHi, 0.14);
+      ctx.lineWidth = Math.max(0.3, wR * 0.006);
+      ctx.stroke();
     }
 
     // Central hub / arbor.
@@ -1167,6 +1201,446 @@ export function startMovement(canvas) {
     ctx.restore();
   }
 
+  /* Date wheel — large thin ring sitting just inside the plate's outer
+     engraving dots. On a real movement it has the date numerals printed
+     on its top face (dial side) and 31 shallow teeth on its outer edge
+     where it meshes with the date driving wheel. From the caseback we
+     see only the ring and teeth, not the numerals — we approximate the
+     numerals with regularly-spaced tick dots. Rotates once per 31 days
+     (essentially still for our purposes). */
+  function drawDateWheel(t, yaw) {
+    const [ox, oy] = U(0, 0, yaw);
+    const innerR = 0.860 * R;
+    const outerR = 0.900 * R;
+    const tipR   = 0.918 * R;
+    const teeth  = 31;
+    const pitch  = (Math.PI * 2) / teeth;
+
+    // One rev per 31 days. Add a tiny offset so the ring isn't aligned
+    // to yaw at t=0 (looks less mechanical-reset-at-launch).
+    const dateAng =
+      yaw + 0.17 + (t / (31 * 24 * 3600 * 1000)) * Math.PI * 2;
+
+    // Ring body — annulus with a soft radial gradient so it reads as
+    // a stamped metal ring, not a flat band.
+    const ringGrad = ctx.createRadialGradient(ox, oy, innerR, ox, oy, outerR);
+    ringGrad.addColorStop(0.0, col(C.plateHi,   0.16));
+    ringGrad.addColorStop(0.5, col(C.plateMid,  0.20));
+    ringGrad.addColorStop(1.0, col(C.plateDark, 0.24));
+    ctx.fillStyle = ringGrad;
+    ctx.beginPath();
+    ctx.arc(ox, oy, outerR, 0, Math.PI * 2);
+    ctx.arc(ox, oy, innerR, 0, Math.PI * 2, true);
+    ctx.fill("evenodd");
+
+    // Inner and outer rim accents.
+    ctx.strokeStyle = col(C.plateHi, 0.24);
+    ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.arc(ox, oy, innerR, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = col(C.plateDark, 0.30);
+    ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.arc(ox, oy, outerR, 0, Math.PI * 2); ctx.stroke();
+
+    // Outer teeth — shallow, symmetric (meshes with the date driver's
+    // finger once per day).
+    ctx.strokeStyle = col(C.shadow, 0.38);
+    ctx.lineWidth = 0.5;
+    ctx.fillStyle = col(C.plateMid, 0.22);
+    ctx.beginPath();
+    for (let i = 0; i < teeth; i++) {
+      const a = dateAng + i * pitch;
+      const aB0 = a - pitch * 0.42;
+      const aB1 = a + pitch * 0.42;
+      const aT0 = a - pitch * 0.14;
+      const aT1 = a + pitch * 0.14;
+      if (i === 0) ctx.moveTo(ox + Math.cos(aB0) * outerR, oy + Math.sin(aB0) * outerR);
+      else         ctx.lineTo(ox + Math.cos(aB0) * outerR, oy + Math.sin(aB0) * outerR);
+      ctx.lineTo(ox + Math.cos(aT0) * tipR, oy + Math.sin(aT0) * tipR);
+      ctx.lineTo(ox + Math.cos(aT1) * tipR, oy + Math.sin(aT1) * tipR);
+      ctx.lineTo(ox + Math.cos(aB1) * outerR, oy + Math.sin(aB1) * outerR);
+    }
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+
+    // Numeral suggestion — small dots at each date position. Every 5th
+    // date gets a bigger, darker dot so the "5, 10, 15, 20, 25, 30"
+    // cadence reads across the ring.
+    const numR = (innerR + outerR) / 2;
+    for (let i = 0; i < teeth; i++) {
+      const a = dateAng + i * pitch;
+      const major = i % 5 === 0;
+      const dotR = major ? Math.max(1.8, R * 0.0028) : Math.max(1.0, R * 0.0018);
+      ctx.fillStyle = col(C.plateDark, major ? 0.55 : 0.32);
+      ctx.beginPath();
+      ctx.arc(ox + Math.cos(a) * numR, oy + Math.sin(a) * numR, dotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /* Keyless works — the hand-winding/time-setting mechanism that enters
+     the movement at 3 o'clock via the crown stem. We don't draw the
+     full linkage (sliding pinion, setting lever, setting lever spring,
+     minute wheel, intermediate wheel) — just the recognizable core:
+     the winding stem as a straight steel rod, a winding pinion on it,
+     and the yoke spring that biases the pinion into winding position.
+     Placed inside the visible plate area (not at the true plate edge,
+     which sits off-screen at this zoom) so it actually shows up. */
+  function drawKeylessWorks(yaw) {
+    // Stem runs along v ≈ 0.12 in unit space (horizontal in plate frame).
+    const stemU0 = 0.42;  // outer — "toward the crown"
+    const stemU1 = 0.24;  // inner — where the pinion sits
+    const stemV  = 0.12;
+    const pinionU = 0.27;
+    const pinionV = stemV;
+
+    const [s0x, s0y] = U(stemU0, stemV, yaw);
+    const [s1x, s1y] = U(stemU1, stemV, yaw);
+    const [pcx, pcy] = U(pinionU, pinionV, yaw);
+
+    // Stem shaft — thick steel rod.
+    ctx.strokeStyle = col(C.steelBlue, 0.60);
+    ctx.lineWidth = Math.max(2.0, R * 0.012);
+    ctx.lineCap = "butt";
+    ctx.beginPath();
+    ctx.moveTo(s0x, s0y); ctx.lineTo(s1x, s1y);
+    ctx.stroke();
+
+    // Stem highlight.
+    ctx.strokeStyle = col(C.plateHi, 0.32);
+    ctx.lineWidth = Math.max(0.5, R * 0.0032);
+    ctx.stroke();
+
+    ctx.strokeStyle = col(C.shadow, 0.45);
+    ctx.lineWidth = Math.max(0.8, R * 0.005);
+    ctx.beginPath();
+    ctx.moveTo(s0x, s0y); ctx.lineTo(s1x, s1y);
+    ctx.stroke();
+
+    // Outer terminus — little collar where the stem passes under the
+    // case (the crown is outside the plate and not drawn).
+    const stemAngScreen = Math.atan2(s1y - s0y, s1x - s0x);
+    const outerPerpX = Math.cos(stemAngScreen + Math.PI / 2);
+    const outerPerpY = Math.sin(stemAngScreen + Math.PI / 2);
+    const collarR = Math.max(3.0, R * 0.016);
+    ctx.fillStyle = col(C.steel, 0.65);
+    ctx.beginPath();
+    ctx.ellipse(s0x, s0y, collarR * 0.55, collarR, stemAngScreen, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = col(C.shadow, 0.55);
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+
+    // Winding pinion — small toothed wheel on the stem.
+    const pinR = R * 0.024;
+    const pinTeeth = 10;
+    const pinTpitch = (Math.PI * 2) / pinTeeth;
+    // Pinion rotation is unrelated to any gear we drive; show it static
+    // (the keyless works only moves when the user winds).
+    const pinAng = stemAngScreen;
+
+    const pinBody = ctx.createRadialGradient(
+      pcx - pinR * 0.3, pcy - pinR * 0.3, 0, pcx, pcy, pinR,
+    );
+    pinBody.addColorStop(0, col(C.steel, 0.55));
+    pinBody.addColorStop(1, col(C.shadow, 0.62));
+    ctx.fillStyle = pinBody;
+    ctx.beginPath(); ctx.arc(pcx, pcy, pinR, 0, Math.PI * 2); ctx.fill();
+
+    ctx.strokeStyle = col(C.shadow, 0.62);
+    ctx.lineWidth = 0.5;
+    const pinBase = pinR * 0.80;
+    const pinTip  = pinR * 1.10;
+    ctx.beginPath();
+    for (let i = 0; i < pinTeeth; i++) {
+      const a = pinAng + i * pinTpitch;
+      const a0 = a - pinTpitch * 0.30;
+      const a1 = a + pinTpitch * 0.30;
+      const t0 = a - pinTpitch * 0.12;
+      const t1 = a + pinTpitch * 0.12;
+      if (i === 0) ctx.moveTo(pcx + Math.cos(a0) * pinBase, pcy + Math.sin(a0) * pinBase);
+      else         ctx.lineTo(pcx + Math.cos(a0) * pinBase, pcy + Math.sin(a0) * pinBase);
+      ctx.lineTo(pcx + Math.cos(t0) * pinTip,  pcy + Math.sin(t0) * pinTip);
+      ctx.lineTo(pcx + Math.cos(t1) * pinTip,  pcy + Math.sin(t1) * pinTip);
+      ctx.lineTo(pcx + Math.cos(a1) * pinBase, pcy + Math.sin(a1) * pinBase);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    // Pinion bore where the stem passes through it.
+    ctx.fillStyle = col(C.shadow, 0.72);
+    ctx.beginPath();
+    ctx.arc(pcx, pcy, pinR * 0.30, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Yoke — spring-loaded arm that presses the pinion into winding
+    // position. Anchored to a post and sweeping around to contact the
+    // pinion from below.
+    const yokeAnchorU = 0.38;
+    const yokeAnchorV = 0.19;
+    const yokeBendU   = 0.34;
+    const yokeBendV   = 0.155;
+    const yokeTipU    = pinionU + 0.015;
+    const yokeTipV    = pinionV + 0.018;
+    const [yax, yay] = U(yokeAnchorU, yokeAnchorV, yaw);
+    const [ybx, yby] = U(yokeBendU, yokeBendV, yaw);
+    const [ytx, yty] = U(yokeTipU, yokeTipV, yaw);
+
+    ctx.strokeStyle = col(C.steel, 0.55);
+    ctx.lineWidth = Math.max(1.2, R * 0.007);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(yax, yay);
+    ctx.quadraticCurveTo(ybx, yby, ytx, yty);
+    ctx.stroke();
+
+    ctx.strokeStyle = col(C.plateHi, 0.25);
+    ctx.lineWidth = Math.max(0.4, R * 0.0022);
+    ctx.stroke();
+
+    // Yoke anchor post with screw slot.
+    ctx.fillStyle = col(C.steel, 0.68);
+    ctx.beginPath();
+    ctx.arc(yax, yay, Math.max(1.8, R * 0.009), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = col(C.shadow, 0.55);
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+    ctx.strokeStyle = col(C.shadow, 0.70);
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(yax - Math.max(1.2, R * 0.006), yay);
+    ctx.lineTo(yax + Math.max(1.2, R * 0.006), yay);
+    ctx.stroke();
+  }
+
+  /* Click and ratchet — sits on top of the barrel arbor. The ratchet
+     wheel is concentric with the barrel and rotates with it; the click
+     is a spring-loaded pawl with a hooked tooth that rides the ratchet
+     and prevents it from turning backward (mainspring can't unwind
+     through the barrel, so it has to unwind through the train — which
+     is how the watch runs). Saw-tooth profile is asymmetric: steep
+     face catches the click, sloped face lets it slip when winding. */
+  function drawClickAndRatchet(t, yaw) {
+    const bg = gears[0];
+    const [bcx, bcy] = U(bg.x, bg.y, yaw);
+
+    // Ratchet rotates with the barrel (stage 0, dir=+1).
+    const barrelAng = yaw + bg.speed * t + bg.phaseBias;
+    const ratchetR = 0.088 * R;
+    const teeth = 48;
+    const toothPitch = (Math.PI * 2) / teeth;
+    const rBase = ratchetR * 0.93;
+    const rTip  = ratchetR;
+
+    // Disc body.
+    const body = ctx.createRadialGradient(
+      bcx - ratchetR * 0.3, bcy - ratchetR * 0.3, 0, bcx, bcy, ratchetR,
+    );
+    body.addColorStop(0, col(C.plateHi, 0.32));
+    body.addColorStop(1, col(C.steelBlue, 0.58));
+    ctx.fillStyle = body;
+    ctx.beginPath(); ctx.arc(bcx, bcy, ratchetR, 0, Math.PI * 2); ctx.fill();
+
+    // Asymmetric saw teeth.
+    ctx.strokeStyle = col(C.shadow, 0.60);
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    for (let i = 0; i < teeth; i++) {
+      const a0 = barrelAng + i * toothPitch;
+      const a1 = a0 + toothPitch;
+      const aHook = a0 + toothPitch * 0.02;  // near-vertical hook face
+      const aSlope = a0 + toothPitch * 0.85; // long sloped face
+      if (i === 0) ctx.moveTo(bcx + Math.cos(a0) * rBase, bcy + Math.sin(a0) * rBase);
+      else         ctx.lineTo(bcx + Math.cos(a0) * rBase, bcy + Math.sin(a0) * rBase);
+      ctx.lineTo(bcx + Math.cos(aHook) * rTip,  bcy + Math.sin(aHook) * rTip);
+      ctx.lineTo(bcx + Math.cos(aSlope) * rTip, bcy + Math.sin(aSlope) * rTip);
+      ctx.lineTo(bcx + Math.cos(a1) * rBase,    bcy + Math.sin(a1) * rBase);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    // Central arbor screw with slot.
+    ctx.fillStyle = col(C.shadow, 0.68);
+    ctx.beginPath();
+    ctx.arc(bcx, bcy, ratchetR * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = col(C.plateHi, 0.40);
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    const slotAng = barrelAng;
+    ctx.moveTo(
+      bcx + Math.cos(slotAng) * ratchetR * 0.15,
+      bcy + Math.sin(slotAng) * ratchetR * 0.15,
+    );
+    ctx.lineTo(
+      bcx - Math.cos(slotAng) * ratchetR * 0.15,
+      bcy - Math.sin(slotAng) * ratchetR * 0.15,
+    );
+    ctx.stroke();
+
+    // Click lever — pivots at a post offset from the ratchet, with its
+    // tooth tip resting on a ratchet tooth. Static (doesn't animate;
+    // the ratchet just turns underneath it).
+    const pivotU = bg.x + 0.145;
+    const pivotV = bg.y - 0.095;
+    const elbowU = bg.x + 0.105;
+    const elbowV = bg.y - 0.035;
+    const tipU   = bg.x + 0.070;
+    const tipV   = bg.y - 0.010;
+    const [pvx, pvy] = U(pivotU, pivotV, yaw);
+    const [ebx, eby] = U(elbowU, elbowV, yaw);
+    const [tpx, tpy] = U(tipU, tipV, yaw);
+
+    ctx.strokeStyle = col(C.steel, 0.62);
+    ctx.lineWidth = Math.max(1.4, R * 0.009);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(pvx, pvy);
+    ctx.lineTo(ebx, eby);
+    ctx.lineTo(tpx, tpy);
+    ctx.stroke();
+
+    ctx.strokeStyle = col(C.plateHi, 0.28);
+    ctx.lineWidth = Math.max(0.4, R * 0.0025);
+    ctx.stroke();
+
+    // Pivot post with screw slot.
+    ctx.fillStyle = col(C.steel, 0.68);
+    ctx.beginPath();
+    ctx.arc(pvx, pvy, Math.max(2.0, R * 0.010), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = col(C.shadow, 0.55);
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+    ctx.strokeStyle = col(C.shadow, 0.70);
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(pvx - Math.max(1.4, R * 0.007), pvy);
+    ctx.lineTo(pvx + Math.max(1.4, R * 0.007), pvy);
+    ctx.stroke();
+
+    // Click spring — thin curved wire anchored to another post, pushing
+    // the click into the ratchet.
+    const spAnchorU = bg.x + 0.185;
+    const spAnchorV = bg.y - 0.050;
+    const [sax, say] = U(spAnchorU, spAnchorV, yaw);
+    ctx.strokeStyle = col(C.steelBlue, 0.55);
+    ctx.lineWidth = Math.max(0.9, R * 0.0045);
+    ctx.beginPath();
+    ctx.moveTo(sax, say);
+    ctx.quadraticCurveTo(
+      (sax + ebx) / 2 + (ebx - sax) * 0.15,
+      (say + eby) / 2 - Math.abs(eby - say) * 0.5,
+      ebx, eby,
+    );
+    ctx.stroke();
+
+    // Spring anchor dot.
+    ctx.fillStyle = col(C.steel, 0.65);
+    ctx.beginPath();
+    ctx.arc(sax, say, Math.max(1.2, R * 0.005), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* Regulator index — the fine-timing lever that sits on the balance
+     cock. Arm pivots near the balance staff jewel and extends out to
+     a short curved scale (+ / − ends). Two tiny curb pins at the tip
+     grip the hairspring between them; sliding the lever changes the
+     spring's effective length and hence the rate. Purely decorative
+     here (static position) — real regulators don't move unless the
+     watch is being adjusted. */
+  function drawRegulator(yaw) {
+    // Scale arc — short curve around the balance staff, above the wheel.
+    const scaleR = balance.r * 1.25;
+    const scaleCenterAng = -Math.PI / 2 - 0.25; // above-and-slightly-left
+    const scaleSpan = 0.55;
+    const scaleStart = scaleCenterAng - scaleSpan / 2;
+    const scaleEnd   = scaleCenterAng + scaleSpan / 2;
+
+    ctx.strokeStyle = col(C.plateDark, 0.50);
+    ctx.lineWidth = Math.max(0.5, R * 0.0025);
+    ctx.beginPath();
+    const arcSamples = 18;
+    for (let i = 0; i <= arcSamples; i++) {
+      const a = scaleStart + (scaleEnd - scaleStart) * (i / arcSamples);
+      const [x, y] = U(
+        balance.x + Math.cos(a) * scaleR,
+        balance.y + Math.sin(a) * scaleR,
+        yaw,
+      );
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Tick marks — longer at ends (for + / −), shorter between.
+    const ticks = 7;
+    for (let i = 0; i <= ticks; i++) {
+      const a = scaleStart + (scaleEnd - scaleStart) * (i / ticks);
+      const end = i === 0 || i === ticks;
+      const t0 = scaleR - (end ? 0.020 : 0.010);
+      const t1 = scaleR + (end ? 0.014 : 0.006);
+      const [x0, y0] = U(balance.x + Math.cos(a) * t0, balance.y + Math.sin(a) * t0, yaw);
+      const [x1, y1] = U(balance.x + Math.cos(a) * t1, balance.y + Math.sin(a) * t1, yaw);
+      ctx.strokeStyle = col(C.plateDark, end ? 0.65 : 0.45);
+      ctx.lineWidth = end ? Math.max(0.9, R * 0.0035) : Math.max(0.5, R * 0.002);
+      ctx.beginPath();
+      ctx.moveTo(x0, y0); ctx.lineTo(x1, y1);
+      ctx.stroke();
+    }
+
+    // Lever arm — pivots near balance staff jewel, extends to scale midpoint.
+    // Pivot sits at a tiny offset from balance center (the regulator is
+    // concentric with the balance staff but pivots around it on a friction fit).
+    const pivotR = balance.r * 0.18;
+    const leverAng = scaleCenterAng + 0.08; // slightly biased to the "+"
+    const pivotX = balance.x + Math.cos(leverAng) * pivotR;
+    const pivotY = balance.y + Math.sin(leverAng) * pivotR;
+    const tipX   = balance.x + Math.cos(leverAng) * (scaleR + 0.005);
+    const tipY   = balance.y + Math.sin(leverAng) * (scaleR + 0.005);
+
+    const [px, py] = U(pivotX, pivotY, yaw);
+    const [tx, ty] = U(tipX, tipY, yaw);
+
+    // Arm body — thin steel lever.
+    ctx.strokeStyle = col(C.steel, 0.58);
+    ctx.lineWidth = Math.max(1.2, R * 0.007);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(px, py); ctx.lineTo(tx, ty);
+    ctx.stroke();
+
+    // Highlight streak down the arm.
+    ctx.strokeStyle = col(C.plateHi, 0.30);
+    ctx.lineWidth = Math.max(0.4, R * 0.0022);
+    ctx.stroke();
+
+    // Pivot boss at base of arm.
+    ctx.fillStyle = col(C.steel, 0.70);
+    ctx.beginPath();
+    ctx.arc(px, py, Math.max(1.4, R * 0.007), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = col(C.shadow, 0.55);
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    // Curb pins at tip — two tiny parallel pins straddling the hairspring.
+    const pinGap = Math.max(1.6, R * 0.006);
+    const tipPerpAng = leverAng + Math.PI / 2;
+    const [pinAx, pinAy] = [
+      tx + Math.cos(tipPerpAng) * pinGap,
+      ty + Math.sin(tipPerpAng) * pinGap,
+    ];
+    const [pinBx, pinBy] = [
+      tx - Math.cos(tipPerpAng) * pinGap,
+      ty - Math.sin(tipPerpAng) * pinGap,
+    ];
+    ctx.fillStyle = col(C.shadow, 0.75);
+    ctx.beginPath(); ctx.arc(pinAx, pinAy, Math.max(0.9, R * 0.003), 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(pinBx, pinBy, Math.max(0.9, R * 0.003), 0, Math.PI * 2); ctx.fill();
+  }
+
   /* Automatic-winding rotor — the oscillating weight on the back of a
      real 2824-2. Skeletonized half-moon: heavy crescent ring on one
      side, thin spokes connecting to a central ball bearing, the other
@@ -1395,12 +1869,16 @@ export function startMovement(canvas) {
     drawPerlage(yaw);
     drawCotes(yaw);
     drawEngraving(yaw);
+    drawDateWheel(renderT, yaw);
     drawBridges(yaw);
     for (let i = 0; i < gears.length; i++) {
       drawGear(gears[i], i, yaw, renderT, zoomFactor);
     }
+    drawClickAndRatchet(renderT, yaw);
+    drawKeylessWorks(yaw);
     drawPallet(renderT, yaw);
     drawBalanceWheel(renderT, yaw, zoomFactor);
+    drawRegulator(yaw);
     drawJewelsAndScrews(renderT, yaw, zoomFactor);
     drawRotor(renderT, yaw);
 
