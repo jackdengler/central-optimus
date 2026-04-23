@@ -598,6 +598,20 @@ export function mountLittleGuy(target, opts = {}) {
   wrap.addEventListener('pointerup', onGrabEnd);
   wrap.addEventListener('pointercancel', onGrabEnd);
 
+  // ---- Scroll peek ----
+  let peekTimer = 0;
+  const onScroll = () => {
+    if (destroyed || dragging) return;
+    clearTimeout(peekTimer);
+    gaze = { x: 0, y: 0.85 };
+    gazeLockUntil = performance.now() + 500;
+    peekTimer = setTimeout(() => {
+      gazeLockUntil = 0;
+      gaze = { x: 0, y: 0 };
+    }, 320);
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+
   // ---- Inject body-squash keyframes ----
   if (!document.getElementById('little-guy-squash')) {
     const s = document.createElement('style');
@@ -673,6 +687,8 @@ export function mountLittleGuy(target, opts = {}) {
       wrap.removeEventListener('pointermove', onGrabMove);
       wrap.removeEventListener('pointerup', onGrabEnd);
       wrap.removeEventListener('pointercancel', onGrabEnd);
+      window.removeEventListener('scroll', onScroll);
+      clearTimeout(peekTimer);
       bubble.remove();
       wrap.remove();
     },
