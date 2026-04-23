@@ -182,13 +182,14 @@
 
   .greeting .meta {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
-    gap: 0 10px;
+    gap: 0 8px;
     font-size: 12px;
     color: var(--muted);
     line-height: 1.5;
     margin-top: 2px;
+    min-width: 0;
   }
   .greeting .meta .sep {
     width: 3px; height: 3px;
