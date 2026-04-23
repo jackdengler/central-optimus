@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en" class="ios">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#f6f1e7" />
+    <title>Central Optimus</title>
+
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="./icons/icon.svg" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
+
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Optimus" />
+    <style>
+      html, body { background: #f6f1e7; margin: 0; }
+    </style>
+
+    <link
+      rel="apple-touch-startup-image"
+      href="./icons/splash-1170x2532.png"
+      media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+    />
+
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <!--
+      Launcher home screen. The mechanical watch movement runs on
+      <canvas.watch-canvas> as ambient background; tapping a tile zooms
+      the camera toward the fourth wheel (gears[3]) and reveals the
+      embedded app once the zoom lands. Closing the app pulls the camera
+      back out and resumes the movement.
+    -->
+    <div class="bg-washes" aria-hidden="true"></div>
+    <canvas class="watch-canvas" aria-hidden="true"></canvas>
+    <svg class="bg-noise" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+      <filter id="paperGrain">
+        <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
+        <feColorMatrix type="matrix"
+          values="0 0 0 0 0.12
+                  0 0 0 0 0.10
+                  0 0 0 0 0.08
+                  0 0 0 0.55 0"/>
+      </filter>
+      <rect width="100%" height="100%" filter="url(#paperGrain)"/>
+    </svg>
+
+    <main id="app" class="shell" hidden>
+      <!-- Greeting + meta row -->
+      <div class="greeting">
+        <p class="hello">
+          <span id="greet-time">Good morning,</span>
+          <span class="name" id="greet-name">Jack</span>
+        </p>
+        <div class="meta">
+          <span id="today-date">—</span>
+          <span class="sep"></span>
+          <span class="time" id="live-time">—</span>
+          <span class="sep"></span>
+          <span>Los Angeles</span>
+          <span class="sep"></span>
+          <span class="weather" id="hero-weather" hidden></span>
+        </div>
+        <button
+          id="lock"
+          type="button"
+          aria-label="Sign out"
+          title="Sign out"
+          class="lock-btn"
+          data-state="unlocked"
+        >
+          <svg class="lock-glyph lock-glyph-unlocked" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="4" y="11" width="16" height="10" rx="2.5" />
+            <path d="M8 11V7a4 4 0 0 1 7.5-2" />
+          </svg>
+          <svg class="lock-glyph lock-glyph-locked" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="4" y="11" width="16" height="10" rx="2.5" />
+            <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+          </svg>
+        </button>
+      </div>
+
+      <!--
+        APP ICON GRID (7 icons) — unified design system:
+          - 28×28 viewBox, icon content on a ~24×24 optical grid
+          - outer stroke 1.3, interior stroke 1.0, ink color
+          - accent used ONLY where it carries semantic meaning
+            (Money $ symbol, Chores checkmark)
+          - 4×2 grid, 7 apps = partial 2nd row LEFT-ANCHORED
+            (matches iOS home-screen behavior — do NOT center the 7th)
+
+        Tile taps are wired in app.js via data-app → apps.json id.
+      -->
+      <div class="grid" id="launcher-grid">
+
+        <!-- 1. MOVIES — clapperboard -->
+        <a class="icon" href="#" aria-label="Movies" data-slot="movies" data-app="upcoming-movies">
+          <div class="tile">
+            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
+                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3.5" y="10.5" width="21" height="12" rx="2"/>
+              <g transform="rotate(-6 14 8)">
+                <rect x="3.5" y="4.5" width="21" height="5" rx="1.2"/>
+                <line x1="7.5"  y1="4.5" x2="5"    y2="9.5" stroke-width="1.0"/>
+                <line x1="12"   y1="4.5" x2="9.5"  y2="9.5" stroke-width="1.0"/>
+                <line x1="16.5" y1="4.5" x2="14"   y2="9.5" stroke-width="1.0"/>
+                <line x1="21"   y1="4.5" x2="18.5" y2="9.5" stroke-width="1.0"/>
+              </g>
+            </svg>
+          </div>
+        </a>
+
+        <!-- 2. BETTING — tilted die -->
+        <a class="icon" href="#" aria-label="Betting" data-slot="betting" data-app="parlay">
+          <div class="tile">
+            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
+                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M 6 10.5 L 14 7 L 22 10.5 L 22 21.5 L 14 25 L 6 21.5 Z"/>
+              <line x1="14" y1="7" x2="14" y2="25" stroke-width="1.0"/>
+              <line x1="6" y1="10.5" x2="14" y2="14" stroke-width="1.0"/>
+              <line x1="22" y1="10.5" x2="14" y2="14" stroke-width="1.0"/>
+              <circle cx="9"  cy="14" r="0.9" fill="currentColor" stroke="none"/>
+              <circle cx="10" cy="17.5" r="0.9" fill="currentColor" stroke="none"/>
+              <circle cx="11" cy="21" r="0.9" fill="currentColor" stroke="none"/>
+              <circle cx="17" cy="16" r="0.9" fill="currentColor" stroke="none"/>
+              <circle cx="19" cy="19.5" r="0.9" fill="currentColor" stroke="none"/>
+            </svg>
+          </div>
+        </a>
+
+        <!-- 3. MONEY — coin with $ (terracotta accent encodes currency) -->
+        <a class="icon" href="#" aria-label="Money" data-slot="money" data-app="budget-together">
+          <div class="tile">
+            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
+                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="14" cy="14" r="10"/>
+              <circle cx="14" cy="14" r="8"  stroke-width="1.0"/>
+              <text x="14" y="18.3" text-anchor="middle"
+                    fill="var(--accent)" stroke="none"
+                    font-family="-apple-system, 'SF Pro Text', sans-serif"
+                    font-size="12" font-weight="600"
+                    style="letter-spacing: -0.04em;">$</text>
+            </svg>
+          </div>
+        </a>
+
+        <!-- 4. UFC — MMA glove -->
+        <a class="icon" href="#" aria-label="UFC" data-slot="ufc" data-app="cornerman">
+          <div class="tile">
+            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
+                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M 6.5 11
+                       C 6.5 7.5 9 5.5 13 5.5
+                       C 18 5.5 21 8 21 12.5
+                       C 21 14.5 20 15.5 19 16
+                       L 19 19.5
+                       C 19 21 18 22.5 16 22.5
+                       L 9.5 22.5
+                       C 7.5 22.5 6.5 21 6.5 19.5
+                       Z"/>
+              <path d="M 21 12.5
+                       C 22.5 12.5 23 13.5 23 14.5
+                       C 23 15.5 22.5 16.5 21 16.5"
+                    stroke-width="1.3"/>
+              <line x1="6.5" y1="19.5" x2="19" y2="19.5" stroke-width="1.0"/>
+              <path d="M 9.5 9 C 12 10.5 16 10.5 18.5 9" stroke-width="1.0"/>
+            </svg>
+          </div>
+        </a>
+
+        <!-- 5. CHORES — clipboard with checklist (accent checkmark encodes completion) -->
+        <a class="icon" href="#" aria-label="Chores" data-slot="chores" data-app="polished-space">
+          <div class="tile">
+            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
+                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="6" width="18" height="18" rx="2"/>
+              <rect x="10" y="3.5" width="8" height="4" rx="1.2" stroke-width="1.0"/>
+              <rect x="8" y="11" width="3" height="3" rx="0.6"
+                    fill="var(--accent)" stroke="var(--accent)"/>
+              <path d="M 8.6 12.5 L 9.6 13.4 L 10.6 11.7"
+                    stroke="#fffaf1" stroke-width="1.2"/>
+              <line x1="12.5" y1="12.5" x2="20" y2="12.5" stroke-width="1.0"/>
+              <rect x="8" y="15.5" width="3" height="3" rx="0.6" stroke-width="1.0"/>
+              <line x1="12.5" y1="17" x2="20" y2="17" stroke-width="1.0"/>
+              <rect x="8" y="20" width="3" height="3" rx="0.6" stroke-width="1.0"/>
+              <line x1="12.5" y1="21.5" x2="18" y2="21.5" stroke-width="1.0"/>
+            </svg>
+          </div>
+        </a>
+
+        <!-- 6. EMAIL — envelope -->
+        <a class="icon" href="#" aria-label="Email" data-slot="email" data-app="tbd">
+          <div class="tile">
+            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
+                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4" y="7.5" width="20" height="14" rx="2.5"/>
+              <path d="M 4.5 9 L 14 15.5 L 23.5 9" stroke-width="1.0"/>
+            </svg>
+          </div>
+        </a>
+
+        <!-- 7. SCRIPT WRITING — page with dog-eared corner + lines -->
+        <a class="icon" href="#" aria-label="Script Writing" data-slot="script" data-app="clean-script">
+          <div class="tile">
+            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
+                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M 6 4
+                       L 17 4
+                       L 22 9
+                       L 22 24
+                       L 6 24 Z"/>
+              <path d="M 17 4 L 17 9 L 22 9" stroke-width="1.0"/>
+              <line x1="9"  y1="13"   x2="19" y2="13"   stroke-width="1.0"/>
+              <line x1="9"  y1="16"   x2="19" y2="16"   stroke-width="1.0"/>
+              <line x1="9"  y1="19"   x2="16" y2="19"   stroke-width="1.0"/>
+            </svg>
+          </div>
+        </a>
+
+      </div>
+
+      <!-- Flexible spacer — lets the mechanism breathe between icons and footer -->
+      <div class="spacer" aria-hidden="true"></div>
+
+      <!-- Version / publish stamp -->
+      <div class="base">
+        <div class="version">
+          v1.0 &nbsp;·&nbsp;
+          <span id="publish-time">published —</span>
+        </div>
+      </div>
+    </main>
+
+    <!-- Little Guy (PiP mascot) — floats above the launcher, draggable -->
+    <div id="pip" class="pip" hidden role="button" aria-label="Your assistant" tabindex="0">
+      <div class="pip-inner">
+        <div id="pip-stage" class="pip-stage"></div>
+      </div>
+      <div id="pip-hint" class="pip-hint" hidden aria-hidden="true">
+        Drag me anywhere. Tap to chat.
+      </div>
+    </div>
+
+    <!-- PAT auth gate -->
+    <dialog
+      id="gate"
+      class="co-dialog w-[min(calc(100%-2rem),20rem)] rounded-2xl p-6"
+    >
+      <form method="dialog" id="gate-form">
+        <h2 class="mb-3 text-lg font-semibold tracking-tight">Sign in</h2>
+        <p class="mb-3 text-sm leading-snug text-optimus-muted">
+          Paste a GitHub personal access token for your account.
+          <a
+            class="text-optimus-accent font-medium underline-offset-2 hover:underline"
+            href="https://github.com/settings/personal-access-tokens/new"
+            target="_blank"
+            rel="noopener"
+            >Create one</a
+          >
+          (fine-grained, no permissions required).
+        </p>
+        <input
+          id="token"
+          type="password"
+          autocomplete="off"
+          spellcheck="false"
+          autofocus
+          required
+          placeholder="github_pat_..."
+          class="mb-3 w-full rounded-xl border border-optimus-border bg-optimus-surface px-4 py-3 text-base text-optimus-text placeholder-optimus-muted focus:outline-none focus:ring-2 focus:ring-optimus-accent/60"
+        />
+        <p id="gate-error" class="mb-3 text-sm text-red-600" hidden>Sign-in failed.</p>
+        <button type="submit" class="btn-primary">Unlock</button>
+      </form>
+    </dialog>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
