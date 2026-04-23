@@ -181,7 +181,6 @@
         var arcCount = opts.arcCount != null ? opts.arcCount : 7;
         var rotationSpeed = opts.rotationSpeed != null ? opts.rotationSpeed : 0.00018;
         var tilt = opts.tilt != null ? opts.tilt : 0.34;
-        var parallax = opts.parallax !== false;
         var blendMode = opts.blendMode || "multiply";
         var radiusFactor = opts.radiusFactor != null ? opts.radiusFactor : 0.42;
 
@@ -390,30 +389,17 @@
           }
         }
 
-        var px = 0, py = 0, pxTarget = 0, pyTarget = 0;
-        function onPointer(e) {
-          if (!parallax) return;
-          var r = canvas.getBoundingClientRect();
-          pxTarget = ((e.clientX - r.left) / r.width - 0.5) * 0.22;
-          pyTarget = ((e.clientY - r.top) / r.height - 0.5) * 0.18;
-        }
-        window.addEventListener("pointermove", onPointer, { passive: true });
-
         var yaw = 0, last = performance.now(), destroyed = false;
         function frame(now) {
           if (destroyed) return;
           var dt = Math.min(64, now - last);
           last = now;
           if (!reduced) yaw += rotationSpeed * dt;
-          px += (pxTarget - px) * 0.06;
-          py += (pyTarget - py) * 0.06;
-          var yawApplied = yaw + px;
-          var pitchApplied = tilt + py;
           ctx.clearRect(0, 0, w, h);
           drawHalo(); drawDisc();
-          drawWireframe(yawApplied, pitchApplied);
-          drawArcs(yawApplied, pitchApplied, reduced ? 0 : dt);
-          drawNodes(yawApplied, pitchApplied, now);
+          drawWireframe(yaw, tilt);
+          drawArcs(yaw, tilt, reduced ? 0 : dt);
+          drawNodes(yaw, tilt, now);
           requestAnimationFrame(frame);
         }
         requestAnimationFrame(frame);
@@ -422,7 +408,6 @@
           destroy: function () {
             destroyed = true;
             ro.disconnect();
-            window.removeEventListener("pointermove", onPointer);
             canvas.remove();
           },
         };

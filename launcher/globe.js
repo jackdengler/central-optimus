@@ -13,7 +13,6 @@ export function mountGlobe(target, opts = {}) {
     arcCount = 7,
     rotationSpeed = 0.00018,
     tilt = 0.34,
-    parallax = true,
     blendMode = "multiply",
     radiusFactor = 0.42,
   } = opts;
@@ -303,19 +302,6 @@ export function mountGlobe(target, opts = {}) {
     }
   };
 
-  // Pointer parallax
-  let px = 0;
-  let py = 0;
-  let pxTarget = 0;
-  let pyTarget = 0;
-  const onPointer = (e) => {
-    if (!parallax) return;
-    const r = canvas.getBoundingClientRect();
-    pxTarget = ((e.clientX - r.left) / r.width - 0.5) * 0.22;
-    pyTarget = ((e.clientY - r.top) / r.height - 0.5) * 0.18;
-  };
-  window.addEventListener("pointermove", onPointer, { passive: true });
-
   let yaw = 0;
   let last = performance.now();
   let destroyed = false;
@@ -325,17 +311,13 @@ export function mountGlobe(target, opts = {}) {
     const dt = Math.min(64, now - last);
     last = now;
     if (!reduced) yaw += rotationSpeed * dt;
-    px += (pxTarget - px) * 0.06;
-    py += (pyTarget - py) * 0.06;
-    const yawApplied = yaw + px;
-    const pitchApplied = tilt + py;
 
     ctx.clearRect(0, 0, w, h);
     drawHalo();
     drawDisc();
-    drawWireframe(yawApplied, pitchApplied);
-    drawArcs(yawApplied, pitchApplied, reduced ? 0 : dt);
-    drawNodes(yawApplied, pitchApplied, now);
+    drawWireframe(yaw, tilt);
+    drawArcs(yaw, tilt, reduced ? 0 : dt);
+    drawNodes(yaw, tilt, now);
 
     requestAnimationFrame(frame);
   };
@@ -345,7 +327,6 @@ export function mountGlobe(target, opts = {}) {
     destroy() {
       destroyed = true;
       ro.disconnect();
-      window.removeEventListener("pointermove", onPointer);
       canvas.remove();
     },
   };
