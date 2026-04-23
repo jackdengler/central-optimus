@@ -1250,10 +1250,12 @@ export function startMovement(canvas) {
   }
 
   let start = performance.now();
-  let yaw = 0.34;
-  // Ambient drift is intentionally near-imperceptible: ~25°/min, so
-  // the composition slowly breathes without ever reading as "spinning".
-  const YAW_SPEED = reduced ? 0 : 0.0000072;
+  // Static yaw — the composition holds still as a backdrop. Aliveness
+  // comes from the gear train and balance, not from the whole frame
+  // rotating. The 0.34 rad tilt stays as a one-time "watchmaker's
+  // loupe" angle so the bridges read on a diagonal.
+  const yaw = 0.34;
+  const YAW_SPEED = 0;
 
   function frame(now) {
     const t = now - start;
@@ -1292,10 +1294,7 @@ export function startMovement(canvas) {
       launch.eased = 1;
     }
 
-    // Yaw locks during launch so the composition doesn't drift.
-    if (!reduced && launch.eased < 0.02) {
-      yaw = 0.34 + t * YAW_SPEED;
-    }
+    // Yaw is static — see declaration above.
 
     // While the app is fully open, hold the clock still — the gears,
     // balance, pallet, and jewels all sit perfectly static behind it.
