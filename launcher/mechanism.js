@@ -71,14 +71,18 @@ export function startMovement(canvas) {
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     isPortrait = H >= W;
     if (isPortrait) {
+      // Anchor so the gear train (gears 1..4 + balance, which live in
+      // unit space around v ≈ 0.12..0.20, u ≈ -0.42..0.20) lands as a
+      // horizontal band across the lower spacer between the icon grid
+      // and the version footer — out from behind the tappable icons.
       RA  = W * 1.75;
-      cxA = W * 0.92;
-      cyA = H * 0.95;
+      cxA = W * 1.00;
+      cyA = H * 0.70;
     } else {
       const longSide = Math.max(W, H);
       RA  = longSide * 0.95;
-      cxA = W * 0.96;
-      cyA = H * 0.92;
+      cxA = W * 1.02;
+      cyA = H * 0.72;
     }
     if (launch.mode === "idle") { cx = cxA; cy = cyA; R = RA; }
   }
