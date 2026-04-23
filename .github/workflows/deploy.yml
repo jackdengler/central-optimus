@@ -1,5 +1,14 @@
 name: Deploy launcher to Pages
 
+# Deploys production to the gh-pages branch root so that
+# https://jackdengler.github.io/central-optimus/ serves the launcher.
+#
+# Preserves the /preview/ subdirectory so branch previews aren't clobbered
+# by a main deploy.
+#
+# One-time setup: Settings -> Pages -> Source must be
+# "Deploy from a branch" with Branch = gh-pages, Folder = /.
+
 on:
   push:
     branches: [main]
@@ -8,29 +17,32 @@ on:
     types: [app-updated]
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
+  group: gh-pages-write
   cancel-in-progress: false
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: source
 
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: "npm"
+          cache-dependency-path: source/package-lock.json
 
       - name: Install deps
+        working-directory: source
         run: npm ci
 
       - name: Build CSS (Tailwind + Konsta)
+        working-directory: source
         run: npm run build
 
       - name: Install rasterizer
@@ -39,6 +51,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends librsvg2-bin imagemagick
 
       - name: Generate icon PNGs
+        working-directory: source
         run: |
           set -euo pipefail
           mkdir -p launcher/icons
@@ -59,7 +72,8 @@ jobs:
             \( /tmp/icon-splash.png \) -gravity center -composite \
             launcher/icons/splash-1170x2532.png
 
-      - name: Assemble site
+      - name: Assemble _site
+        working-directory: source
         run: |
           set -euo pipefail
           rm -rf _site
@@ -70,18 +84,47 @@ jobs:
           fi
           touch _site/.nojekyll
 
-      - uses: actions/configure-pages@v5
+      - name: Publish _site to gh-pages:/ (preserving /preview/)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          PAGES_DIR=$(mktemp -d)
+          CLONE_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${GH_REPO}.git"
 
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
+          if git ls-remote --heads "$CLONE_URL" gh-pages | grep -q gh-pages; then
+            git clone --branch gh-pages --depth 1 "$CLONE_URL" "$PAGES_DIR"
+          else
+            git clone --depth 1 "$CLONE_URL" "$PAGES_DIR"
+            (cd "$PAGES_DIR" && git checkout --orphan gh-pages && git rm -rf . >/dev/null 2>&1 || true)
+          fi
 
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          # Preserve existing /preview/ directory (branch previews)
+          SAVED_PREVIEW=""
+          if [ -d "$PAGES_DIR/preview" ]; then
+            SAVED_PREVIEW=$(mktemp -d)
+            cp -R "$PAGES_DIR/preview/." "$SAVED_PREVIEW/"
+          fi
+
+          # Wipe root and replace with fresh _site (keep .git)
+          find "$PAGES_DIR" -mindepth 1 -maxdepth 1 ! -name ".git" -exec rm -rf {} +
+          cp -R source/_site/. "$PAGES_DIR/"
+
+          # Restore /preview/ on top of the new root
+          if [ -n "$SAVED_PREVIEW" ]; then
+            mkdir -p "$PAGES_DIR/preview"
+            cp -R "$SAVED_PREVIEW/." "$PAGES_DIR/preview/"
+          fi
+
+          cd "$PAGES_DIR"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No production changes to publish"
+            exit 0
+          fi
+          git commit -m "deploy: main @ ${SHA:0:7}"
+          git push origin gh-pages
