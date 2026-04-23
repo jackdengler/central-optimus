@@ -104,35 +104,9 @@ function startClock(config) {
   clockTimer = setInterval(() => updateHero(config), 30_000);
 }
 
-let launchFlashTimer = null;
-
-function ensureLaunchGlow() {
-  let el = document.getElementById("launch-glow");
-  if (el) return el;
-  el = document.createElement("div");
-  el.id = "launch-glow";
-  el.className = "launch-glow";
-  el.setAttribute("aria-hidden", "true");
-  document.body.appendChild(el);
-  return el;
-}
-
-function flashLaunchGlow() {
-  ensureLaunchGlow();
-  document.body.classList.remove("launch-flash");
-  void document.body.offsetWidth;
-  document.body.classList.add("launch-flash");
-  clearTimeout(launchFlashTimer);
-  launchFlashTimer = setTimeout(
-    () => document.body.classList.remove("launch-flash"),
-    2600,
-  );
-}
-
 function launchApp(app) {
   if (!app) return;
   if (app.openInNew) {
-    flashLaunchGlow();
     window.open(app.url, "_blank", "noopener,noreferrer");
     return;
   }
@@ -157,10 +131,6 @@ function renderTiles(apps) {
     if (app.openInNew) {
       a.target = "_blank";
       a.rel = "noopener noreferrer";
-      a.addEventListener("click", (e) => {
-        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
-        flashLaunchGlow();
-      });
     } else if (app.url) {
       a.addEventListener("click", (e) => {
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
@@ -314,7 +284,6 @@ function openEmbed(app) {
   if (frame.src !== src) frame.src = src;
   wrap.hidden = false;
   document.getElementById("app").hidden = true;
-  flashLaunchGlow();
   const hash = `#app/${app.id}`;
   if (location.hash !== hash) {
     history.pushState({ embed: app.id }, "", hash);
