@@ -5,6 +5,8 @@ import { initWeather } from "./weather.js";
 
 const TOKEN_KEY = "co.gh.token";
 const LAYOUT_KEY = "co.layout";
+const PETS_KEY = "co.buddy.pets";
+const COSMETICS_KEY = "co.buddy.cosmetics";
 let APPS = [];
 let citySceneInitialized = false;
 let lilGuyController = null;
@@ -574,14 +576,80 @@ function reactToWeather(buddy, payload, seenKindsRef) {
   }
 }
 
+const PET_MILESTONES = [
+  { count: 1, line: "first pet!" },
+  { count: 5, line: "hehe, keep going" },
+  { count: 10, line: "shades unlocked", unlock: "sunglasses" },
+  { count: 25, line: "a party hat for me?", unlock: "hat" },
+  { count: 50, line: "cozy and styled", unlock: "scarf" },
+  { count: 100, line: "pet master" },
+  { count: 250, line: "legendary friend" },
+];
+
+function readPets() {
+  const n = parseInt(localStorage.getItem(PETS_KEY) || "0", 10);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+function writePets(n) {
+  localStorage.setItem(PETS_KEY, String(n));
+}
+function readCosmetics() {
+  try {
+    const raw = localStorage.getItem(COSMETICS_KEY);
+    const v = raw ? JSON.parse(raw) : [];
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+function writeCosmetics(list) {
+  localStorage.setItem(COSMETICS_KEY, JSON.stringify(list));
+}
+
+function applyPetMilestone(buddy, prev, next) {
+  const crossed = PET_MILESTONES.filter(
+    (m) => m.count > prev && m.count <= next,
+  );
+  if (!crossed.length) return;
+  const m = crossed[crossed.length - 1];
+  if (m.unlock) {
+    const cosmetics = readCosmetics();
+    if (!cosmetics.includes(m.unlock)) {
+      cosmetics.push(m.unlock);
+      writeCosmetics(cosmetics);
+      buddy.setCosmetics?.(cosmetics);
+    }
+  }
+  buddy.say?.(m.line, { duration: 2400 });
+}
+
+function resetBuddy(buddy) {
+  writePets(0);
+  writeCosmetics([]);
+  buddy?.setCosmetics?.([]);
+  buddy?.say?.("fresh start!", { duration: 2200 });
+}
+
 function wireBuddyChatter(buddy, config) {
   if (!buddy?.on) return;
+
+  buddy.setCosmetics?.(readCosmetics());
+
   buddy.on("pet", () => {
-    if (Math.random() < 0.55) {
+    const prev = readPets();
+    const next = prev + 1;
+    writePets(next);
+    const milestone = PET_MILESTONES.find(
+      (m) => m.count > prev && m.count <= next,
+    );
+    if (milestone) {
+      applyPetMilestone(buddy, prev, next);
+    } else if (Math.random() < 0.55) {
       const quip = PET_QUIPS[Math.floor(Math.random() * PET_QUIPS.length)];
       buddy.say(quip, { duration: 1500 });
     }
   });
+
   const first = (config?.firstName || "").split(/[\s.]/)[0];
   const pretty = first ? first.charAt(0).toUpperCase() + first.slice(1) : "";
   setTimeout(() => {
@@ -666,6 +734,10 @@ function lockAndReload() {
 document.getElementById("lock")?.addEventListener("click", lockAndReload);
 document.getElementById("settings-lock")?.addEventListener("click", lockAndReload);
 document.getElementById("header-settings")?.addEventListener("click", openSettings);
+document.getElementById("settings-reset-buddy")?.addEventListener("click", () => {
+  resetBuddy(lilGuyController);
+  document.getElementById("settings")?.close();
+});
 
 wirePalette();
 wireGlobalShortcuts();

@@ -238,6 +238,26 @@ export function mountLittleGuy(target, opts = {}) {
           <rect data-lid="right" x="64" y="55" width="16" height="0" fill="url(#lg-headGrad)" clip-path="url(#lg-eye-clip-r)" />
 
           <path data-mouth d="M55 84 Q60 87 65 84" fill="none" stroke="#3A2B5C" stroke-width="1.6" stroke-linecap="round" />
+
+          <g data-cos="sunglasses" style="display:none">
+            <rect x="36" y="60" width="22" height="10" rx="4" fill="#141018" stroke="#322844" stroke-width="0.5" />
+            <rect x="62" y="60" width="22" height="10" rx="4" fill="#141018" stroke="#322844" stroke-width="0.5" />
+            <path d="M58 65 L62 65" stroke="#141018" stroke-width="2" stroke-linecap="round" />
+            <path d="M40 63 L48 63" stroke="#7B5EC7" stroke-width="0.8" opacity="0.6" />
+            <path d="M66 63 L74 63" stroke="#7B5EC7" stroke-width="0.8" opacity="0.6" />
+          </g>
+
+          <g data-cos="hat" style="display:none">
+            <polygon points="22,34 30,8 46,30" fill="#E04A6E" stroke="#7A2842" stroke-width="0.8" />
+            <circle cx="30" cy="7" r="2.4" fill="#FFE066" />
+            <ellipse cx="34" cy="32" rx="13" ry="2.6" fill="#F4B0C2" stroke="#C77897" stroke-width="0.6" />
+          </g>
+
+          <g data-cos="scarf" style="display:none">
+            <path d="M38 97 Q60 103 82 97 L80 110 Q60 114 40 110 Z" fill="#D97757" stroke="#8C3F22" stroke-width="0.6" />
+            <path d="M68 108 L72 124 L74 108 Z" fill="#D97757" stroke="#8C3F22" stroke-width="0.4" />
+            <path d="M75 106 L79 120 L80 106 Z" fill="#C56543" stroke="#8C3F22" stroke-width="0.4" />
+          </g>
         </g>
       </g>
     </svg>
@@ -515,6 +535,15 @@ export function mountLittleGuy(target, opts = {}) {
     bodyG.classList.add('lg-body-squash');
   };
 
+  const cosmeticEls = wrap.querySelectorAll('[data-cos]');
+  const setCosmetics = (list) => {
+    if (destroyed) return;
+    const want = new Set(Array.isArray(list) ? list : []);
+    cosmeticEls.forEach((el) => {
+      el.style.display = want.has(el.getAttribute('data-cos')) ? '' : 'none';
+    });
+  };
+
   const lookAt = ({ clientX, clientY }, duration = 900) => {
     if (destroyed) return;
     const r = wrap.getBoundingClientRect();
@@ -540,6 +569,7 @@ export function mountLittleGuy(target, opts = {}) {
     emit,
     squash,
     lookAt,
+    setCosmetics,
     destroy() {
       destroyed = true;
       cancelAnimationFrame(rafId);
