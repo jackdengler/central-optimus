@@ -1201,6 +1201,136 @@ export function startMovement(canvas) {
     ctx.restore();
   }
 
+  /* Click and ratchet — sits on top of the barrel arbor. The ratchet
+     wheel is concentric with the barrel and rotates with it; the click
+     is a spring-loaded pawl with a hooked tooth that rides the ratchet
+     and prevents it from turning backward (mainspring can't unwind
+     through the barrel, so it has to unwind through the train — which
+     is how the watch runs). Saw-tooth profile is asymmetric: steep
+     face catches the click, sloped face lets it slip when winding. */
+  function drawClickAndRatchet(t, yaw) {
+    const bg = gears[0];
+    const [bcx, bcy] = U(bg.x, bg.y, yaw);
+
+    // Ratchet rotates with the barrel (stage 0, dir=+1).
+    const barrelAng = yaw + bg.speed * t + bg.phaseBias;
+    const ratchetR = 0.088 * R;
+    const teeth = 48;
+    const toothPitch = (Math.PI * 2) / teeth;
+    const rBase = ratchetR * 0.93;
+    const rTip  = ratchetR;
+
+    // Disc body.
+    const body = ctx.createRadialGradient(
+      bcx - ratchetR * 0.3, bcy - ratchetR * 0.3, 0, bcx, bcy, ratchetR,
+    );
+    body.addColorStop(0, col(C.plateHi, 0.32));
+    body.addColorStop(1, col(C.steelBlue, 0.58));
+    ctx.fillStyle = body;
+    ctx.beginPath(); ctx.arc(bcx, bcy, ratchetR, 0, Math.PI * 2); ctx.fill();
+
+    // Asymmetric saw teeth.
+    ctx.strokeStyle = col(C.shadow, 0.60);
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    for (let i = 0; i < teeth; i++) {
+      const a0 = barrelAng + i * toothPitch;
+      const a1 = a0 + toothPitch;
+      const aHook = a0 + toothPitch * 0.02;  // near-vertical hook face
+      const aSlope = a0 + toothPitch * 0.85; // long sloped face
+      if (i === 0) ctx.moveTo(bcx + Math.cos(a0) * rBase, bcy + Math.sin(a0) * rBase);
+      else         ctx.lineTo(bcx + Math.cos(a0) * rBase, bcy + Math.sin(a0) * rBase);
+      ctx.lineTo(bcx + Math.cos(aHook) * rTip,  bcy + Math.sin(aHook) * rTip);
+      ctx.lineTo(bcx + Math.cos(aSlope) * rTip, bcy + Math.sin(aSlope) * rTip);
+      ctx.lineTo(bcx + Math.cos(a1) * rBase,    bcy + Math.sin(a1) * rBase);
+    }
+    ctx.closePath();
+    ctx.stroke();
+
+    // Central arbor screw with slot.
+    ctx.fillStyle = col(C.shadow, 0.68);
+    ctx.beginPath();
+    ctx.arc(bcx, bcy, ratchetR * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = col(C.plateHi, 0.40);
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    const slotAng = barrelAng;
+    ctx.moveTo(
+      bcx + Math.cos(slotAng) * ratchetR * 0.15,
+      bcy + Math.sin(slotAng) * ratchetR * 0.15,
+    );
+    ctx.lineTo(
+      bcx - Math.cos(slotAng) * ratchetR * 0.15,
+      bcy - Math.sin(slotAng) * ratchetR * 0.15,
+    );
+    ctx.stroke();
+
+    // Click lever — pivots at a post offset from the ratchet, with its
+    // tooth tip resting on a ratchet tooth. Static (doesn't animate;
+    // the ratchet just turns underneath it).
+    const pivotU = bg.x + 0.145;
+    const pivotV = bg.y - 0.095;
+    const elbowU = bg.x + 0.105;
+    const elbowV = bg.y - 0.035;
+    const tipU   = bg.x + 0.070;
+    const tipV   = bg.y - 0.010;
+    const [pvx, pvy] = U(pivotU, pivotV, yaw);
+    const [ebx, eby] = U(elbowU, elbowV, yaw);
+    const [tpx, tpy] = U(tipU, tipV, yaw);
+
+    ctx.strokeStyle = col(C.steel, 0.62);
+    ctx.lineWidth = Math.max(1.4, R * 0.009);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    ctx.moveTo(pvx, pvy);
+    ctx.lineTo(ebx, eby);
+    ctx.lineTo(tpx, tpy);
+    ctx.stroke();
+
+    ctx.strokeStyle = col(C.plateHi, 0.28);
+    ctx.lineWidth = Math.max(0.4, R * 0.0025);
+    ctx.stroke();
+
+    // Pivot post with screw slot.
+    ctx.fillStyle = col(C.steel, 0.68);
+    ctx.beginPath();
+    ctx.arc(pvx, pvy, Math.max(2.0, R * 0.010), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = col(C.shadow, 0.55);
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+    ctx.strokeStyle = col(C.shadow, 0.70);
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(pvx - Math.max(1.4, R * 0.007), pvy);
+    ctx.lineTo(pvx + Math.max(1.4, R * 0.007), pvy);
+    ctx.stroke();
+
+    // Click spring — thin curved wire anchored to another post, pushing
+    // the click into the ratchet.
+    const spAnchorU = bg.x + 0.185;
+    const spAnchorV = bg.y - 0.050;
+    const [sax, say] = U(spAnchorU, spAnchorV, yaw);
+    ctx.strokeStyle = col(C.steelBlue, 0.55);
+    ctx.lineWidth = Math.max(0.9, R * 0.0045);
+    ctx.beginPath();
+    ctx.moveTo(sax, say);
+    ctx.quadraticCurveTo(
+      (sax + ebx) / 2 + (ebx - sax) * 0.15,
+      (say + eby) / 2 - Math.abs(eby - say) * 0.5,
+      ebx, eby,
+    );
+    ctx.stroke();
+
+    // Spring anchor dot.
+    ctx.fillStyle = col(C.steel, 0.65);
+    ctx.beginPath();
+    ctx.arc(sax, say, Math.max(1.2, R * 0.005), 0, Math.PI * 2);
+    ctx.fill();
+  }
+
   /* Regulator index — the fine-timing lever that sits on the balance
      cock. Arm pivots near the balance staff jewel and extends out to
      a short curved scale (+ / − ends). Two tiny curb pins at the tip
@@ -1530,6 +1660,7 @@ export function startMovement(canvas) {
     for (let i = 0; i < gears.length; i++) {
       drawGear(gears[i], i, yaw, renderT, zoomFactor);
     }
+    drawClickAndRatchet(renderT, yaw);
     drawPallet(renderT, yaw);
     drawBalanceWheel(renderT, yaw, zoomFactor);
     drawRegulator(yaw);
