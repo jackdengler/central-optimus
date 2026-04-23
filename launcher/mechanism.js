@@ -74,8 +74,12 @@ export function startMovement(canvas) {
     // diameter ≥ the long screen edge — the whole movement is always
     // visible (every gear, bridge, balance, pallet) and the plate
     // fills the canvas with no empty corners.
+    // cyA pushed below center so the gear cluster + bridges land
+    // in the lower half of the screen — the empty area beneath the
+    // icon grid — while plate texture still extends upward behind
+    // the greeting.
     cxA = W * 0.5;
-    cyA = H * 0.5;
+    cyA = H * 0.58;
     RA  = Math.max(W, H) * 1.04;
     if (launch.mode === "idle") { cx = cxA; cy = cyA; R = RA; }
   }
