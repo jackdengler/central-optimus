@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en" class="ios">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#f6f1e7" />
+    <title>Central Optimus</title>
+
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="./icons/icon.svg" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
+
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Optimus" />
+    <style>
+      html, body { background: #f6f1e7; margin: 0; }
+    </style>
+
+    <link
+      rel="apple-touch-startup-image"
+      href="./icons/splash-1170x2532.png"
+      media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+    />
+
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="globe-bg" class="globe-bg" aria-hidden="true"></div>
+
+    <main id="app" class="shell" hidden>
+      <section id="hero" class="hero" hidden>
+        <div class="hero-top">
+          <p class="eyebrow">
+            <span class="hero-dot" aria-hidden="true"></span>
+            <span id="hero-date">—</span>
+            <span class="eyebrow-sep" aria-hidden="true">·</span>
+            <span id="hero-time">—</span>
+            <span class="eyebrow-sep eyebrow-sep-weather" aria-hidden="true" hidden>·</span>
+            <span id="hero-weather" hidden></span>
+          </p>
+          <div class="hero-actions" id="app-header">
+          <button
+            id="lock"
+            type="button"
+            aria-label="Lock"
+            title="Lock"
+            class="icon-btn"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="11" width="16" height="10" rx="2.5" />
+              <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+            </svg>
+          </button>
+          </div>
+        </div>
+        <div class="hero-main">
+          <h1 class="greeting">
+            <span id="greeting-text">Welcome</span><span class="greeting-punct">.</span>
+          </h1>
+        </div>
+        <p class="hero-tagline">
+          Your private workspace — <span class="hero-count"><span id="hero-app-count">0</span> apps ready</span>.
+        </p>
+      </section>
+
+      <section id="apps-section" class="apps-section" hidden>
+        <div class="section-header">
+          <h2 class="section-title">All apps</h2>
+          <span class="section-hint">
+            Tap or press <kbd>1</kbd>–<kbd>9</kbd>
+          </span>
+        </div>
+        <div
+          id="grid"
+          class="grid"
+          aria-label="Apps"
+        ></div>
+      </section>
+
+      <p id="empty" class="empty-state" hidden>No apps registered yet.</p>
+
+      <footer id="status-bar" class="status-bar" hidden>
+        <span class="status-indicator">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span>All systems nominal</span>
+        </span>
+        <span class="status-meta">
+          <span id="status-count">0 apps</span>
+          <span class="status-sep" aria-hidden="true">·</span>
+          <span class="status-build">build 2026.04</span>
+        </span>
+      </footer>
+    </main>
+
+    <div id="pip" class="pip" hidden role="button" aria-label="Hello little guy" tabindex="0">
+      <div id="pip-stage" class="pip-stage"></div>
+    </div>
+
+    <dialog
+      id="gate"
+      class="co-dialog w-[min(calc(100%-2rem),20rem)] rounded-2xl p-6"
+    >
+      <form method="dialog" id="gate-form">
+        <h2 class="mb-3 text-lg font-semibold tracking-tight">Sign in</h2>
+        <p class="mb-3 text-sm leading-snug text-optimus-muted">
+          Paste a GitHub personal access token for your account.
+          <a
+            class="text-optimus-accent font-medium underline-offset-2 hover:underline"
+            href="https://github.com/settings/personal-access-tokens/new"
+            target="_blank"
+            rel="noopener"
+            >Create one</a
+          >
+          (fine-grained, no permissions required).
+        </p>
+        <input
+          id="token"
+          type="password"
+          autocomplete="off"
+          spellcheck="false"
+          autofocus
+          required
+          placeholder="github_pat_..."
+          class="mb-3 w-full rounded-xl border border-optimus-border bg-optimus-surface px-4 py-3 text-base text-optimus-text placeholder-optimus-muted focus:outline-none focus:ring-2 focus:ring-optimus-accent/60"
+        />
+        <p id="gate-error" class="mb-3 text-sm text-red-600" hidden>Sign-in failed.</p>
+        <button
+          type="submit"
+          class="btn-primary"
+        >
+          Unlock
+        </button>
+      </form>
+    </dialog>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
