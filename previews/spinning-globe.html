@@ -95,8 +95,8 @@
         inset: 0;
         z-index: 1;
         pointer-events: none;
-        -webkit-mask-image: radial-gradient(120% 100% at 42% 56%, #000 60%, transparent 105%);
-        mask-image: radial-gradient(120% 100% at 42% 56%, #000 60%, transparent 105%);
+        -webkit-mask-image: radial-gradient(130% 110% at 50% 50%, #000 65%, transparent 110%);
+        mask-image: radial-gradient(130% 110% at 50% 50%, #000 65%, transparent 110%);
         opacity: 0.92;
       }
       .shell {
@@ -225,7 +225,7 @@
       </main>
 
       <!-- LAST_PUSH: update this string with current LA time on every commit -->
-      <p class="last-push">Last push · 2:58 AM PT — Thu Apr 23</p>
+      <p class="last-push">Last push · 3:04 AM PT — Thu Apr 23</p>
     </div>
 
 
@@ -241,11 +241,12 @@
         var nodeCount = opts.nodeCount != null ? opts.nodeCount : 46;
         var arcCount = opts.arcCount != null ? opts.arcCount : 7;
         var rotationSpeed = opts.rotationSpeed != null ? opts.rotationSpeed : 0.00012;
-        var tilt = opts.tilt != null ? opts.tilt : 0.55;
+        var tilt = opts.tilt != null ? opts.tilt : 0.18;
         var blendMode = opts.blendMode || "multiply";
-        var radiusFactor = opts.radiusFactor != null ? opts.radiusFactor : 1.0;
-        var offsetX = opts.offsetX != null ? opts.offsetX : -0.08;
-        var offsetY = opts.offsetY != null ? opts.offsetY : 0.06;
+        var radiusFactor = opts.radiusFactor != null ? opts.radiusFactor : 1.55;
+        var offsetX = opts.offsetX != null ? opts.offsetX : 0;
+        var offsetY = opts.offsetY != null ? opts.offsetY : 0;
+        var cameraDist = opts.cameraDist != null ? opts.cameraDist : 2.6;
 
         var TAU = Math.PI * 2;
         var reduced = false;
@@ -329,7 +330,10 @@
           var cp = Math.cos(pi), sp = Math.sin(pi);
           return { x: x, y: y * cp - z * sp, z: y * sp + z * cp };
         }
-        function project(v) { return { x: cx + v.x * radius, y: cy + v.y * radius, z: v.z }; }
+        function project(v) {
+          var persp = cameraDist / (cameraDist - v.z);
+          return { x: cx + v.x * radius * persp, y: cy + v.y * radius * persp, z: v.z };
+        }
         function slerp(a, b, t) {
           var dot = Math.max(-1, Math.min(1, a.x * b.x + a.y * b.y + a.z * b.z));
           var omega = Math.acos(dot);

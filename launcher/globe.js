@@ -12,11 +12,12 @@ export function mountGlobe(target, opts = {}) {
     nodeCount = 28,
     arcCount = 4,
     rotationSpeed = 0.00012,
-    tilt = 0.55,
+    tilt = 0.18,
     blendMode = "multiply",
-    radiusFactor = 1.0,
-    offsetX = -0.08,
-    offsetY = 0.06,
+    radiusFactor = 1.55,
+    offsetX = 0,
+    offsetY = 0,
+    cameraDist = 2.6,
   } = opts;
 
   const TAU = Math.PI * 2;
@@ -130,7 +131,13 @@ export function mountGlobe(target, opts = {}) {
     return { x, y: y * cp - z * sp, z: y * sp + z * cp };
   };
 
-  const project = (v) => ({ x: cx + v.x * radius, y: cy + v.y * radius, z: v.z });
+  // Perspective projection: near features (z>0) get magnified, far features
+  // shrink, giving the sphere real depth. cameraDist is in sphere radii;
+  // smaller = stronger fish-eye, larger = closer to orthographic.
+  const project = (v) => {
+    const persp = cameraDist / (cameraDist - v.z);
+    return { x: cx + v.x * radius * persp, y: cy + v.y * radius * persp, z: v.z };
+  };
 
   // Great-circle interpolation
   const slerp = (a, b, t) => {
