@@ -187,7 +187,14 @@ export function startLittleGuyWander(mountEl, opts = {}) {
       return r.width > 0 && r.height > 0;
     });
     if (!visible.length) return null;
-    return visible[Math.floor(Math.random() * visible.length)];
+    // Only peek at the top-most row of tiles: sort by y, keep the two with
+    // the smallest top. Ties (same row) are resolved by DOM order.
+    const topTwo = visible
+      .map((el, i) => ({ el, i, top: el.getBoundingClientRect().top }))
+      .sort((a, b) => a.top - b.top || a.i - b.i)
+      .slice(0, 2)
+      .map((x) => x.el);
+    return topTwo[Math.floor(Math.random() * topTwo.length)];
   };
 
   const offsetTo = (tileEl) => {
