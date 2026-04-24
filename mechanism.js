@@ -143,16 +143,22 @@ export function startMovement(canvas) {
 
   const gears = [];
   {
-    // Stage 0 — barrel (wheel only, anchored lower-left).
+    // Stage 0 — barrel anchor. Placed on the screen-vertical axis
+    // (u = v) near the lower end of the visible diagonal corridor, so
+    // the barrel-side cluster (mainspring, click, ratchet, barrel
+    // bridge) actually lands inside the portrait viewport.
     const g0 = {
-      kind: "barrel", x: -0.55, y: 0.25,
+      kind: "barrel", x: -0.32, y: -0.32,
       wheelT: 72, pinionT: 10, wheelR: pr(72), pinionR: pr(10),
       speed: S_BARREL, phaseBias: 0,
     };
     gears.push(g0);
 
     // Stage 1 — center wheel, up-right from barrel.
-    const dir1 = { x: Math.cos(-0.55), y: Math.sin(-0.55) };
+    // Cascade angles are now tuned to hug the yaw=π/4 diagonal (≈0.785
+    // rad) with ±0.25 rad wobble so the train zig-zags visually but
+    // stays inside the portrait corridor |u - v| ≤ 0.28.
+    const dir1 = { x: Math.cos(1.05), y: Math.sin(1.05) };
     const g1 = {
       kind: "wheel", wheelT: 72, pinionT: 10, wheelR: pr(72), pinionR: pr(10),
       speed: S_CENTER, phaseBias: 0,
@@ -162,7 +168,7 @@ export function startMovement(canvas) {
     gears.push(g1);
 
     // Stage 2 — third wheel.
-    const dir2 = { x: Math.cos(-0.15), y: Math.sin(-0.15) };
+    const dir2 = { x: Math.cos(0.55), y: Math.sin(0.55) };
     const g2 = {
       kind: "wheel", wheelT: 75, pinionT: 10, wheelR: pr(75), pinionR: pr(10),
       speed: S_THIRD, phaseBias: 0,
@@ -172,7 +178,7 @@ export function startMovement(canvas) {
     gears.push(g2);
 
     // Stage 3 — fourth wheel (this is the launch target).
-    const dir3 = { x: Math.cos(0.30), y: Math.sin(0.30) };
+    const dir3 = { x: Math.cos(1.05), y: Math.sin(1.05) };
     const g3 = {
       kind: "wheel", wheelT: 70, pinionT: 10, wheelR: pr(70), pinionR: pr(10),
       speed: S_FOUR, phaseBias: 0,
@@ -182,7 +188,7 @@ export function startMovement(canvas) {
     gears.push(g3);
 
     // Stage 4 — escape wheel.
-    const dir4 = { x: Math.cos(-0.75), y: Math.sin(-0.75) };
+    const dir4 = { x: Math.cos(0.55), y: Math.sin(0.55) };
     const g4 = {
       kind: "escape", wheelT: 15, pinionT: 7, wheelR: pr(15), pinionR: pr(7),
       speed: S_ESC, phaseBias: 0,
@@ -219,7 +225,7 @@ export function startMovement(canvas) {
   // own 45° lane and per-frame motion at 60 fps is well under 3°.
   const escG = gears[4];
   const balance = {
-    x: escG.x + 0.28, y: escG.y - 0.05,
+    x: escG.x + 0.17, y: escG.y + 0.17,
     r: 0.17, freqHz: 2.0, amp: 0.12 * Math.PI,
   };
 
@@ -230,8 +236,8 @@ export function startMovement(canvas) {
 
   // Pallet fork — offset from escape toward balance.
   const pallet = {
-    x: escG.x + 0.10,
-    y: escG.y - 0.12,
+    x: escG.x + 0.08,
+    y: escG.y + 0.08,
     armLen: escG.wheelR * 0.95,
     armWidth: 0.018,
     forkReach: 0.14,
@@ -296,8 +302,8 @@ export function startMovement(canvas) {
     },
     { // barrel bridge
       points: bridgeArc(
-        [gears[0].x - 0.12, gears[0].y + 0.05],
-        [gears[1].x + 0.10, gears[1].y - 0.15],
+        [gears[0].x - 0.08, gears[0].y - 0.08],
+        [gears[1].x + 0.08, gears[1].y - 0.04],
         0.28, 30,
       ),
       width: 0.090,
@@ -1857,11 +1863,14 @@ export function startMovement(canvas) {
      which sits off-screen at this zoom) so it actually shows up. */
   function drawKeylessWorks(yaw) {
     // Stem runs along v ≈ 0.12 in unit space (horizontal in plate frame).
-    const stemU0 = 0.42;  // outer — "toward the crown"
-    const stemU1 = 0.24;  // inner — where the pinion sits
-    const stemV  = 0.12;
-    const pinionU = 0.27;
-    const pinionV = stemV;
+    // Stem runs along the u=v diagonal so it stays inside the portrait
+    // corridor. Outer terminus bleeds slightly off the bottom-right
+    // corner, selling "the crown is outside the case".
+    const stemU0 = 0.50;  // outer — "toward the crown"
+    const stemU1 = 0.38;  // inner — where the pinion sits
+    const stemV  = 0.32;
+    const pinionU = 0.40;
+    const pinionV = 0.30;
 
     const [s0x, s0y] = U(stemU0, stemV, yaw);
     const [s1x, s1y] = U(stemU1, stemV, yaw);
@@ -1976,10 +1985,10 @@ export function startMovement(canvas) {
     // Yoke — spring-loaded arm that presses the pinion into winding
     // position. Anchored to a post and sweeping around to contact the
     // pinion from below.
-    const yokeAnchorU = 0.38;
-    const yokeAnchorV = 0.19;
-    const yokeBendU   = 0.34;
-    const yokeBendV   = 0.155;
+    const yokeAnchorU = 0.48;
+    const yokeAnchorV = 0.40;
+    const yokeBendU   = 0.43;
+    const yokeBendV   = 0.34;
     const yokeTipU    = pinionU + 0.015;
     const yokeTipV    = pinionV + 0.018;
     const [yax, yay] = U(yokeAnchorU, yokeAnchorV, yaw);
@@ -2083,12 +2092,15 @@ export function startMovement(canvas) {
     // Click lever — pivots at a post offset from the ratchet, with its
     // tooth tip resting on a ratchet tooth. Static (doesn't animate;
     // the ratchet just turns underneath it).
-    const pivotU = bg.x + 0.145;
-    const pivotV = bg.y - 0.095;
-    const elbowU = bg.x + 0.105;
-    const elbowV = bg.y - 0.035;
-    const tipU   = bg.x + 0.070;
-    const tipV   = bg.y - 0.010;
+    // Click offsets rotated to follow the new cascade direction
+    // (dir1 ≈ 1.05 rad); keeps the click between the barrel and center
+    // wheel instead of orbiting around to the off-screen side.
+    const pivotU = bg.x + 0.091;
+    const pivotV = bg.y + 0.148;
+    const elbowU = bg.x + 0.032;
+    const elbowV = bg.y + 0.106;
+    const tipU   = bg.x + 0.008;
+    const tipV   = bg.y + 0.070;
     const [pvx, pvy] = U(pivotU, pivotV, yaw);
     const [ebx, eby] = U(elbowU, elbowV, yaw);
     const [tpx, tpy] = U(tipU, tipV, yaw);
@@ -2128,14 +2140,14 @@ export function startMovement(canvas) {
     // resting against the click lever. Drawn with a body stroke, a
     // blued centerline highlight, a shadow edge, and an explicit hook
     // cap at the working end so it reads as a formed part, not a wire.
-    const spAnchorU = bg.x + 0.185;
-    const spAnchorV = bg.y - 0.050;
+    const spAnchorU = bg.x + 0.045;
+    const spAnchorV = bg.y + 0.186;
     const [sax, say] = U(spAnchorU, spAnchorV, yaw);
 
     // Reverse-curve control points. First curves up & away from the
     // ratchet, then tucks back down to meet the click elbow from above.
-    const midU = bg.x + 0.160, midV = bg.y - 0.100;
-    const bendU = bg.x + 0.125, bendV = bg.y - 0.080;
+    const midU = bg.x + 0.095, midV = bg.y + 0.163;
+    const bendU = bg.x + 0.076, bendV = bg.y + 0.127;
     const [mx, my] = U(midU, midV, yaw);
     const [bx, by] = U(bendU, bendV, yaw);
 
