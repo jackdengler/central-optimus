@@ -211,10 +211,16 @@ export function startMovement(canvas) {
   }
 
   // Balance wheel sits beyond the escape; pallet fork bridges them.
+  // amp is the PEAK swing of the balance (radians). Real watches swing
+  // ~270°, but the 8 timing screws on the rim sit 45° apart, so any
+  // amp > ~22° makes adjacent screws cross each other's rest positions
+  // every cycle — the rim reads as "flickering beads" instead of a
+  // clean oscillation. Keep amp under ~π/8 so each screw stays in its
+  // own 45° lane and per-frame motion at 60 fps is well under 3°.
   const escG = gears[4];
   const balance = {
     x: escG.x + 0.28, y: escG.y - 0.05,
-    r: 0.17, freqHz: 2.0, amp: 0.52 * Math.PI,
+    r: 0.17, freqHz: 2.0, amp: 0.12 * Math.PI,
   };
 
   // Register fourth wheel as the shared launch target for all apps.
