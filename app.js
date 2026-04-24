@@ -28,18 +28,27 @@ function haptic(pattern) {
 
 const TOKEN_KEY = "co.gh.token";
 
-// Launch animation timing, taken from the prototype. The zoom runs 1100ms
-// to the fourth wheel; the embed starts fading in at 720ms so the app
-// reveals from within the hub before the camera actually lands. A tiny
-// buffer on top of 1100ms gives the camera a moment to settle.
-const LAUNCH_ZOOM_MS = 1100;
-const LAUNCH_OVERLAY_DELAY_MS = 720;
-const LAUNCH_BUFFER_MS = 50;
+/* -------------------------------------------------------------------
+   Motion choreography
+   -------------------------------------------------------------------
+   Three camera states drive the whole experience:
+     wide     — entire watch framed on screen (boot + pre-launch + pre-close)
+     ambient  — plate fills viewport, mechanism is the UI backdrop
+     (closeup — legacy dive into the 4th wheel; used only by reduced motion)
 
-// Close animation timing. The overlay fades out first, then the camera
-// pulls back — otherwise the app and the mechanism both dissolve at the
-// same moment and the transition reads as a hard cut.
-const CLOSE_OVERLAY_FADE_MS = 180;
+   Boot:        wide → ambient              (BOOT_ZOOM_MS)
+                shell fades in during the last stretch (BOOT_SHELL_DELAY)
+   Launch tap:  ambient → wide              (PULL_OUT_MS)
+                then flip card 180° (FLIP_MS) — app is on the back face
+   Close:       flip back (FLIP_MS)
+                then wide → ambient         (CLOSE_ZOOM_MS)
+   ------------------------------------------------------------------- */
+const BOOT_ZOOM_MS     = 1100;
+const BOOT_SHELL_DELAY = 700;
+const PULL_OUT_MS      = 600;
+const FLIP_MS          = 880;   // keep in sync with .flip-card CSS transition
+const CLOSE_ZOOM_MS    = 900;
+const CLOSE_SHELL_LEAD = 250;   // shell fade starts this much before flip lands
 
 let APPS = [];
 let weatherController = null;
@@ -153,61 +162,69 @@ async function setPublishStamp() {
 }
 
 /* ---------- App launch orchestration ----------
-   Each tile in the grid has data-app="<app-id>". On tap we trigger the
-   camera zoom toward the fourth wheel, then at 720ms begin opening the
-   embed (so the app reveals from within the spinning hub), and at
-   ~1150ms the camera lands. Close reverses: overlay fades out first,
-   then the camera pulls back for 800ms. */
+   Tile tap reverses the boot zoom and then flips the card:
+     ambient → wide → flip 180° (app on back face)
+   The shell fades out during the pull-out; the iframe is mounted a bit
+   before the flip starts so it has loading time to cover. Close is the
+   exact reverse: unflip, then zoom back in. */
 
 function launchApp(appId) {
   const app = APPS.find((a) => a.id === appId);
   if (!app) {
-    // Placeholder — app doesn't exist in registry. Still play the zoom
-    // so the icon feels alive, but bail out before navigating.
-    if (watchCanvas && !reducedMotion && watchCanvas._launch) {
-      watchCanvas._launch("fourthWheel");
-      setTimeout(() => watchCanvas._close && watchCanvas._close(), 900);
-    }
     haptic(8);
     return;
   }
   haptic(8);
 
-  if (reducedMotion || !watchCanvas || !watchCanvas._launch) {
+  const shell = document.getElementById("app");
+  const card = document.getElementById("flip-card");
+
+  if (reducedMotion || !watchCanvas || !watchCanvas._setCamera) {
+    if (shell) shell.classList.add("app-open");
     openEmbed(app);
+    if (card) card.classList.add("is-flipped");
     return;
   }
 
-  watchCanvas._launch("fourthWheel");
-  // Begin the crossfade on the shell so greeting/grid fade out during
-  // the dive, giving "pulled into the mechanism" rather than "cut to app."
-  const shell = document.getElementById("app");
   if (shell) shell.classList.add("app-open");
+  watchCanvas._setCamera("wide", PULL_OUT_MS);
 
-  setTimeout(() => openEmbed(app), LAUNCH_OVERLAY_DELAY_MS);
-  // (The iframe's own CSS opacity transition handles the final fade-in.)
-  void LAUNCH_ZOOM_MS;
-  void LAUNCH_BUFFER_MS;
+  // Mount the iframe partway through the pull-out so network/render
+  // overlap with the camera move. The flip itself waits until the
+  // wide shot has landed so the user sees the full watch for an
+  // instant before it turns over.
+  setTimeout(() => openEmbed(app), Math.max(0, PULL_OUT_MS - 280));
+  setTimeout(() => {
+    if (card) card.classList.add("is-flipped");
+  }, PULL_OUT_MS + 40);
 }
 
 function closeActiveApp() {
   const wrap = document.getElementById("embed");
   const shell = document.getElementById("app");
+  const card = document.getElementById("flip-card");
   if (!wrap || wrap.hidden) return;
 
-  wrap.classList.remove("embed-open");
-
-  if (reducedMotion || !watchCanvas || !watchCanvas._close) {
+  if (reducedMotion || !watchCanvas || !watchCanvas._setCamera) {
+    if (card) card.classList.remove("is-flipped");
     hideEmbed();
     if (shell) shell.classList.remove("app-open");
     return;
   }
 
+  // Flip back first — camera is still at 'wide' so the front face lands
+  // showing the whole watch. Then zoom back in to ambient and fade the
+  // shell in near the tail of the flip.
+  if (card) card.classList.remove("is-flipped");
   setTimeout(() => {
-    hideEmbed();
-    watchCanvas._close();
     if (shell) shell.classList.remove("app-open");
-  }, CLOSE_OVERLAY_FADE_MS);
+  }, Math.max(0, FLIP_MS - CLOSE_SHELL_LEAD));
+  setTimeout(() => {
+    if (watchCanvas && watchCanvas._setCamera) {
+      watchCanvas._setCamera("ambient", CLOSE_ZOOM_MS);
+    }
+    hideEmbed();
+  }, FLIP_MS);
 }
 
 function wireLauncherGrid() {
@@ -262,22 +279,22 @@ function ensureEmbedShell() {
   wrap = document.createElement("div");
   wrap.id = "embed";
   wrap.hidden = true;
-  wrap.className =
-    "fixed inset-0 z-50 flex flex-col bg-optimus-bg text-optimus-text";
+  wrap.className = "embed-shell";
   wrap.innerHTML = `
-    <div id="embed-bar" class="flex items-center gap-2 px-3 py-2 border-b border-optimus-border bg-optimus-surface" style="padding-top: max(env(safe-area-inset-top), 0.5rem);">
-      <button id="embed-home" type="button" aria-label="Home" class="inline-flex items-center gap-1.5 rounded-full border border-optimus-border px-3 py-1.5 text-sm font-medium text-optimus-muted hover:text-optimus-text hover:border-optimus-accent">
+    <div class="embed-bar">
+      <button id="embed-home" type="button" aria-label="Home" class="embed-home">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
           <path d="M3.5 11.5L12 4l8.5 7.5"/>
           <path d="M5.5 10.5V19a1.5 1.5 0 0 0 1.5 1.5h3.5V15h3v5.5H17a1.5 1.5 0 0 0 1.5-1.5v-8.5"/>
         </svg>
         <span>Home</span>
       </button>
-      <div id="embed-title" class="flex-1 truncate text-sm font-medium"></div>
+      <div id="embed-title" class="embed-title"></div>
     </div>
-    <iframe id="embed-frame" class="flex-1 w-full border-0" referrerpolicy="no-referrer" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+    <iframe id="embed-frame" class="embed-frame" referrerpolicy="no-referrer" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
   `;
-  document.body.appendChild(wrap);
+  const back = document.getElementById("flip-back") || document.body;
+  back.appendChild(wrap);
   document.getElementById("embed-home").addEventListener("click", () => {
     if (location.hash) {
       history.pushState(null, "", location.pathname + location.search);
@@ -302,9 +319,6 @@ function openEmbed(app) {
   const src = embedUrlFor(app);
   if (frame.src !== src) frame.src = src;
   wrap.hidden = false;
-  // Force reflow so the transition from opacity:0 → 1 plays.
-  void wrap.offsetWidth;
-  wrap.classList.add("embed-open");
   const hash = `#app/${app.id}`;
   if (location.hash !== hash) {
     history.pushState({ embed: app.id }, "", hash);
@@ -315,20 +329,28 @@ function hideEmbed() {
   const wrap = document.getElementById("embed");
   if (!wrap) return;
   wrap.hidden = true;
-  wrap.classList.remove("embed-open");
   const frame = document.getElementById("embed-frame");
   if (frame) frame.src = "about:blank";
 }
 
+/* Back/forward navigation: sync the flip state without pushing more
+   history entries (launchApp/openEmbed already pushState themselves
+   when invoked from a tile tap). */
 function handleHash() {
+  const card = document.getElementById("flip-card");
   const m = location.hash.match(/^#app\/(.+)$/);
   if (!m) {
-    closeActiveApp();
+    if (card && card.classList.contains("is-flipped")) closeActiveApp();
     return;
   }
   const app = APPS.find((a) => a.id === m[1] && a.url);
-  if (app) openEmbed(app);
-  else closeActiveApp();
+  if (!app) {
+    if (card && card.classList.contains("is-flipped")) closeActiveApp();
+    return;
+  }
+  if (card && !card.classList.contains("is-flipped")) {
+    launchApp(app.id);
+  }
 }
 
 window.addEventListener("popstate", handleHash);
@@ -359,8 +381,8 @@ async function unlock(config, registry) {
     startClock(config);
     setPublishStamp();
     wireLauncherGrid();
-    handleHash();
     startWatchCanvas();
+    bootSequence();
 
     const lockBtn = document.getElementById("lock");
     if (lockBtn) {
@@ -415,13 +437,58 @@ document.getElementById("lock")?.addEventListener("click", lockAndReload);
 
 function startWatchCanvas() {
   watchCanvas = document.querySelector(".watch-canvas");
-  if (!watchCanvas || watchCanvas._launch) return;
+  if (!watchCanvas || watchCanvas._setCamera) return;
   reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   try {
     startMovement(watchCanvas);
   } catch (err) {
     console.warn("mechanism failed to start:", err);
   }
+}
+
+/* Boot choreography — decides between the "zoom from wide" opening and
+   the direct-to-app path (reload on an #app/<id> hash). */
+function bootSequence() {
+  const shell = document.getElementById("app");
+  const card = document.getElementById("flip-card");
+
+  const hashMatch = location.hash.match(/^#app\/(.+)$/);
+  const hashApp = hashMatch
+    ? APPS.find((a) => a.id === hashMatch[1] && a.url)
+    : null;
+
+  if (hashApp) {
+    // Reloaded directly into an app — skip the boot zoom, land the
+    // camera at wide (so the back of the flip card reads against a
+    // framed watch if the user closes), and flip immediately.
+    if (watchCanvas && watchCanvas._setCamera) {
+      watchCanvas._setCamera("wide", 0);
+    }
+    if (shell) {
+      shell.classList.remove("is-booting");
+      shell.classList.add("app-open");
+    }
+    openEmbed(hashApp);
+    if (card) card.classList.add("is-flipped");
+    return;
+  }
+
+  if (reducedMotion || !watchCanvas || !watchCanvas._setCamera) {
+    if (watchCanvas && watchCanvas._setCamera) {
+      watchCanvas._setCamera("ambient", 0);
+    }
+    if (shell) shell.classList.remove("is-booting");
+    return;
+  }
+
+  // Fresh boot: camera starts at 'wide' (mechanism's default), tween
+  // in to 'ambient' over BOOT_ZOOM_MS. The shell's fade-in is held
+  // until BOOT_SHELL_DELAY so the greeting lands as the mechanism
+  // settles behind it rather than floating over a tiny watch.
+  watchCanvas._setCamera("ambient", BOOT_ZOOM_MS);
+  setTimeout(() => {
+    if (shell) shell.classList.remove("is-booting");
+  }, BOOT_SHELL_DELAY);
 }
 
 wireGlobalShortcuts();
