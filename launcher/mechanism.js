@@ -79,8 +79,8 @@ export function startMovement(canvas) {
     // icon grid — while plate texture still extends upward behind
     // the greeting.
     cxA = W * 0.5;
-    cyA = H * 0.58;
-    RA  = Math.max(W, H) * 1.04;
+    cyA = H * 0.52;
+    RA  = Math.max(W, H) * 1.7;
     if (launch.mode === "idle") { cx = cxA; cy = cyA; R = RA; }
   }
 
