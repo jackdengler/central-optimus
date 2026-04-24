@@ -23,8 +23,24 @@
    ===================================================================== */
 
 export function startMovement(canvas) {
-  const ctx = canvas.getContext("2d", { alpha: true });
+  let ctx = canvas.getContext("2d", { alpha: true, desynchronized: true });
+  const mainCtx = ctx;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* Offscreen cache for static layers. The mainplate texture, perlage,
+     côtes, engraving, bridges, keyless works, regulator, and jewels never
+     change between frames — re-rendering them 60 times a second wastes
+     thousands of canvas ops on something that could be a single blit.
+
+     Strategy: render the static layers into `staticCanvas` at a specific
+     (cx, cy, R, yaw) pose. Each frame either blits the cache 1:1 (when
+     the camera is at the cached pose) or applies a scale+translate
+     transform (during a camera tween) so the same bitmap tracks the
+     current camera. When a tween settles, the cache is re-rendered at
+     the new pose for pixel-perfect quality at rest. */
+  const staticCanvas = document.createElement("canvas");
+  const staticCtx = staticCanvas.getContext("2d", { alpha: true });
+  const cache = { cx: 0, cy: 0, R: 1, W: 0, H: 0, DPR: 1, valid: false };
 
   /* Mechanism palette — warm monotone. Reads as brass-and-ivory on
      parchment: never near-black, never cool. Depth comes from opacity
@@ -94,12 +110,16 @@ export function startMovement(canvas) {
   };
 
   function resize() {
-    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    DPR = Math.min(window.devicePixelRatio || 1, 1.75);
     const rect = canvas.getBoundingClientRect();
     W = rect.width; H = rect.height;
     canvas.width  = Math.round(W * DPR);
     canvas.height = Math.round(H * DPR);
-    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    mainCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    staticCanvas.width  = canvas.width;
+    staticCanvas.height = canvas.height;
+    staticCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    cache.valid = false;
     isPortrait = H >= W;
 
     // No tween in flight → snap camera to current preset at new dims.
@@ -141,6 +161,7 @@ export function startMovement(canvas) {
       cam.duration = 0;
       cam.eased = 0;
       cx = target.cx; cy = target.cy; R = target.R;
+      cache.valid = false;
       return;
     }
     cam._fromName = cam.name;
@@ -2576,6 +2597,38 @@ export function startMovement(canvas) {
   const yaw = Math.PI / 4;
   const YAW_SPEED = 0;
 
+  /* Render the deeply-layered static background (mainplate grain,
+     perlage, côtes, engraving, date wheel ring, bridges) into the
+     offscreen cache at the current cx/cy/R/yaw. Temporarily redirects
+     the shared `ctx` so the existing draw functions write to the
+     offscreen canvas without per-function plumbing.
+
+     Keyless works / regulator / jewels intentionally stay per-frame so
+     the original z-order is preserved: regulator sits ON TOP of the
+     balance wheel, jewels sit ON TOP of gears. */
+  function renderStatic() {
+    const renderT = reduced ? 0 : Date.now();
+    ctx = staticCtx;
+    try {
+      staticCtx.clearRect(0, 0, W, H);
+      drawMainplate(yaw);
+      drawPerlage(yaw);
+      drawCotes(yaw);
+      drawEngraving(yaw);
+      drawDateWheel(renderT, yaw);
+      drawBridges(yaw);
+    } finally {
+      ctx = mainCtx;
+    }
+    cache.cx = cx;
+    cache.cy = cy;
+    cache.R = R;
+    cache.W = W;
+    cache.H = H;
+    cache.DPR = DPR;
+    cache.valid = true;
+  }
+
   function frame(now) {
     // Wall-clock time drives the whole mechanism: gear phase, balance
     // oscillation, and the date wheel all evaluate to a deterministic
@@ -2586,6 +2639,7 @@ export function startMovement(canvas) {
     // phase error across decades is imperceptible.
     const t = Date.now();
 
+    let justSettled = false;
     if (cam.to) {
       const elapsed = now - cam.startTime;
       const raw = Math.min(1, elapsed / cam.duration);
@@ -2601,25 +2655,41 @@ export function startMovement(canvas) {
         cam._fromName = null;
         cam.duration = 0;
         cam.eased = 0;
+        justSettled = true;
       }
     }
 
     const renderT = reduced ? 0 : t;
-
-    // zoomFactor drives the close-up detail gates. Normalised against
-    // a stable reference — max(W, H) * 1.04 — so ambient ≈ 1.0 and
-    // zoomed-in branches start unlocking as R grows. Thresholds like
-    // >2.5 / >4 correspond to their original visual scale regardless
-    // of how the 'ambient' preset is tuned.
     const zoomFactor = R / (Math.max(W, H) * 1.04);
 
-    ctx.clearRect(0, 0, W, H);
-    drawMainplate(yaw);
-    drawPerlage(yaw);
-    drawCotes(yaw);
-    drawEngraving(yaw);
-    drawDateWheel(renderT, yaw);
-    drawBridges(yaw);
+    // Rebuild the static cache only when it's invalid (first frame, resize,
+    // or right after a tween settles). Tween-in-flight frames reuse the
+    // stale cache with a scale+translate transform — that's the whole win.
+    if (!cache.valid || justSettled) {
+      renderStatic();
+    }
+
+    mainCtx.clearRect(0, 0, W, H);
+
+    // Blit the cached static layers. If we're at the cached pose, blit
+    // 1:1. Otherwise (mid-tween) apply the transform that maps the
+    // cached (cx, cy, R) to the current (cx, cy, R) — this scales the
+    // whole pre-rendered bitmap to track the camera for free.
+    if (cx === cache.cx && cy === cache.cy && R === cache.R) {
+      mainCtx.drawImage(staticCanvas, 0, 0, W, H);
+    } else {
+      const scale = R / cache.R;
+      mainCtx.save();
+      mainCtx.translate(cx, cy);
+      mainCtx.scale(scale, scale);
+      mainCtx.translate(-cache.cx, -cache.cy);
+      mainCtx.drawImage(staticCanvas, 0, 0, W, H);
+      mainCtx.restore();
+    }
+
+    // Dynamic layers — these actually animate (or must render in this
+    // z-order to sit on top of the balance wheel / gear hubs), so they
+    // have to be redrawn every frame at the current (cx, cy, R).
     for (let i = 0; i < gears.length; i++) {
       drawGear(gears[i], i, yaw, renderT, zoomFactor);
     }
@@ -2643,6 +2713,9 @@ export function startMovement(canvas) {
     drawShimmers(yaw);
     requestAnimationFrame(frame);
   }
+  // Pre-warm the cache synchronously so the first frame of the boot
+  // tween doesn't pay the full static-layer render cost and stutter.
+  renderStatic();
   requestAnimationFrame(frame);
 
   /* ===== Peek easter egg — tap any bridge endpoint screw to toggle
