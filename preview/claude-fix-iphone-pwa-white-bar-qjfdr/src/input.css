@@ -1,0 +1,569 @@
+@import "tailwindcss";
+@import "konsta/theme.css";
+
+@source "../**/*.{html,js}";
+
+@theme {
+  --color-optimus-bg: #f6f1e7;
+  --color-optimus-bg-2: #ece4d3;
+  --color-optimus-surface: #fffaf1;
+  --color-optimus-surface-2: #f3ecdd;
+  --color-optimus-border: rgba(60, 46, 30, 0.1);
+  --color-optimus-border-strong: rgba(60, 46, 30, 0.18);
+  --color-optimus-ink: #1f1b16;
+  --color-optimus-text: #1f1b16;
+  --color-optimus-muted: #73695a;
+  --color-optimus-muted-2: #a0957f;
+  --color-optimus-accent: #c96a47;
+  --color-optimus-accent-2: #a44f30;
+  --color-optimus-shadow: 60, 46, 30;
+}
+
+/* ============================================================
+   LAUNCHER PALETTE
+   These vars scope the cream/ink/accent system to the launcher
+   shell. Canvas2D draw code reads hardcoded rgba() literals, so
+   these are purely for the HTML/CSS chrome around the mechanism.
+   ============================================================ */
+
+@layer base {
+  html, body {
+    color: var(--color-optimus-text);
+    font-family:
+      -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+      Roboto, "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /* Use 100% (ICB-relative) rather than 100dvh — in iOS standalone
+       PWA with viewport-fit=cover + black-translucent status bar,
+       100dvh can resolve to the "layout" viewport that excludes the
+       bottom home-indicator safe area, which leaves fixed-positioned
+       backgrounds clipped and exposes a white bar below the content.
+       100% on html resolves to the initial containing block, which is
+       the true visual viewport. */
+    height: 100%;
+    /* pan-y (not manipulation) so pinch-zoom is also blocked, not just
+       double-tap zoom. JS gesture/touchmove handlers in app.js back this
+       up for iOS Safari which sometimes ignores touch-action. */
+    touch-action: pan-y;
+    overflow: hidden;
+    overscroll-behavior: none;
+    max-width: 100%;
+    margin: 0;
+  }
+  html {
+    background-color: var(--color-optimus-bg);
+  }
+  body {
+    background-color: var(--color-optimus-bg);
+    /* Launcher-local palette shared with the canvas script. */
+    --base: #f6f1e7;
+    --surface-hi: #fffaf1;
+    --surface-lo: #ece4d3;
+    --ink: #1f1b16;
+    --muted: #73695a;
+    --accent: #c96a47;
+    --accent-deep: #a44f30;
+    color: var(--ink);
+    position: relative;
+    isolation: isolate;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--color-optimus-accent) 35%, transparent);
+    color: var(--color-optimus-ink);
+  }
+}
+
+@layer components {
+  /* ============================================================
+     BACKGROUND LAYERS
+     Three stacked layers behind everything else:
+       1. bg-washes — warm radial gradients (terracotta bloom,
+          olive right, indigo bottom)
+       2. watch-canvas — the mechanical watch movement, multiplied
+          over the washes
+       3. bg-noise — paper-grain fractal noise, multiplied on top
+     ============================================================ */
+
+  .bg-washes {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(28rem 22rem at 8% 6%,   rgba(201, 106, 71, 0.28), transparent 62%),
+      radial-gradient(26rem 22rem at 96% 10%, rgba(138, 160, 120, 0.22), transparent 62%),
+      radial-gradient(34rem 28rem at 50% 108%, rgba(70, 74, 120, 0.26), transparent 62%);
+  }
+
+  .watch-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0;
+    mix-blend-mode: multiply;
+    animation: watch-fade-in 1.4s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s forwards;
+  }
+  @keyframes watch-fade-in {
+    from { opacity: 0; }
+    to   { opacity: 0.42; }
+  }
+
+  .bg-noise {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.55;
+    mix-blend-mode: multiply;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ============================================================
+     LAUNCHER SHELL
+     Grid layout: greeting, 4×2 icon grid, flexible spacer (lets
+     the mechanism breathe through the middle), version footer.
+     ============================================================ */
+
+  .shell {
+    position: relative;
+    z-index: 2;
+    /* Match html/body — 100% resolves to the true visual viewport in
+       standalone PWA mode, which includes the home-indicator safe area
+       that the shell's bottom padding then reserves space inside. */
+    min-height: 100%;
+    height: 100%;
+    display: grid;
+    grid-template-rows: auto auto 1fr auto;
+    gap: 1.75rem;
+    padding:
+      calc(env(safe-area-inset-top) + 1rem)
+      1.25rem
+      calc(env(safe-area-inset-bottom) + 0.85rem);
+    max-width: 64rem;
+    margin: 0 auto;
+  }
+
+  .shell .spacer { min-height: 0; }
+
+  .shell > *:not(.spacer) {
+    opacity: 0;
+    animation: home-fade-in 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+  }
+  .shell > .greeting { animation-delay: 0.15s; }
+  .shell > .grid     { animation-delay: 0.30s; }
+  .shell > .base     { animation-delay: 0.45s; }
+
+  @keyframes home-fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ============================================================
+     GREETING BLOCK
+     "Good morning, Jack" with live meta row beneath (date · time ·
+     Los Angeles · weather glyph · temp). Lock/sign-out tucks in
+     the top right corner of the block.
+     ============================================================ */
+
+  .greeting {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-right: 44px; /* leave room for corner lock-btn */
+  }
+
+  .greeting .hello {
+    font-size: 22px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    margin: 0;
+    line-height: 1.15;
+  }
+  .greeting .hello .name {
+    background: linear-gradient(90deg, var(--accent), var(--accent-deep));
+    -webkit-background-clip: text;
+            background-clip: text;
+    color: transparent;
+  }
+
+  .greeting .meta {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0 8px;
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-top: 2px;
+    min-width: 0;
+  }
+  .greeting .meta .sep {
+    width: 3px; height: 3px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.45;
+    flex-shrink: 0;
+  }
+  .greeting .meta .time {
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .greeting .meta .weather {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .greeting .meta .weather svg {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+  }
+  /* Weather chip is injected by weather.js as a <span> with .co-weather —
+     nudge its icon to match the rest of the meta row. */
+  .greeting .meta .co-weather {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    letter-spacing: normal;
+    font-size: inherit;
+  }
+  .greeting .meta .co-weather-icon {
+    width: 12px;
+    height: 12px;
+  }
+  .greeting .meta .co-weather-icon svg {
+    stroke-width: 1.6;
+  }
+
+  /* Corner sign-out — discreet; only reveals on hover/focus/tap */
+  .lock-btn {
+    position: absolute;
+    top: -2px;
+    right: 0;
+    width: 32px;
+    height: 32px;
+    display: grid;
+    place-items: center;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: color-mix(in oklab, var(--muted) 90%, transparent);
+    cursor: pointer;
+    transition:
+      background-color 180ms ease,
+      color 180ms ease,
+      transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .lock-btn:hover,
+  .lock-btn:focus-visible {
+    color: var(--ink);
+    background: rgba(255, 250, 241, 0.55);
+    outline: none;
+  }
+  .lock-btn:active { transform: scale(0.9); }
+  .lock-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    grid-area: 1 / 1;
+  }
+  .lock-btn[data-state="unlocked"] .lock-glyph-locked,
+  .lock-btn[data-state="locked"] .lock-glyph-unlocked {
+    display: none;
+  }
+
+  /* ============================================================
+     APP ICON GRID
+     4×2 layout, LEFT-ANCHORED (the 7th slot sits in the
+     bottom-left/mid, leaving the bottom-right empty — this is iOS
+     home-screen behavior and it is intentional).
+     ============================================================ */
+
+  .shell .grid {
+    align-self: start;
+    display: grid;
+    grid-template-columns: repeat(4, 72px);
+    justify-content: center;
+    column-gap: 22px;
+    row-gap: 26px;
+    width: 100%;
+    padding: 0;
+  }
+
+  .shell .icon {
+    position: relative;
+    display: block;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+    color: var(--ink);
+  }
+
+  .shell .icon .tile {
+    width: 72px;
+    height: 72px;
+    border-radius: 17px;
+    /* Frosted WINDOW onto the mechanism — tile is translucent, blur
+       softens the gears into warm shifting shapes behind the ink
+       strokes. This is the design system's central gesture. */
+    background: rgba(255, 250, 241, 0.48);
+    backdrop-filter: blur(20px) saturate(145%);
+    -webkit-backdrop-filter: blur(20px) saturate(145%);
+    border: 0.5px solid rgba(31, 27, 22, 0.14);
+    box-shadow:
+      inset 0 0.5px 0 rgba(255, 255, 255, 0.65),
+      inset 0 -0.5px 0 rgba(31, 27, 22, 0.04),
+      0 1px 2px rgba(31, 27, 22, 0.05),
+      0 4px 14px -4px rgba(31, 27, 22, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+      transform 0.14s cubic-bezier(0.2, 0.8, 0.2, 1),
+      background-color 0.2s ease;
+  }
+  .shell .icon:active .tile,
+  .shell .icon.is-launching .tile {
+    transform: scale(0.94);
+    background: rgba(255, 250, 241, 0.72);
+  }
+  .shell .icon .tile svg {
+    width: 38px;
+    height: 38px;
+    display: block;
+    color: var(--ink);
+  }
+
+  /* ============================================================
+     APP ICON ANIMATIONS
+     Each tile carries one micro-animation that plays continuously.
+     Slow + low-amplitude so they don't compete with the mechanism.
+     Paused while an app embed is open and on prefers-reduced-motion.
+     ============================================================ */
+
+  @keyframes ico-spin       { to { transform: rotate(360deg); } }
+  @keyframes ico-breathe    { 0%, 100% { transform: scale(1); }     50% { transform: scale(1.05); } }
+  @keyframes ico-jab        { 0%, 60%, 100% { transform: translateX(0); } 25%, 40% { transform: translateX(1.4px); } }
+  @keyframes ico-sweep      { 0%, 100% { transform: rotate(-9deg); } 50% { transform: rotate(9deg); } }
+  @keyframes ico-spark      { 0%, 35%, 100% { opacity: 0; } 55%, 80% { opacity: 0.9; } }
+  @keyframes ico-lift       { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.8px); } }
+  @keyframes ico-cursor     { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .shell .icon svg .ico-cam-reel-l,
+  .shell .icon svg .ico-cam-reel-r,
+  .shell .icon svg .ico-chip-diamond,
+  .shell .icon svg .ico-coin-front,
+  .shell .icon svg .ico-glove,
+  .shell .icon svg .ico-broom,
+  .shell .icon svg .ico-env-top {
+    transform-box: view-box;
+  }
+
+  .shell .icon svg .ico-cam-reel-l { transform-origin: 9px 8px;  animation: ico-spin 4s linear infinite; }
+  .shell .icon svg .ico-cam-reel-r { transform-origin: 18px 8px; animation: ico-spin 5.2s linear infinite; }
+  .shell .icon svg .ico-chip-diamond { transform-origin: 14px 14px; animation: ico-spin 5s linear infinite; }
+  .shell .icon svg .ico-coin-front { transform-origin: 17px 17px; animation: ico-breathe 3.6s ease-in-out infinite; }
+  .shell .icon svg .ico-glove      { transform-origin: 13px 14px; animation: ico-jab 4.2s ease-out infinite; }
+  .shell .icon svg .ico-broom      { transform-origin: 14px 4px;  animation: ico-sweep 3.6s ease-in-out infinite; }
+  .shell .icon svg .ico-broom-spark { animation: ico-spark 3.6s ease-in-out infinite; }
+  .shell .icon svg .ico-env-top    { transform-origin: 15px 13.75px; animation: ico-lift 3s ease-in-out infinite; }
+  .shell .icon svg .ico-env-spark  { animation: ico-spark 3s ease-in-out infinite; }
+  .shell .icon svg .ico-script-cursor { animation: ico-cursor 1.6s ease-in-out infinite; }
+
+  /* Pause every icon animation while the embed is open — the grid is
+     fading out anyway and this avoids needless paint work behind it. */
+  .shell.app-open .icon svg * { animation-play-state: paused !important; }
+
+  /* Optional notification badge — kept in the stylesheet for future use */
+  .shell .icon .badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--accent);
+    color: #fffaf1;
+    font-size: 10.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.01em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1.5px solid rgba(246, 241, 231, 1);
+    box-shadow: 0 1px 3px rgba(164, 79, 48, 0.25);
+  }
+
+  /* ============================================================
+     FOOTER / VERSION
+     ============================================================ */
+
+  .shell .base {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .shell .version {
+    font-size: 9.5px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+    opacity: 0.7;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ============================================================
+     APP-OPEN STATE
+     When an embedded app opens, the shell's own content fades out
+     underneath the iframe overlay — the "app reveals from within
+     the mechanism" feel rather than a hard cut.
+     ============================================================ */
+  .shell.app-open > .greeting,
+  .shell.app-open > .grid,
+  .shell.app-open > .base {
+    opacity: 0;
+    transition: opacity 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+    pointer-events: none;
+  }
+
+  /* ============================================================
+     EMBED — how each app actually renders.
+     Fullscreen frosted-cream shell with a Home button, below the
+     iOS status area but above the mechanism. Fades in over the
+     last stretch of the launch zoom.
+     ============================================================ */
+
+  #embed.embed-shell {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-optimus-bg);
+    color: var(--color-optimus-text);
+    opacity: 0;
+    transition: opacity 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+  #embed.embed-shell.embed-open { opacity: 1; }
+
+  .embed-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    padding-top: max(env(safe-area-inset-top), 0.5rem);
+    border-bottom: 1px solid var(--color-optimus-border);
+    background: var(--color-optimus-surface);
+  }
+  .embed-home {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-optimus-border);
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-optimus-muted);
+    background: transparent;
+    cursor: pointer;
+    transition: color 180ms ease, border-color 180ms ease;
+  }
+  .embed-home:hover {
+    color: var(--color-optimus-text);
+    border-color: var(--color-optimus-accent);
+  }
+  .embed-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .embed-frame {
+    flex: 1 1 auto;
+    width: 100%;
+    border: 0;
+    background: var(--color-optimus-bg);
+  }
+
+  /* ============================================================
+     REDUCED MOTION
+     No camera dive, no yaw, no shimmers — just crossfades.
+     ============================================================ */
+  @media (prefers-reduced-motion: reduce) {
+    .shell > * { animation: none !important; opacity: 1 !important; transform: none !important; }
+    .shell .icon svg * { animation: none !important; transform: none !important; }
+    .watch-canvas { animation: none; opacity: 0.78; }
+    .shell.app-open > .greeting,
+    .shell.app-open > .grid,
+    .shell.app-open > .base {
+      transition: none;
+    }
+    #embed.embed-shell { transition: none; }
+  }
+
+  /* ============================================================
+     AUTH DIALOG
+     ============================================================ */
+
+  .co-dialog {
+    color: var(--color-optimus-ink);
+    background: var(--color-optimus-surface);
+    border: 1px solid var(--color-optimus-border-strong);
+    box-shadow:
+      0 30px 80px -20px rgba(var(--color-optimus-shadow), 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  }
+  .co-dialog::backdrop {
+    background: rgba(30, 22, 14, 0.35);
+    backdrop-filter: blur(6px);
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 0.85rem 1rem;
+    border-radius: 0.9rem;
+    border: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: white;
+    background: linear-gradient(
+      180deg,
+      var(--color-optimus-accent),
+      var(--color-optimus-accent-2)
+    );
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      0 8px 18px -8px color-mix(in oklab, var(--color-optimus-accent) 60%, transparent);
+    transition:
+      transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
+      box-shadow 200ms ease,
+      filter 180ms ease;
+    cursor: pointer;
+  }
+  .btn-primary:hover { filter: brightness(1.04); }
+  .btn-primary:active { transform: scale(0.985); }
+}
