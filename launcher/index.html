@@ -31,14 +31,15 @@
   </head>
   <body>
     <!--
-      Launcher home screen. The mechanical watch movement runs on
-      <canvas.watch-canvas> as ambient background; tapping a tile zooms
-      the camera toward the fourth wheel (gears[3]) and reveals the
-      embedded app once the zoom lands. Closing the app pulls the camera
-      back out and resumes the movement.
+      Launcher home screen. The page is a 3D flip-card:
+        • front — watch movement (<canvas.watch-canvas>) + shell (#app)
+        • back  — the embedded app (#embed, injected by app.js)
+      Boot sequence zooms the watch camera from 'wide' (full watch framed)
+      in to 'ambient' (plate fills viewport). Tapping a tile reverses
+      that — pull back to 'wide' — then flips the card 180° so the back
+      face (app) swings into view. Closing flips back and zooms in.
     -->
     <div class="bg-washes" aria-hidden="true"></div>
-    <canvas class="watch-canvas" aria-hidden="true"></canvas>
     <svg class="bg-noise" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
       <filter id="paperGrain">
         <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
@@ -51,7 +52,11 @@
       <rect width="100%" height="100%" filter="url(#paperGrain)"/>
     </svg>
 
-    <main id="app" class="shell" hidden>
+    <div class="flip-scene">
+      <div class="flip-card" id="flip-card">
+        <div class="flip-face flip-front">
+          <canvas class="watch-canvas" aria-hidden="true"></canvas>
+          <main id="app" class="shell is-booting" hidden>
       <!-- Greeting + meta row -->
       <div class="greeting">
         <p class="hello">
@@ -305,6 +310,10 @@
         </div>
       </div>
     </main>
+        </div><!-- /.flip-front -->
+        <div class="flip-face flip-back" id="flip-back"></div>
+      </div><!-- /.flip-card -->
+    </div><!-- /.flip-scene -->
 
     <!-- PAT auth gate -->
     <dialog
