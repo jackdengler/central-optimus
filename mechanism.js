@@ -342,20 +342,60 @@ export function startMovement(canvas) {
   }
 
   function drawPerlage(yaw) {
-    const rings = 5;
-    const perRing = 15;
+    // Light vector (unit-space): upper-left across the plate. Each spot
+    // brightens on its light-facing half and darkens on the shadow side,
+    // which is what sells perlage as machined circular graining rather
+    // than stamped dots.
+    const LIGHT_ANG = -Math.PI * 0.75;
+    const lightUx = Math.cos(LIGHT_ANG), lightUy = Math.sin(LIGHT_ANG);
+    const spot = 0.022 * R;
+    const offset = spot * 0.30;
+
+    const rings = 6;
     for (let ri = 1; ri <= rings; ri++) {
-      const rr = (ri / (rings + 0.5)) * 0.88;
-      for (let i = 0; i < perRing + ri * 2; i++) {
-        const a = (i / (perRing + ri * 2)) * Math.PI * 2 + yaw * 0.3;
-        const [x, y] = U(Math.cos(a) * rr, Math.sin(a) * rr, yaw);
-        const spot = 0.022 * R;
-        const front = 0.5 + 0.5 * Math.cos(a - yaw * 0.3 - 0.9);
-        ctx.strokeStyle = col(C.plateMid, 0.06 + front * 0.12);
-        ctx.lineWidth = front > 0.5 ? 0.75 : 0.5;
-        ctx.fillStyle  = col(C.plateHi, 0.02 + front * 0.05);
-        ctx.beginPath(); ctx.arc(x, y, spot, 0, Math.PI * 2);
-        ctx.fill(); ctx.stroke();
+      const rr = (ri / (rings + 0.5)) * 0.92;
+      const n  = Math.round(12 + ri * 4);
+      const stagger = (ri % 2) * (Math.PI / n); // offset every other row
+      for (let i = 0; i < n; i++) {
+        const a  = (i / n) * Math.PI * 2 + yaw * 0.3 + stagger;
+        const ux = Math.cos(a) * rr;
+        const uy = Math.sin(a) * rr;
+        const [x, y] = U(ux, uy, yaw);
+
+        // How much this spot faces the light (0 = back, 1 = front).
+        const facing = 0.5 + 0.5 * (
+          Math.cos(a - yaw * 0.3) * lightUx +
+          Math.sin(a - yaw * 0.3) * lightUy
+        );
+
+        // Shadow side: darker arc ring away from the light.
+        ctx.strokeStyle = col(C.shadow, 0.10 + (1 - facing) * 0.14);
+        ctx.lineWidth = 0.6;
+        ctx.beginPath();
+        ctx.arc(x, y, spot, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Lensed specular highlight, offset toward the light vector.
+        // Per-spot radial gradient centered on the light-side edge.
+        const hx = x + lightUx * offset;
+        const hy = y + lightUy * offset;
+        const sg = ctx.createRadialGradient(hx, hy, 0, x, y, spot * 1.15);
+        sg.addColorStop(0.0, col(C.plateHi, 0.08 + facing * 0.22));
+        sg.addColorStop(0.6, col(C.plateHi, 0.02 + facing * 0.06));
+        sg.addColorStop(1.0, col(C.plateHi, 0.00));
+        ctx.fillStyle = sg;
+        ctx.beginPath();
+        ctx.arc(x, y, spot, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Micro dark bite on the shadow rim (sells the recessed cup).
+        ctx.strokeStyle = col(C.shadow, 0.14 + (1 - facing) * 0.16);
+        ctx.lineWidth = 0.5;
+        ctx.beginPath();
+        ctx.arc(x, y, spot * 0.96,
+                LIGHT_ANG + Math.PI - 0.9,
+                LIGHT_ANG + Math.PI + 0.9);
+        ctx.stroke();
       }
     }
   }
@@ -373,23 +413,74 @@ export function startMovement(canvas) {
     ctx.closePath();
     ctx.clip();
 
-    const bands = 16;
-    const span = R * 1.6;
+    // Each stripe is a ridge — three parallel lines spanning the full
+    // frame: shadow trough on the light-facing side, bright peak on the
+    // ridge crown, shadow trough on the far side. Repeating those across
+    // the plate gives the banded sheen of real Côtes de Genève rather
+    // than a flat set of hairlines.
+    const bands = 22;
+    const span = R * 1.7;
+    // Light direction across the stripe (perpendicular to stripe axis).
+    // Stripes run along angle `yaw + π/2`; cross-stripe axis is `yaw`.
+    const cs = Math.cos(yaw), sn = Math.sin(yaw);
     for (let i = -bands; i <= bands; i++) {
       const offset = (i / bands) * span;
-      const x1 = cx - Math.cos(yaw) * span + Math.sin(yaw) * offset;
-      const y1 = cy - Math.sin(yaw) * span - Math.cos(yaw) * offset;
-      const x2 = cx + Math.cos(yaw) * span + Math.sin(yaw) * offset;
-      const y2 = cy + Math.sin(yaw) * span - Math.cos(yaw) * offset;
-      const grad = ctx.createLinearGradient(x1, y1, x2, y2);
-      grad.addColorStop(0.0, col(C.plateMid, 0.04));
-      grad.addColorStop(0.5, col(C.plateHi, 0.14));
-      grad.addColorStop(1.0, col(C.plateDark, 0.04));
-      ctx.strokeStyle = grad;
-      ctx.lineWidth = 1.0;
+      // Endpoints of the stripe centerline across the whole plate.
+      const cx0 = cx + sn * offset;
+      const cy0 = cy - cs * offset;
+      const x1 = cx0 - cs * span;
+      const y1 = cy0 - sn * span;
+      const x2 = cx0 + cs * span;
+      const y2 = cy0 + sn * span;
+
+      // Peak — bright specular crown of the ridge.
+      const peakGrad = ctx.createLinearGradient(x1, y1, x2, y2);
+      peakGrad.addColorStop(0.00, col(C.plateMid, 0.03));
+      peakGrad.addColorStop(0.50, col(C.plateHi,  0.22));
+      peakGrad.addColorStop(1.00, col(C.plateDark, 0.03));
+      ctx.strokeStyle = peakGrad;
+      ctx.lineWidth = 1.1;
       ctx.beginPath();
       ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
       ctx.stroke();
+
+      // Light-side trough — darker groove just above the peak.
+      const troughA = ctx.createLinearGradient(x1, y1, x2, y2);
+      troughA.addColorStop(0.00, col(C.shadow, 0.00));
+      troughA.addColorStop(0.50, col(C.shadow, 0.14));
+      troughA.addColorStop(1.00, col(C.shadow, 0.00));
+      ctx.strokeStyle = troughA;
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      ctx.moveTo(x1 + sn * 1.6, y1 - cs * 1.6);
+      ctx.lineTo(x2 + sn * 1.6, y2 - cs * 1.6);
+      ctx.stroke();
+
+      // Far-side trough — softer groove below the peak.
+      const troughB = ctx.createLinearGradient(x1, y1, x2, y2);
+      troughB.addColorStop(0.00, col(C.shadow, 0.00));
+      troughB.addColorStop(0.50, col(C.shadow, 0.10));
+      troughB.addColorStop(1.00, col(C.shadow, 0.00));
+      ctx.strokeStyle = troughB;
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(x1 - sn * 1.6, y1 + cs * 1.6);
+      ctx.lineTo(x2 - sn * 1.6, y2 + cs * 1.6);
+      ctx.stroke();
+
+      // Subtle secondary highlight hairline on the light side.
+      if (i % 2 === 0) {
+        const faint = ctx.createLinearGradient(x1, y1, x2, y2);
+        faint.addColorStop(0.00, col(C.plateHi, 0.00));
+        faint.addColorStop(0.50, col(C.plateHi, 0.09));
+        faint.addColorStop(1.00, col(C.plateHi, 0.00));
+        ctx.strokeStyle = faint;
+        ctx.lineWidth = 0.4;
+        ctx.beginPath();
+        ctx.moveTo(x1 + sn * 0.8, y1 - cs * 0.8);
+        ctx.lineTo(x2 + sn * 0.8, y2 - cs * 0.8);
+        ctx.stroke();
+      }
     }
     ctx.restore();
   }
@@ -406,30 +497,125 @@ export function startMovement(canvas) {
   }
 
   function drawBridges(yaw) {
-    for (const br of bridges) {
+    // Walk a bridge's polyline once; for each call emit moveTo/lineTo in
+    // screen space. Used for the body, drop shadow, and anglage layers.
+    const tracePath = (br, dx = 0, dy = 0) => {
       ctx.beginPath();
       for (let i = 0; i < br.points.length; i++) {
         const [x, y] = U(br.points[i][0], br.points[i][1], yaw);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        if (i === 0) ctx.moveTo(x + dx, y + dy);
+        else         ctx.lineTo(x + dx, y + dy);
       }
-      ctx.strokeStyle = col(C.plateMid, 0.18);
-      ctx.lineWidth = br.width * R;
+    };
+
+    for (const br of bridges) {
+      const w = br.width * R;
+
+      // 1. Cast shadow — offset south-east, soft + wider than the bridge.
+      tracePath(br, w * 0.10, w * 0.18);
+      ctx.strokeStyle = col(C.shadow, 0.22);
+      ctx.lineWidth = w * 1.06;
       ctx.lineJoin = "round"; ctx.lineCap = "round";
       ctx.stroke();
 
-      ctx.strokeStyle = col(C.plateHi, 0.32);
-      ctx.lineWidth = Math.max(0.8, br.width * R * 0.18);
+      // 2. Body — warm taupe with a faint lengthwise gradient so each
+      //    bridge reads as a machined plate, not a flat stroke.
+      const p0 = U(br.points[0][0], br.points[0][1], yaw);
+      const pN = U(br.points[br.points.length - 1][0],
+                   br.points[br.points.length - 1][1], yaw);
+      const bodyGrad = ctx.createLinearGradient(p0[0], p0[1], pN[0], pN[1]);
+      bodyGrad.addColorStop(0.00, col(C.plateMid, 0.24));
+      bodyGrad.addColorStop(0.50, col(C.plateMid, 0.14));
+      bodyGrad.addColorStop(1.00, col(C.plateMid, 0.22));
+      tracePath(br);
+      ctx.strokeStyle = bodyGrad;
+      ctx.lineWidth = w;
       ctx.stroke();
 
-      ctx.strokeStyle = col(C.shadow, 0.18);
-      ctx.lineWidth = Math.max(0.5, br.width * R * 0.08);
+      // 3. Anglage — polished bevels on both edges of the bridge.
+      //    Highlight on the upper-left edge, shadow on the lower-right,
+      //    plus a hairline shadow hugging each edge.
+      const edgeOff = w * 0.42;
+      for (let i = 0; i < br.points.length - 1; i++) {
+        const [x1, y1] = U(br.points[i][0],     br.points[i][1],     yaw);
+        const [x2, y2] = U(br.points[i + 1][0], br.points[i + 1][1], yaw);
+        const tx = x2 - x1, ty = y2 - y1;
+        const len = Math.hypot(tx, ty) || 1;
+        const nx = -ty / len, ny = tx / len;
+        // Highlight edge.
+        ctx.strokeStyle = col(C.plateHi, 0.40);
+        ctx.lineWidth = Math.max(0.6, w * 0.09);
+        ctx.beginPath();
+        ctx.moveTo(x1 + nx * edgeOff, y1 + ny * edgeOff);
+        ctx.lineTo(x2 + nx * edgeOff, y2 + ny * edgeOff);
+        ctx.stroke();
+        // Shadow edge.
+        ctx.strokeStyle = col(C.shadow, 0.38);
+        ctx.lineWidth = Math.max(0.5, w * 0.08);
+        ctx.beginPath();
+        ctx.moveTo(x1 - nx * edgeOff, y1 - ny * edgeOff);
+        ctx.lineTo(x2 - nx * edgeOff, y2 - ny * edgeOff);
+        ctx.stroke();
+      }
+
+      // 4. Centerline highlight — polished spine catching light.
+      tracePath(br);
+      ctx.strokeStyle = col(C.plateHi, 0.22);
+      ctx.lineWidth = Math.max(0.8, w * 0.14);
       ctx.stroke();
 
+      // 5. Endpoint screws — use the actual screw renderer, not a flat
+      //    shadow dot. Countersunk well first, then screw on top.
       for (const [u, v] of [br.points[0], br.points[br.points.length - 1]]) {
         const [x, y] = U(u, v, yaw);
-        ctx.fillStyle = col(C.shadow, 0.35);
-        ctx.beginPath(); ctx.arc(x, y, br.width * R * 0.42, 0, Math.PI * 2); ctx.fill();
+        const wellR   = w * 0.52;
+        const screwR  = w * 0.30;
+        // Counter-sink well.
+        const well = ctx.createRadialGradient(
+          x - wellR * 0.25, y - wellR * 0.25, wellR * 0.2,
+          x, y, wellR,
+        );
+        well.addColorStop(0.00, col(C.plateDark, 0.00));
+        well.addColorStop(0.75, col(C.plateDark, 0.00));
+        well.addColorStop(1.00, col(C.shadow,    0.45));
+        ctx.fillStyle = well;
+        ctx.beginPath(); ctx.arc(x, y, wellR, 0, Math.PI * 2); ctx.fill();
+        drawBluedScrew(x, y, screwR, Math.atan2(v, u) + 0.6);
       }
+    }
+
+    // 6. Engraved caliber label on the train bridge — tiny caps along
+    //    the bridge centerline, each character rotated to the tangent.
+    const trainBridge = bridges[2];
+    if (trainBridge) {
+      const pts = trainBridge.points;
+      const text = "ETA 2824·2";
+      const fontPx = Math.max(6, trainBridge.width * R * 0.42);
+      ctx.save();
+      ctx.font = `600 ${fontPx}px -apple-system, system-ui, "Helvetica Neue", sans-serif`;
+      ctx.fillStyle = col(C.shadow, 0.55);
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const tStart = 0.30, tEnd = 0.70;
+      for (let i = 0; i < text.length; i++) {
+        const tt  = tStart + ((tEnd - tStart) * (i + 0.5)) / text.length;
+        const idx = tt * (pts.length - 1);
+        const i0  = Math.max(0, Math.floor(idx));
+        const i1  = Math.min(i0 + 1, pts.length - 1);
+        const f   = idx - i0;
+        const u   = pts[i0][0] + (pts[i1][0] - pts[i0][0]) * f;
+        const v   = pts[i0][1] + (pts[i1][1] - pts[i0][1]) * f;
+        const [x, y]   = U(u, v, yaw);
+        const [nxS, nyS] = U(pts[i1][0], pts[i1][1], yaw);
+        const [pxS, pyS] = U(pts[i0][0], pts[i0][1], yaw);
+        const ang = Math.atan2(nyS - pyS, nxS - pxS);
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(ang);
+        ctx.fillText(text[i], 0, 0);
+        ctx.restore();
+      }
+      ctx.restore();
     }
   }
 
@@ -444,6 +630,19 @@ export function startMovement(canvas) {
 
     const wR = g.wheelR  * R;
     const pR = g.pinionR * R;
+
+    // Cast shadow beneath the wheel — offset south-east, soft falloff.
+    const shadowOff = wR * 0.10;
+    const shadowGrad = ctx.createRadialGradient(
+      sx + shadowOff, sy + shadowOff * 1.2, wR * 0.4,
+      sx + shadowOff, sy + shadowOff * 1.2, wR * 1.12,
+    );
+    shadowGrad.addColorStop(0.0, col(C.shadow, 0.22));
+    shadowGrad.addColorStop(1.0, col(C.shadow, 0.00));
+    ctx.fillStyle = shadowGrad;
+    ctx.beginPath();
+    ctx.arc(sx + shadowOff, sy + shadowOff * 1.2, wR * 1.12, 0, Math.PI * 2);
+    ctx.fill();
 
     // Wheel body.
     const body = ctx.createRadialGradient(sx - wR * 0.3, sy - wR * 0.3, 0, sx, sy, wR);
@@ -509,6 +708,37 @@ export function startMovement(canvas) {
       }
       ctx.closePath();
       ctx.fill(); ctx.stroke();
+    }
+
+    // Sunburst face finish — fine radial hairlines from hub to rim,
+    // clipped to the wheel body. Common "soleillage" finish on polished
+    // train wheels. Skip escape wheels (raw steel, not decorated) and
+    // the barrel (its face is covered by the mainspring spiral).
+    if (g.kind !== "escape" && g.kind !== "barrel") {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(sx, sy, wR * 0.90, 0, Math.PI * 2);
+      ctx.clip();
+      const rays = 96;
+      ctx.strokeStyle = col(C.plateHi, 0.06);
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i < rays; i++) {
+        const a = angle + (i / rays) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + Math.cos(a) * wR * 0.90, sy + Math.sin(a) * wR * 0.90);
+        ctx.stroke();
+      }
+      // Darker counter-rays at half density for texture contrast.
+      ctx.strokeStyle = col(C.shadow, 0.06);
+      for (let i = 0; i < rays / 2; i++) {
+        const a = angle + ((i + 0.5) / (rays / 2)) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + Math.cos(a) * wR * 0.90, sy + Math.sin(a) * wR * 0.90);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
 
     // Spokes (gear wheels, not escape, not barrel — barrel gets a
@@ -735,26 +965,52 @@ export function startMovement(canvas) {
     ctx.translate(px, py);
     ctx.rotate(toBalance + ang);
 
-    // Anchor-shaped lever body.
-    ctx.fillStyle = col(C.steel, 0.62);
-    ctx.strokeStyle = col(C.shadow, 0.70);
+    // Anchor-shaped lever body. Drawn twice: a gold-plate undercoat
+    // tint first (real Swiss levers are usually gilded or rhodium-
+    // plated), then the polished steel face on top, which lets the
+    // warm metal bleed at the edges and reads as plating.
+    const leverPath = () => {
+      ctx.beginPath();
+      ctx.moveTo( forkR,        -W2 * 1.3);
+      ctx.lineTo( forkR * 1.10,  0);
+      ctx.lineTo( forkR,         W2 * 1.3);
+      ctx.lineTo( W2 * 0.8,      W2 * 0.5);
+      ctx.lineTo(-W2 * 0.8,      W2 * 0.5);
+      ctx.lineTo(-L * 0.95,      L * 0.48);
+      ctx.lineTo(-L * 1.05,      L * 0.38);
+      ctx.lineTo(-L * 0.25,      W2 * 0.4);
+      ctx.lineTo(-L * 0.25,     -W2 * 0.4);
+      ctx.lineTo(-L * 1.05,     -L * 0.38);
+      ctx.lineTo(-L * 0.95,     -L * 0.48);
+      ctx.lineTo(-W2 * 0.8,     -W2 * 0.5);
+      ctx.lineTo( W2 * 0.8,     -W2 * 0.5);
+      ctx.closePath();
+    };
+    // Gold-plate undercoat (warm base bleeds through at edges).
+    leverPath();
+    ctx.fillStyle = col(C.gold, 0.55);
+    ctx.fill();
+    // Steel face, slightly inset by the 0.8 stroke width so a thin
+    // gold rim stays visible around the perimeter.
+    leverPath();
+    const bodyGrad = ctx.createLinearGradient(0, -L * 0.5, 0, L * 0.5);
+    bodyGrad.addColorStop(0.0, col(C.steel, 0.70));
+    bodyGrad.addColorStop(0.5, col(C.steel, 0.55));
+    bodyGrad.addColorStop(1.0, col(C.steel, 0.72));
+    ctx.fillStyle = bodyGrad;
+    ctx.fill();
+    // Anglage — dark outline + thin inner highlight hugging the edge.
+    ctx.strokeStyle = col(C.shadow, 0.72);
     ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    ctx.moveTo( forkR,        -W2 * 1.3);
-    ctx.lineTo( forkR * 1.10,  0);
-    ctx.lineTo( forkR,         W2 * 1.3);
-    ctx.lineTo( W2 * 0.8,      W2 * 0.5);
-    ctx.lineTo(-W2 * 0.8,      W2 * 0.5);
-    ctx.lineTo(-L * 0.95,      L * 0.48);
-    ctx.lineTo(-L * 1.05,      L * 0.38);
-    ctx.lineTo(-L * 0.25,      W2 * 0.4);
-    ctx.lineTo(-L * 0.25,     -W2 * 0.4);
-    ctx.lineTo(-L * 1.05,     -L * 0.38);
-    ctx.lineTo(-L * 0.95,     -L * 0.48);
-    ctx.lineTo(-W2 * 0.8,     -W2 * 0.5);
-    ctx.lineTo( W2 * 0.8,     -W2 * 0.5);
-    ctx.closePath();
-    ctx.fill(); ctx.stroke();
+    ctx.stroke();
+    ctx.save();
+    leverPath();
+    ctx.clip();
+    leverPath();
+    ctx.strokeStyle = col(C.plateHi, 0.28);
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+    ctx.restore();
 
     // Fork notch (receives balance impulse jewel).
     ctx.fillStyle = col(C.shadow, 0.25);
@@ -766,30 +1022,63 @@ export function startMovement(canvas) {
     ctx.closePath();
     ctx.fill();
 
-    // Guard pin.
-    ctx.fillStyle = col(C.steel, 0.80);
-    ctx.beginPath(); ctx.arc(forkR * 0.68, 0, W2 * 0.25, 0, Math.PI * 2); ctx.fill();
+    // Guard pin — a dowel with a bright polished tip.
+    const gpX = forkR * 0.68, gpR = W2 * 0.25;
+    const gpGrad = ctx.createRadialGradient(
+      gpX - gpR * 0.35, -gpR * 0.35, 0, gpX, 0, gpR,
+    );
+    gpGrad.addColorStop(0.0, col(C.plateHi, 0.55));
+    gpGrad.addColorStop(0.7, col(C.steel,   0.75));
+    gpGrad.addColorStop(1.0, col(C.shadow,  0.70));
+    ctx.fillStyle = gpGrad;
+    ctx.beginPath(); ctx.arc(gpX, 0, gpR, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = col(C.shadow, 0.70);
+    ctx.lineWidth = 0.4;
+    ctx.stroke();
 
-    // Pallet stones (entry + exit). Different angles because real
-    // entry/exit lock geometries aren't identical on a Swiss lever.
+    // Pallet stones: entry is marginally longer than exit (Swiss lever
+    // asymmetry) and the two sit at slightly different lock angles.
+    // Both are polished synthetic ruby with a gold setting tint.
     const stones = [
-      { x: -L * 1.02, y: -L * 0.42, angle: -0.35 },
-      { x: -L * 1.02, y:  L * 0.42, angle:  0.52 },
+      { x: -L * 1.02, y: -L * 0.42, angle: -0.35, w: 1.10, h: 0.90 }, // entry
+      { x: -L * 1.02, y:  L * 0.42, angle:  0.52, w: 0.95, h: 0.85 }, // exit
     ];
     for (const p of stones) {
       ctx.save();
       ctx.translate(p.x, p.y);
       ctx.rotate(p.angle);
-      ctx.fillStyle = col(C.ruby, 0.88);
+      // Gold setting frame.
+      ctx.fillStyle = col(C.gold, 0.70);
+      ctx.beginPath();
+      ctx.rect(-W2 * 0.58 * p.w, -W2 * 0.52 * p.h,
+                W2 * 1.16 * p.w,  W2 * 1.04 * p.h);
+      ctx.fill();
+      // Ruby stone body with lengthwise gradient.
+      const rubyGrad = ctx.createLinearGradient(-W2 * 0.5 * p.w, 0, W2 * 0.5 * p.w, 0);
+      rubyGrad.addColorStop(0.00, "rgba(128, 54, 30, 0.95)");
+      rubyGrad.addColorStop(0.40, col(C.ruby, 0.92));
+      rubyGrad.addColorStop(0.75, "rgba(218, 142, 108, 0.95)");
+      rubyGrad.addColorStop(1.00, "rgba(128, 54, 30, 0.95)");
+      ctx.fillStyle = rubyGrad;
       ctx.strokeStyle = col(C.shadow, 0.75);
       ctx.lineWidth = 0.6;
       ctx.beginPath();
-      ctx.rect(-W2 * 0.5, -W2 * 0.45, W2 * 1.0, W2 * 0.9);
+      ctx.rect(-W2 * 0.5 * p.w, -W2 * 0.45 * p.h,
+                W2 * 1.0 * p.w,  W2 * 0.90 * p.h);
       ctx.fill(); ctx.stroke();
-      ctx.fillStyle = "rgba(255, 230, 220, 0.45)";
+      // Specular highlight along the impulse face (upper-inner edge).
+      ctx.fillStyle = "rgba(255, 235, 215, 0.55)";
       ctx.beginPath();
-      ctx.rect(-W2 * 0.35, -W2 * 0.35, W2 * 0.25, W2 * 0.2);
+      ctx.rect(-W2 * 0.40 * p.w, -W2 * 0.40 * p.h,
+                W2 * 0.30 * p.w,  W2 * 0.18 * p.h);
       ctx.fill();
+      // Impulse face edge — thin bright line on the working surface.
+      ctx.strokeStyle = "rgba(255, 220, 195, 0.60)";
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(-W2 * 0.48 * p.w, -W2 * 0.44 * p.h);
+      ctx.lineTo( W2 * 0.48 * p.w, -W2 * 0.44 * p.h);
+      ctx.stroke();
       ctx.restore();
     }
 
@@ -840,11 +1129,51 @@ export function startMovement(canvas) {
       const studA = turns * Math.PI * 2 + ang;
       const studX = Math.cos(studA) * outerR * breathe;
       const studY = Math.sin(studA) * outerR * breathe;
-      ctx.fillStyle = col(C.gold, 0.75);
-      ctx.beginPath(); ctx.arc(studX, studY, rr * 0.022, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = col(C.shadow, 0.70);
+      // Stud block — rectangular gold carrier that pins the spring's
+      // outer end to the balance cock. More prominent than a bare dot.
+      ctx.save();
+      ctx.translate(studX, studY);
+      ctx.rotate(studA + Math.PI / 2);
+      const studW = rr * 0.060, studH = rr * 0.040;
+      const studGrad = ctx.createLinearGradient(0, -studH, 0, studH);
+      studGrad.addColorStop(0.0, col(C.gold, 0.85));
+      studGrad.addColorStop(0.5, col(C.gold, 0.60));
+      studGrad.addColorStop(1.0, col(C.shadow, 0.70));
+      ctx.fillStyle = studGrad;
+      ctx.fillRect(-studW / 2, -studH / 2, studW, studH);
+      ctx.strokeStyle = col(C.shadow, 0.75);
       ctx.lineWidth = 0.4;
-      ctx.stroke();
+      ctx.strokeRect(-studW / 2, -studH / 2, studW, studH);
+      // Tiny fixing screw in the stud.
+      ctx.fillStyle = col(C.steelBlue, 0.85);
+      ctx.beginPath();
+      ctx.arc(0, 0, rr * 0.012, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Regulator curb pins — two blued pins straddling the outer coil
+      // just before the stud. Moving the regulator slides these along
+      // the spring to change the effective length (and thus rate).
+      const curbA = studA - 0.28;
+      const curbR = outerR * 0.98 * breathe;
+      const curbTx = -Math.sin(curbA), curbTy = Math.cos(curbA);
+      const curbGap = rr * 0.018;
+      for (const side of [-1, 1]) {
+        const cpx = Math.cos(curbA) * curbR + curbTx * side * curbGap;
+        const cpy = Math.sin(curbA) * curbR + curbTy * side * curbGap;
+        const cpr = rr * 0.012;
+        const cpGrad = ctx.createRadialGradient(
+          cpx - cpr * 0.3, cpy - cpr * 0.3, 0, cpx, cpy, cpr,
+        );
+        cpGrad.addColorStop(0, col(C.plateHi,   0.45));
+        cpGrad.addColorStop(1, col(C.steelBlue, 0.90));
+        ctx.fillStyle = cpGrad;
+        ctx.beginPath(); ctx.arc(cpx, cpy, cpr, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = col(C.shadow, 0.65);
+        ctx.lineWidth = 0.3;
+        ctx.stroke();
+      }
+
       // Regulator index marks.
       ctx.strokeStyle = col(C.shadow, 0.45);
       ctx.lineWidth = 0.5;
@@ -1100,6 +1429,16 @@ export function startMovement(canvas) {
     ctx.stroke();
     ctx.restore();
 
+    // Tight specular hot-spot — the wet dome peak. Small, intense,
+    // offset toward the light. This is what makes a ruby read as
+    // polished corundum instead of a painted circle.
+    const hotX = x - s * 0.32, hotY = y - s * 0.35;
+    const hot = ctx.createRadialGradient(hotX, hotY, 0, hotX, hotY, s * 0.30);
+    hot.addColorStop(0.0, "rgba(255, 240, 225, 0.82)");
+    hot.addColorStop(1.0, "rgba(255, 240, 225, 0.00)");
+    ctx.fillStyle = hot;
+    ctx.beginPath(); ctx.arc(hotX, hotY, s * 0.30, 0, Math.PI * 2); ctx.fill();
+
     // Rim shadow on the opposite side — sells the dome curvature.
     ctx.save();
     ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI * 2); ctx.clip();
@@ -1107,6 +1446,18 @@ export function startMovement(canvas) {
     ctx.lineWidth = Math.max(0.5, s * 0.10);
     ctx.beginPath();
     ctx.arc(x, y, s * 0.92, Math.PI * 0.1, Math.PI * 0.85);
+    ctx.stroke();
+    ctx.restore();
+
+    // Secondary (Fresnel) rim reflection — a faint bounce of light
+    // along the shadow-side rim. On a real cabochon this is light
+    // grazing around the dome's shoulder.
+    ctx.save();
+    ctx.beginPath(); ctx.arc(x, y, s, 0, Math.PI * 2); ctx.clip();
+    ctx.strokeStyle = "rgba(255, 195, 165, 0.28)";
+    ctx.lineWidth = Math.max(0.4, s * 0.06);
+    ctx.beginPath();
+    ctx.arc(x, y, s * 0.94, Math.PI * 0.25, Math.PI * 0.72);
     ctx.stroke();
     ctx.restore();
 
@@ -1167,17 +1518,31 @@ export function startMovement(canvas) {
     ctx.lineWidth = 0.6;
     ctx.beginPath(); ctx.arc(x, y, r - 0.3, 0, Math.PI * 2); ctx.stroke();
 
-    // Slot.
+    // Slot — recessed groove. Inner gradient so the slot reads as
+    // cut into the head, not painted on. Highlight on the upper lip,
+    // deeper shadow on the lower lip.
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(slotAngle);
     const slotW = Math.max(0.9, r * 0.16);
     const slotL = r * 0.80;
-    ctx.fillStyle = "rgba(28, 18, 10, 0.92)";
+    const slotGrad = ctx.createLinearGradient(0, -slotW / 2, 0, slotW / 2);
+    slotGrad.addColorStop(0.00, "rgba(12, 6, 2, 0.96)");
+    slotGrad.addColorStop(0.45, "rgba(34, 22, 12, 0.92)");
+    slotGrad.addColorStop(1.00, "rgba(60, 42, 26, 0.85)");
+    ctx.fillStyle = slotGrad;
     ctx.beginPath();
     ctx.rect(-slotL, -slotW / 2, slotL * 2, slotW);
     ctx.fill();
-    ctx.strokeStyle = "rgba(12, 8, 4, 0.45)";
+    // Upper lip — polished edge catching light.
+    ctx.strokeStyle = "rgba(245, 225, 195, 0.40)";
+    ctx.lineWidth = 0.45;
+    ctx.beginPath();
+    ctx.moveTo(-slotL, -slotW / 2);
+    ctx.lineTo( slotL, -slotW / 2);
+    ctx.stroke();
+    // Lower lip — shadow edge.
+    ctx.strokeStyle = "rgba(8, 4, 2, 0.55)";
     ctx.lineWidth = 0.4;
     ctx.beginPath();
     ctx.moveTo(-slotL, slotW / 2);
@@ -1647,66 +2012,87 @@ export function startMovement(canvas) {
      ends. This is how gold/steel catches light when a camera pans
      across a fine movement. */
   function drawShimmers(yaw) {
+    // Sample the bridge polyline at t, returning the screen-space
+    // position plus the local tangent + normal vectors. Shimmers ride
+    // the bevel edge (offset along the normal), not the centerline.
+    const sample = (pts, t) => {
+      const totalIdx = pts.length - 1;
+      const idx = Math.max(0, Math.min(totalIdx - 0.0001, t * totalIdx));
+      const i0 = Math.floor(idx);
+      const i1 = Math.min(i0 + 1, totalIdx);
+      const f  = idx - i0;
+      const u  = pts[i0][0] + (pts[i1][0] - pts[i0][0]) * f;
+      const v  = pts[i0][1] + (pts[i1][1] - pts[i0][1]) * f;
+      const [x, y]   = U(u, v, yaw);
+      const [x2, y2] = U(pts[i1][0], pts[i1][1], yaw);
+      const [x0, y0] = U(pts[i0][0], pts[i0][1], yaw);
+      const tx = x2 - x0, ty = y2 - y0;
+      const tl = Math.hypot(tx, ty) || 1;
+      return { x, y, tx: tx / tl, ty: ty / tl, nx: -ty / tl, ny: tx / tl };
+    };
+
     for (const sh of shimmers) {
       const br = bridges[sh.bridgeIdx];
       const pts = br.points;
-      const totalIdx = pts.length - 1;
       const headT = sh.t;
-      const streakLen = 0.12;
-      const width = Math.max(1.0, br.width * R * 0.22);
+      const streakLen = 0.10;
+      const width = Math.max(1.0, br.width * R * 0.20);
+      // Offset from centerline to the highlight bevel edge.
+      const bevelOff = br.width * R * 0.38;
 
-      const samples = 20;
+      const samples = 16;
       for (let i = 0; i < samples; i++) {
         const tt = (i + 0.5) / samples;
         const pathT = headT - streakLen + tt * streakLen;
         if (pathT < 0 || pathT > 1) continue;
 
-        const idx = pathT * totalIdx;
-        const i0 = Math.max(0, Math.floor(idx));
-        const i1 = Math.min(i0 + 1, totalIdx);
-        const f = idx - i0;
-        const u = pts[i0][0] + (pts[i1][0] - pts[i0][0]) * f;
-        const v = pts[i0][1] + (pts[i1][1] - pts[i0][1]) * f;
-        const [x, y] = U(u, v, yaw);
+        const s = sample(pts, pathT);
+        const px = s.x + s.nx * bevelOff;
+        const py = s.y + s.ny * bevelOff;
 
-        const envelope = Math.pow(tt, 1.6) * Math.pow(1 - (1 - tt) * 0.05, 6);
-        const coreR = width * (0.35 + envelope * 0.5);
-        const coreGrad = ctx.createRadialGradient(x, y, 0, x, y, coreR);
+        const envelope = Math.pow(tt, 1.8) * Math.pow(1 - (1 - tt) * 0.05, 6);
+        // Elongated along the tangent — elliptical, not round.
+        const lenR = width * (0.6 + envelope * 1.2);
+        const wideR = width * (0.20 + envelope * 0.28);
+        const ang = Math.atan2(s.ty, s.tx);
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(ang);
+        const coreGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, lenR);
         if (sh.hue === "gold") {
-          coreGrad.addColorStop(0,   `rgba(255, 240, 210, ${0.85 * envelope})`);
-          coreGrad.addColorStop(0.4, col(C.gold, 0.55 * envelope));
+          coreGrad.addColorStop(0,   `rgba(255, 240, 210, ${0.90 * envelope})`);
+          coreGrad.addColorStop(0.45, col(C.gold, 0.55 * envelope));
           coreGrad.addColorStop(1,   col(C.gold, 0));
         } else {
-          coreGrad.addColorStop(0,   `rgba(255, 220, 225, ${0.80 * envelope})`);
-          coreGrad.addColorStop(0.4, col(C.rubyHalo, 0.55 * envelope));
+          coreGrad.addColorStop(0,   `rgba(255, 220, 225, ${0.85 * envelope})`);
+          coreGrad.addColorStop(0.45, col(C.rubyHalo, 0.55 * envelope));
           coreGrad.addColorStop(1,   col(C.rubyHalo, 0));
         }
         ctx.fillStyle = coreGrad;
-        ctx.beginPath(); ctx.arc(x, y, coreR, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(0, 0, lenR, wideR, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
       }
 
-      // Head bright spot — peak of the specular reflection.
+      // Head bright spot — tight specular peak at the leading edge.
       if (headT >= 0 && headT <= 1) {
-        const idx = headT * totalIdx;
-        const i0 = Math.max(0, Math.floor(idx));
-        const i1 = Math.min(i0 + 1, totalIdx);
-        const f = idx - i0;
-        const u = pts[i0][0] + (pts[i1][0] - pts[i0][0]) * f;
-        const v = pts[i0][1] + (pts[i1][1] - pts[i0][1]) * f;
-        const [x, y] = U(u, v, yaw);
-        const headR = width * 1.2;
-        const glow = ctx.createRadialGradient(x, y, 0, x, y, headR);
+        const s = sample(pts, headT);
+        const hx = s.x + s.nx * bevelOff;
+        const hy = s.y + s.ny * bevelOff;
+        const headR = width * 0.95;
+        const glow = ctx.createRadialGradient(hx, hy, 0, hx, hy, headR);
         if (sh.hue === "gold") {
-          glow.addColorStop(0,   "rgba(255, 248, 220, 0.95)");
-          glow.addColorStop(0.3, col(C.gold, 0.75));
+          glow.addColorStop(0,   "rgba(255, 248, 220, 0.98)");
+          glow.addColorStop(0.3, col(C.gold, 0.80));
           glow.addColorStop(1,   col(C.gold, 0));
         } else {
-          glow.addColorStop(0,   "rgba(255, 230, 230, 0.95)");
-          glow.addColorStop(0.3, col(C.rubyHalo, 0.70));
+          glow.addColorStop(0,   "rgba(255, 230, 230, 0.96)");
+          glow.addColorStop(0.3, col(C.rubyHalo, 0.75));
           glow.addColorStop(1,   col(C.rubyHalo, 0));
         }
         ctx.fillStyle = glow;
-        ctx.beginPath(); ctx.arc(x, y, headR, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(hx, hy, headR, 0, Math.PI * 2); ctx.fill();
       }
     }
   }
