@@ -334,6 +334,46 @@
     color: var(--ink);
   }
 
+  /* ============================================================
+     APP ICON ANIMATIONS
+     Each tile carries one micro-animation that plays continuously.
+     Slow + low-amplitude so they don't compete with the mechanism.
+     Paused while an app embed is open and on prefers-reduced-motion.
+     ============================================================ */
+
+  @keyframes ico-spin       { to { transform: rotate(360deg); } }
+  @keyframes ico-breathe    { 0%, 100% { transform: scale(1); }     50% { transform: scale(1.05); } }
+  @keyframes ico-jab        { 0%, 60%, 100% { transform: translateX(0); } 25%, 40% { transform: translateX(1.4px); } }
+  @keyframes ico-sweep      { 0%, 100% { transform: rotate(-9deg); } 50% { transform: rotate(9deg); } }
+  @keyframes ico-spark      { 0%, 35%, 100% { opacity: 0; } 55%, 80% { opacity: 0.9; } }
+  @keyframes ico-lift       { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-0.8px); } }
+  @keyframes ico-cursor     { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .shell .icon svg .ico-cam-reel-l,
+  .shell .icon svg .ico-cam-reel-r,
+  .shell .icon svg .ico-chip-diamond,
+  .shell .icon svg .ico-coin-front,
+  .shell .icon svg .ico-glove,
+  .shell .icon svg .ico-broom,
+  .shell .icon svg .ico-env-top {
+    transform-box: view-box;
+  }
+
+  .shell .icon svg .ico-cam-reel-l { transform-origin: 9px 8px;  animation: ico-spin 4s linear infinite; }
+  .shell .icon svg .ico-cam-reel-r { transform-origin: 18px 8px; animation: ico-spin 5.2s linear infinite; }
+  .shell .icon svg .ico-chip-diamond { transform-origin: 14px 14px; animation: ico-spin 5s linear infinite; }
+  .shell .icon svg .ico-coin-front { transform-origin: 17px 17px; animation: ico-breathe 3.6s ease-in-out infinite; }
+  .shell .icon svg .ico-glove      { transform-origin: 13px 14px; animation: ico-jab 4.2s ease-out infinite; }
+  .shell .icon svg .ico-broom      { transform-origin: 14px 4px;  animation: ico-sweep 3.6s ease-in-out infinite; }
+  .shell .icon svg .ico-broom-spark { animation: ico-spark 3.6s ease-in-out infinite; }
+  .shell .icon svg .ico-env-top    { transform-origin: 15px 13.75px; animation: ico-lift 3s ease-in-out infinite; }
+  .shell .icon svg .ico-env-spark  { animation: ico-spark 3s ease-in-out infinite; }
+  .shell .icon svg .ico-script-cursor { animation: ico-cursor 1.6s ease-in-out infinite; }
+
+  /* Pause every icon animation while the embed is open — the grid is
+     fading out anyway and this avoids needless paint work behind it. */
+  .shell.app-open .icon svg * { animation-play-state: paused !important; }
+
   /* Optional notification badge — kept in the stylesheet for future use */
   .shell .icon .badge {
     position: absolute;
@@ -459,6 +499,7 @@
      ============================================================ */
   @media (prefers-reduced-motion: reduce) {
     .shell > * { animation: none !important; opacity: 1 !important; transform: none !important; }
+    .shell .icon svg * { animation: none !important; transform: none !important; }
     .watch-canvas { animation: none; opacity: 0.78; }
     .shell.app-open > .greeting,
     .shell.app-open > .grid,
