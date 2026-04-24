@@ -2645,37 +2645,55 @@ export function startMovement(canvas) {
   }
   requestAnimationFrame(frame);
 
-  /* ===== Peek easter egg — hit test on the barrel ratchet screw =====
-     The slotted screw at the centre of the ratchet (on top of the
-     barrel arbor) is the hidden handle. Press-and-hold tweens the
+  /* ===== Peek easter egg — hit test on the train bridge's escape-end
+     screw. At ambient zoom, the barrel-side screws sit above the top
+     of the viewport, so we anchor the gesture to a screw that's
+     reliably rendered inside the visible corridor: the countersunk
+     blued screw at the escape-wheel end of the train bridge, roughly
+     right-of-center on the composition. Press-and-hold tweens the
      camera to the 'wide' preset (whole plate framed); release tweens
      back to 'ambient'. Hit radius is generous (~3× the visual) so
      fingers can find it. */
-  const hitRatchetScrew = (ex, ey) => {
-    const bg = gears[0];
-    const [bcx, bcy] = U(bg.x, bg.y, yaw);
-    const ratchetR = 0.088 * R;
-    const visualR  = ratchetR * 0.18;
-    const hitR     = Math.max(22, visualR * 3.0);
-    const dx = ex - bcx, dy = ey - bcy;
+  const peekScrewUV = () => {
+    // bridges[2] = train bridge. Its endpoint array's last entry is
+    // the escape-end; this is where drawBridges renders a drawBluedScrew
+    // inside a countersunk well.
+    const tb = bridges[2];
+    const pts = tb.points;
+    return pts[pts.length - 1];
+  };
+
+  const hitPeekScrew = (ex, ey) => {
+    const [u, v] = peekScrewUV();
+    const [scx, scy] = U(u, v, yaw);
+    // Matches the drawBridges screwR = w * 0.24 sizing for the train
+    // bridge (w = trainBridge.width * R = 0.075 * R).
+    const visualR = 0.075 * R * 0.24;
+    const hitR    = Math.max(28, visualR * 3.0);
+    const dx = ex - scx, dy = ey - scy;
     return (dx * dx + dy * dy) <= hitR * hitR;
   };
 
   const peek = { pointerId: null };
 
   canvas.addEventListener("pointerdown", (ev) => {
-    // Don't fire while launched into an app — the case-back flip owns
-    // the camera there.
+    // Swallow the default regardless of hit — canvas long-press
+    // otherwise triggers iOS text/image selection and callouts. The
+    // canvas doesn't own any other gesture, so this is safe.
+    ev.preventDefault();
     if (cam.name === "closeup") return;
     const rect = canvas.getBoundingClientRect();
     const ex = ev.clientX - rect.left;
     const ey = ev.clientY - rect.top;
-    if (!hitRatchetScrew(ex, ey)) return;
-    ev.preventDefault();
+    if (!hitPeekScrew(ex, ey)) return;
     peek.pointerId = ev.pointerId;
     try { canvas.setPointerCapture(ev.pointerId); } catch {}
     setCamera("wide", 520);
   });
+
+  // Block the iOS long-press context menu even when the event isn't a
+  // peek gesture (e.g. user is just resting a finger on the canvas).
+  canvas.addEventListener("contextmenu", (ev) => ev.preventDefault());
 
   const releaseIfMatching = (ev) => {
     if (peek.pointerId === null || ev.pointerId !== peek.pointerId) return;
