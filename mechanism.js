@@ -333,6 +333,54 @@ export function startMovement(canvas) {
     ctx.fillStyle = disc;
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
 
+    // Grain — fine random hairlines across the plate. This is what lifts
+    // the plate from "gradient fill" to "machined nickel-silver"; every
+    // decorated layer above (perlage, côtes, bridges) reads more
+    // premium against a textured substrate than a smooth one. Seed is
+    // derived from R so the pattern is deterministic per viewport size
+    // (doesn't shimmer between frames).
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
+    const grainCount = 520;
+    // Deterministic PRNG so grain doesn't flicker every frame.
+    let seed = Math.floor(R * 997 + cx + cy);
+    const rnd = () => {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+    for (let i = 0; i < grainCount; i++) {
+      const a = rnd() * Math.PI * 2;
+      const r = Math.sqrt(rnd()) * R * 0.98;
+      const x = cx + Math.cos(a) * r;
+      const y = cy + Math.sin(a) * r;
+      // Hairline runs along a random direction, short length.
+      const dirA = rnd() * Math.PI * 2;
+      const len  = 2 + rnd() * 6;
+      const dx = Math.cos(dirA) * len;
+      const dy = Math.sin(dirA) * len;
+      const dark = rnd() < 0.55;
+      ctx.strokeStyle = dark
+        ? col(C.plateDark, 0.05 + rnd() * 0.05)
+        : col(C.plateHi,   0.04 + rnd() * 0.05);
+      ctx.lineWidth = rnd() < 0.2 ? 0.7 : 0.4;
+      ctx.beginPath();
+      ctx.moveTo(x - dx / 2, y - dy / 2);
+      ctx.lineTo(x + dx / 2, y + dy / 2);
+      ctx.stroke();
+    }
+    // Tiny dark specks — pores / inclusions in the metal grain.
+    for (let i = 0; i < 120; i++) {
+      const a = rnd() * Math.PI * 2;
+      const r = Math.sqrt(rnd()) * R * 0.98;
+      const x = cx + Math.cos(a) * r;
+      const y = cy + Math.sin(a) * r;
+      ctx.fillStyle = col(C.shadow, 0.08 + rnd() * 0.10);
+      ctx.beginPath();
+      ctx.arc(x, y, 0.4 + rnd() * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
     ctx.strokeStyle = col(C.plateHi, 0.42);
     ctx.lineWidth = 1.0;
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();
@@ -486,6 +534,7 @@ export function startMovement(canvas) {
   }
 
   function drawEngraving(yaw) {
+    // 1. Minute-marker dot ring (existing behaviour).
     ctx.fillStyle = col(C.plateDark, 0.28);
     const n = 72;
     for (let i = 0; i < n; i++) {
@@ -494,6 +543,47 @@ export function startMovement(canvas) {
       const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
       ctx.beginPath(); ctx.arc(x, y, 0.7, 0, Math.PI * 2); ctx.fill();
     }
+
+    // 2. Engraved caliber + adjustment text — arcs along the inner
+    //    perimeter in two locations (upper and lower), readable from
+    //    the correct side of the plate. Each glyph is rotated so the
+    //    top of the character faces the center, matching how real
+    //    engravings arc around the mainplate.
+    const engraveR = R * 0.780;
+    const fontPx = Math.max(7, R * 0.020);
+    ctx.save();
+    ctx.font = `500 ${fontPx}px -apple-system, system-ui, "Helvetica Neue", sans-serif`;
+    ctx.fillStyle = col(C.shadow, 0.42);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+
+    const arcText = (text, centerAngle, inward) => {
+      const arcLen = text.length * fontPx * 0.58;
+      const span = Math.min(Math.PI * 0.85, arcLen / engraveR);
+      const start = centerAngle - span / 2;
+      for (let i = 0; i < text.length; i++) {
+        const a = start + (span * (i + 0.5)) / text.length;
+        const x = cx + Math.cos(a) * engraveR;
+        const y = cy + Math.sin(a) * engraveR;
+        ctx.save();
+        ctx.translate(x, y);
+        // Top of glyph points toward center for upper arc (inward),
+        // and away from center for lower arc (outward). That keeps
+        // both labels right-side-up for the viewer.
+        ctx.rotate(a + (inward ? -Math.PI / 2 : Math.PI / 2));
+        ctx.fillText(text[i], 0, 0);
+        ctx.restore();
+      }
+    };
+
+    // Upper arc — caliber stamp, text faces inward.
+    arcText("·  ETA  2824·2  AUTOMATIC  ·  TWENTY FIVE JEWELS  ·",
+            yaw - Math.PI / 2, true);
+    // Lower arc — adjustment certificate, text faces outward.
+    arcText("·  ADJUSTED  FIVE  POSITIONS  ·  HEAT  COLD  ISOCHRONISM  ·",
+            yaw + Math.PI / 2, false);
+
+    ctx.restore();
   }
 
   function drawBridges(yaw) {
@@ -1581,36 +1671,76 @@ export function startMovement(canvas) {
     const teeth  = 31;
     const pitch  = (Math.PI * 2) / teeth;
 
-    // One rev per 31 days. Add a tiny offset so the ring isn't aligned
-    // to yaw at t=0 (looks less mechanical-reset-at-launch).
-    const dateAng =
-      yaw + 0.17 + (t / (31 * 24 * 3600 * 1000)) * Math.PI * 2;
+    // Aperture window — positioned at the "3 o'clock" axis in plate
+    // space (u = +1), which is where ETA 2824-2 displays the date.
+    // After the yaw rotation, this lands on the right side of the
+    // frame. Today's numeral is what sits under this window.
+    const APERTURE_U = 1.0, APERTURE_V = 0.0;
+    const apertureAng = Math.atan2(APERTURE_V, APERTURE_U); // plate-frame angle = 0
+
+    // Real calendar day (1..31). Sub-day fraction so the wheel glides
+    // between days rather than snapping (on a real watch the date jumps
+    // at midnight, but a gliding ring reads as "alive" on a backdrop).
+    const d = new Date(t);
+    const dayOfMonth = d.getDate(); // 1..31
+    const msIntoDay =
+      d.getHours() * 3600000 +
+      d.getMinutes() * 60000 +
+      d.getSeconds() * 1000 +
+      d.getMilliseconds();
+    const dayFrac = msIntoDay / 86400000; // 0..1 within today
+    const dayIndex = (dayOfMonth - 1) + dayFrac; // 0-based continuous
+
+    // Rotate the ring so that today's tooth sits at the aperture angle.
+    // Numerals are laid out at angles `yaw + i*pitch + intrinsicOffset`,
+    // we choose intrinsicOffset such that i=dayOfMonth-1 lands at
+    // `yaw + apertureAng`.
+    const intrinsicOffset = apertureAng - dayIndex * pitch;
+    const dateAng = yaw + intrinsicOffset;
 
     // Ring body — annulus with a soft radial gradient so it reads as
     // a stamped metal ring, not a flat band.
     const ringGrad = ctx.createRadialGradient(ox, oy, innerR, ox, oy, outerR);
-    ringGrad.addColorStop(0.0, col(C.plateHi,   0.16));
-    ringGrad.addColorStop(0.5, col(C.plateMid,  0.20));
-    ringGrad.addColorStop(1.0, col(C.plateDark, 0.24));
+    ringGrad.addColorStop(0.0, col(C.plateHi,   0.18));
+    ringGrad.addColorStop(0.5, col(C.plateMid,  0.22));
+    ringGrad.addColorStop(1.0, col(C.plateDark, 0.26));
     ctx.fillStyle = ringGrad;
     ctx.beginPath();
     ctx.arc(ox, oy, outerR, 0, Math.PI * 2);
     ctx.arc(ox, oy, innerR, 0, Math.PI * 2, true);
     ctx.fill("evenodd");
 
+    // Concentric machining grooves (turned/lathed finish) inside the
+    // ring annulus — fine concentric rings with alternating tone.
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(ox, oy, outerR, 0, Math.PI * 2);
+    ctx.arc(ox, oy, innerR, 0, Math.PI * 2, true);
+    ctx.clip("evenodd");
+    const grooves = 7;
+    for (let i = 1; i < grooves; i++) {
+      const rr = innerR + ((outerR - innerR) * i) / grooves;
+      ctx.strokeStyle = col(C.plateDark, 0.08);
+      ctx.lineWidth = 0.45;
+      ctx.beginPath(); ctx.arc(ox, oy, rr,       0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = col(C.plateHi, 0.10);
+      ctx.lineWidth = 0.35;
+      ctx.beginPath(); ctx.arc(ox, oy, rr + 0.6, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+
     // Inner and outer rim accents.
-    ctx.strokeStyle = col(C.plateHi, 0.24);
+    ctx.strokeStyle = col(C.plateHi, 0.26);
     ctx.lineWidth = 0.5;
     ctx.beginPath(); ctx.arc(ox, oy, innerR, 0, Math.PI * 2); ctx.stroke();
-    ctx.strokeStyle = col(C.plateDark, 0.30);
+    ctx.strokeStyle = col(C.plateDark, 0.32);
     ctx.lineWidth = 0.5;
     ctx.beginPath(); ctx.arc(ox, oy, outerR, 0, Math.PI * 2); ctx.stroke();
 
-    // Outer teeth — shallow, symmetric (meshes with the date driver's
-    // finger once per day).
-    ctx.strokeStyle = col(C.shadow, 0.38);
+    // Outer teeth with anglage — shadow flank + highlight flank.
+    ctx.strokeStyle = col(C.shadow, 0.42);
     ctx.lineWidth = 0.5;
-    ctx.fillStyle = col(C.plateMid, 0.22);
+    ctx.fillStyle = col(C.plateMid, 0.24);
     ctx.beginPath();
     for (let i = 0; i < teeth; i++) {
       const a = dateAng + i * pitch;
@@ -1626,20 +1756,89 @@ export function startMovement(canvas) {
     }
     ctx.closePath();
     ctx.fill(); ctx.stroke();
-
-    // Numeral suggestion — small dots at each date position. Every 5th
-    // date gets a bigger, darker dot so the "5, 10, 15, 20, 25, 30"
-    // cadence reads across the ring.
-    const numR = (innerR + outerR) / 2;
+    // Anglage highlight along the leading flank of each tooth.
+    ctx.strokeStyle = col(C.plateHi, 0.30);
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
     for (let i = 0; i < teeth; i++) {
       const a = dateAng + i * pitch;
-      const major = i % 5 === 0;
-      const dotR = major ? Math.max(1.8, R * 0.0028) : Math.max(1.0, R * 0.0018);
-      ctx.fillStyle = col(C.plateDark, major ? 0.55 : 0.32);
-      ctx.beginPath();
-      ctx.arc(ox + Math.cos(a) * numR, oy + Math.sin(a) * numR, dotR, 0, Math.PI * 2);
-      ctx.fill();
+      const aB0 = a - pitch * 0.42;
+      const aT0 = a - pitch * 0.14;
+      ctx.moveTo(ox + Math.cos(aB0) * outerR, oy + Math.sin(aB0) * outerR);
+      ctx.lineTo(ox + Math.cos(aT0) * tipR,   oy + Math.sin(aT0) * tipR);
     }
+    ctx.stroke();
+
+    // Printed numerals 1..31 — real date numbers, each rotated so the
+    // top of the character faces outward (toward the plate edge), which
+    // is how they appear on an actual date ring.
+    const numR = (innerR + outerR) / 2;
+    const fontPx = Math.max(7, (outerR - innerR) * 0.56);
+    ctx.save();
+    ctx.font = `600 ${fontPx}px -apple-system, system-ui, "Helvetica Neue", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    for (let i = 0; i < teeth; i++) {
+      const a = dateAng + i * pitch;
+      const numeral = String(i + 1);
+      const x = ox + Math.cos(a) * numR;
+      const y = oy + Math.sin(a) * numR;
+      // Every-5 markers render darker/bolder for readability cadence.
+      const major = (i + 1) % 5 === 0 || (i + 1) === 1;
+      ctx.fillStyle = col(C.plateDark, major ? 0.75 : 0.58);
+      ctx.save();
+      ctx.translate(x, y);
+      // Characters face outward — top of glyph points away from center.
+      ctx.rotate(a + Math.PI / 2);
+      ctx.fillText(numeral, 0, 0);
+      ctx.restore();
+    }
+    ctx.restore();
+
+    // Date aperture — small cutout window on the plate at 3 o'clock,
+    // showing today's numeral more prominently. Drawn as a gold bezel
+    // with a slightly larger repeat of today's glyph inside, so it
+    // reads as a dial window over the ring.
+    const apx = ox + Math.cos(yaw + apertureAng) * numR;
+    const apy = oy + Math.sin(yaw + apertureAng) * numR;
+    const apW = (outerR - innerR) * 1.20;
+    const apH = (outerR - innerR) * 0.90;
+    ctx.save();
+    ctx.translate(apx, apy);
+    ctx.rotate(yaw + apertureAng + Math.PI / 2);
+    // Bezel frame (gold ring around the window).
+    const bezelGrad = ctx.createLinearGradient(0, -apH / 2, 0, apH / 2);
+    bezelGrad.addColorStop(0.0, col(C.gold,      0.85));
+    bezelGrad.addColorStop(0.5, col(C.plateDark, 0.55));
+    bezelGrad.addColorStop(1.0, col(C.gold,      0.85));
+    ctx.fillStyle = bezelGrad;
+    const bezPad = Math.max(1.4, R * 0.004);
+    ctx.beginPath();
+    ctx.rect(-apW / 2 - bezPad, -apH / 2 - bezPad,
+              apW + bezPad * 2,  apH + bezPad * 2);
+    ctx.fill();
+    // Window well — slightly recessed cream background so the numeral
+    // sits on dial-white, not on the ring metal.
+    const wellGrad = ctx.createLinearGradient(0, -apH / 2, 0, apH / 2);
+    wellGrad.addColorStop(0.0, col(C.plateHi, 0.55));
+    wellGrad.addColorStop(1.0, col(C.plateHi, 0.38));
+    ctx.fillStyle = wellGrad;
+    ctx.fillRect(-apW / 2, -apH / 2, apW, apH);
+    // Inner shadow along the upper lip (sells the recess).
+    ctx.strokeStyle = col(C.shadow, 0.45);
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(-apW / 2, -apH / 2);
+    ctx.lineTo( apW / 2, -apH / 2);
+    ctx.stroke();
+    // Today's numeral — larger, darker, dead-centered.
+    const apFont = Math.max(10, apH * 0.80);
+    ctx.font = `700 ${apFont}px -apple-system, system-ui, "Helvetica Neue", sans-serif`;
+    ctx.fillStyle = col(C.shadow, 0.85);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(dayOfMonth), 0, 0);
+    ctx.restore();
   }
 
   /* Keyless works — the hand-winding/time-setting mechanism that enters
@@ -1681,19 +1880,50 @@ export function startMovement(canvas) {
     ctx.moveTo(s0x, s0y); ctx.lineTo(s1x, s1y);
     ctx.stroke();
 
-    // Outer terminus — little collar where the stem passes under the
-    // case (the crown is outside the plate and not drawn).
+    // Outer terminus — square cross-section shoulder where the crown
+    // threads onto the stem. Real winding stems are square at the
+    // crown end (keeps the crown from spinning independently of the
+    // stem), round where they ride through case bushings and the
+    // keyless wheels. Drawn as a square section followed by a small
+    // round collar transitioning back to the round shaft.
     const stemAngScreen = Math.atan2(s1y - s0y, s1x - s0x);
-    const outerPerpX = Math.cos(stemAngScreen + Math.PI / 2);
-    const outerPerpY = Math.sin(stemAngScreen + Math.PI / 2);
-    const collarR = Math.max(3.0, R * 0.016);
-    ctx.fillStyle = col(C.steel, 0.65);
+    const stemW = Math.max(2.0, R * 0.012);
+    const sqLen = Math.max(6.0, R * 0.028);
+    const collarR = Math.max(3.0, R * 0.012);
+    ctx.save();
+    ctx.translate(s0x, s0y);
+    ctx.rotate(stemAngScreen);
+    // Square shoulder — body, then highlight top edge + shadow bottom.
+    const sqGrad = ctx.createLinearGradient(0, -stemW * 0.7, 0, stemW * 0.7);
+    sqGrad.addColorStop(0.0, col(C.plateHi,   0.40));
+    sqGrad.addColorStop(0.5, col(C.steel,     0.70));
+    sqGrad.addColorStop(1.0, col(C.shadow,    0.60));
+    ctx.fillStyle = sqGrad;
+    ctx.fillRect(-sqLen, -stemW * 0.7, sqLen, stemW * 1.4);
+    ctx.strokeStyle = col(C.shadow, 0.62);
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(-sqLen, -stemW * 0.7, sqLen, stemW * 1.4);
+    // Polished top lip of the square section.
+    ctx.strokeStyle = col(C.plateHi, 0.45);
+    ctx.lineWidth = 0.5;
     ctx.beginPath();
-    ctx.ellipse(s0x, s0y, collarR * 0.55, collarR, stemAngScreen, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = col(C.shadow, 0.55);
-    ctx.lineWidth = 0.6;
+    ctx.moveTo(-sqLen + 0.5, -stemW * 0.68);
+    ctx.lineTo(-0.5,          -stemW * 0.68);
     ctx.stroke();
+    // Round collar at the transition between square and round sections.
+    const cGrad = ctx.createRadialGradient(
+      -collarR * 0.3, -collarR * 0.3, 0, 0, 0, collarR,
+    );
+    cGrad.addColorStop(0, col(C.plateHi, 0.45));
+    cGrad.addColorStop(1, col(C.shadow,  0.60));
+    ctx.fillStyle = cGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, collarR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = col(C.shadow, 0.60);
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+    ctx.restore();
 
     // Winding pinion — small toothed wheel on the stem.
     const pinR = R * 0.024;
@@ -1886,27 +2116,77 @@ export function startMovement(canvas) {
     ctx.lineTo(pvx + Math.max(1.4, R * 0.007), pvy);
     ctx.stroke();
 
-    // Click spring — thin curved wire anchored to another post, pushing
-    // the click into the ratchet.
+    // Click spring — a formed flat steel spring that arcs from its
+    // anchor post, bends in a reverse curve along its length (so it
+    // can flex without fatiguing), and terminates in a hooked tip
+    // resting against the click lever. Drawn with a body stroke, a
+    // blued centerline highlight, a shadow edge, and an explicit hook
+    // cap at the working end so it reads as a formed part, not a wire.
     const spAnchorU = bg.x + 0.185;
     const spAnchorV = bg.y - 0.050;
     const [sax, say] = U(spAnchorU, spAnchorV, yaw);
-    ctx.strokeStyle = col(C.steelBlue, 0.55);
-    ctx.lineWidth = Math.max(0.9, R * 0.0045);
-    ctx.beginPath();
-    ctx.moveTo(sax, say);
-    ctx.quadraticCurveTo(
-      (sax + ebx) / 2 + (ebx - sax) * 0.15,
-      (say + eby) / 2 - Math.abs(eby - say) * 0.5,
-      ebx, eby,
-    );
+
+    // Reverse-curve control points. First curves up & away from the
+    // ratchet, then tucks back down to meet the click elbow from above.
+    const midU = bg.x + 0.160, midV = bg.y - 0.100;
+    const bendU = bg.x + 0.125, bendV = bg.y - 0.080;
+    const [mx, my] = U(midU, midV, yaw);
+    const [bx, by] = U(bendU, bendV, yaw);
+
+    const springPath = () => {
+      ctx.beginPath();
+      ctx.moveTo(sax, say);
+      ctx.quadraticCurveTo(mx, my, bx, by);
+      ctx.quadraticCurveTo(
+        (bx + ebx) / 2 - (eby - by) * 0.12,
+        (by + eby) / 2 - (ebx - bx) * 0.12,
+        ebx, eby,
+      );
+    };
+    // Body (blued steel).
+    springPath();
+    ctx.strokeStyle = col(C.steelBlue, 0.62);
+    ctx.lineWidth = Math.max(1.1, R * 0.0050);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.stroke();
+    // Shadow edge.
+    springPath();
+    ctx.strokeStyle = col(C.shadow, 0.45);
+    ctx.lineWidth = Math.max(0.5, R * 0.0020);
+    ctx.stroke();
+    // Polished centerline highlight.
+    springPath();
+    ctx.strokeStyle = col(C.plateHi, 0.28);
+    ctx.lineWidth = Math.max(0.4, R * 0.0015);
     ctx.stroke();
 
-    // Spring anchor dot.
-    ctx.fillStyle = col(C.steel, 0.65);
+    // Hook cap at the working tip — a small curled loop of the spring
+    // that grips the click lever's elbow. Drawn as a short arc segment
+    // centered on the elbow point.
+    const hookR = Math.max(1.6, R * 0.009);
+    ctx.strokeStyle = col(C.steelBlue, 0.72);
+    ctx.lineWidth = Math.max(0.9, R * 0.0040);
     ctx.beginPath();
-    ctx.arc(sax, say, Math.max(1.2, R * 0.005), 0, Math.PI * 2);
+    const hookAng = Math.atan2(eby - by, ebx - bx);
+    ctx.arc(ebx, eby, hookR, hookAng - Math.PI * 0.9, hookAng + Math.PI * 0.3);
+    ctx.stroke();
+
+    // Spring anchor post — countersunk dot with a tiny slot so it
+    // reads as screwed down, not floating.
+    ctx.fillStyle = col(C.steel, 0.72);
+    ctx.beginPath();
+    ctx.arc(sax, say, Math.max(1.6, R * 0.0060), 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = col(C.shadow, 0.62);
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+    ctx.strokeStyle = col(C.shadow, 0.75);
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(sax - Math.max(1.0, R * 0.0040), say);
+    ctx.lineTo(sax + Math.max(1.0, R * 0.0040), say);
+    ctx.stroke();
   }
 
   /* Regulator index — the fine-timing lever that sits on the balance
@@ -2097,7 +2377,6 @@ export function startMovement(canvas) {
     }
   }
 
-  let start = performance.now();
   // Static yaw — the composition holds still as a backdrop. Aliveness
   // comes from the gear train and balance, not from the whole frame
   // rotating. 45° tilt — bridges and gear train read on a strong
@@ -2106,7 +2385,14 @@ export function startMovement(canvas) {
   const YAW_SPEED = 0;
 
   function frame(now) {
-    const t = now - start;
+    // Wall-clock time drives the whole mechanism: gear phase, balance
+    // oscillation, and the date wheel all evaluate to a deterministic
+    // function of Date.now(). This means reloading the launcher does
+    // NOT reset the movement — it resumes where the calendar says it
+    // should be. Double precision holds sin()/cos() arguments at
+    // microsecond fidelity at current wall-clock magnitudes, so the
+    // phase error across decades is imperceptible.
+    const t = Date.now();
 
     if (launch.mode === "launching" || launch.mode === "closing") {
       const elapsed = now - launch.startTime;
