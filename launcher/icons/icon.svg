@@ -1,38 +1,141 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Central Optimus">
   <defs>
-    <radialGradient id="paper" cx="50%" cy="42%" r="75%">
-      <stop offset="0%" stop-color="#fbf6ec"/>
-      <stop offset="62%" stop-color="#f6f1e7"/>
-      <stop offset="100%" stop-color="#e4dac5"/>
+    <!-- Warm champagne dial: glowing center, deeper gilt edges -->
+    <radialGradient id="dial" cx="50%" cy="40%" r="72%">
+      <stop offset="0%"  stop-color="#fff4d6"/>
+      <stop offset="45%" stop-color="#f4e2b0"/>
+      <stop offset="82%" stop-color="#d8b270"/>
+      <stop offset="100%" stop-color="#8a6530"/>
+    </radialGradient>
+
+    <!-- Polished steel rim: top lit, bottom shadowed -->
+    <linearGradient id="steel" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#4a4238"/>
+      <stop offset="28%" stop-color="#1a1510"/>
+      <stop offset="55%" stop-color="#080604"/>
+      <stop offset="80%" stop-color="#221c15"/>
+      <stop offset="100%" stop-color="#0e0a07"/>
+    </linearGradient>
+
+    <!-- Central hub: brushed dark steel -->
+    <radialGradient id="hub" cx="40%" cy="34%" r="78%">
+      <stop offset="0%"  stop-color="#5a4f42"/>
+      <stop offset="55%" stop-color="#1a1510"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </radialGradient>
+
+    <!-- Gold chaton ring around the jewel -->
+    <radialGradient id="gold" cx="40%" cy="32%" r="75%">
+      <stop offset="0%"  stop-color="#ffe9a8"/>
+      <stop offset="45%" stop-color="#d9a24a"/>
+      <stop offset="100%" stop-color="#6b4412"/>
+    </radialGradient>
+
+    <!-- Ruby: bright center, deep garnet shoulders -->
+    <radialGradient id="ruby" cx="38%" cy="32%" r="78%">
+      <stop offset="0%"  stop-color="#ffb8a0"/>
+      <stop offset="22%" stop-color="#ff6a48"/>
+      <stop offset="62%" stop-color="#c2381d"/>
+      <stop offset="100%" stop-color="#4a0f05"/>
+    </radialGradient>
+
+    <!-- Screw head: domed steel -->
+    <radialGradient id="screw" cx="38%" cy="32%" r="72%">
+      <stop offset="0%"  stop-color="#6a6055"/>
+      <stop offset="55%" stop-color="#1a1510"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </radialGradient>
+
+    <!-- Spoke: subtle metallic shading -->
+    <linearGradient id="spoke" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"  stop-color="#2a241c"/>
+      <stop offset="50%" stop-color="#0c0906"/>
+      <stop offset="100%" stop-color="#1a1510"/>
+    </linearGradient>
+
+    <!-- Soft vignette for depth at the corners -->
+    <radialGradient id="vignette" cx="50%" cy="50%" r="70%">
+      <stop offset="60%" stop-color="#000" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#000" stop-opacity="0.22"/>
     </radialGradient>
   </defs>
 
-  <rect width="1024" height="1024" fill="url(#paper)"/>
+  <!-- Dial background, fills canvas (iOS rounds corners) -->
+  <rect width="1024" height="1024" fill="url(#dial)"/>
 
-  <g stroke="#1f1b16" fill="none" stroke-linecap="round">
-    <line x1="512"   y1="172" x2="512" y2="512" stroke-width="26"/>
-    <line x1="806.4" y1="682" x2="512" y2="512" stroke-width="26"/>
-    <line x1="217.6" y1="682" x2="512" y2="512" stroke-width="26"/>
+  <!-- Concentric guilloche rings for depth -->
+  <g fill="none" stroke="#8a6530" opacity="0.14">
+    <circle cx="512" cy="512" r="420" stroke-width="1.5"/>
+    <circle cx="512" cy="512" r="402" stroke-width="1.5"/>
+    <circle cx="512" cy="512" r="384" stroke-width="1.5"/>
   </g>
 
-  <g stroke="#1f1b16" fill="none">
-    <circle cx="512" cy="512" r="340" stroke-width="30"/>
-    <circle cx="512" cy="512" r="310" stroke-width="4" opacity="0.35"/>
+  <!-- Corner vignette -->
+  <rect width="1024" height="1024" fill="url(#vignette)"/>
+
+  <!-- Soft cast shadow under the balance wheel -->
+  <ellipse cx="512" cy="578" rx="352" ry="36" fill="#3a2608" opacity="0.22"/>
+
+  <!-- Balance-wheel rim -->
+  <circle cx="512" cy="512" r="340" fill="none" stroke="url(#steel)" stroke-width="40"/>
+  <!-- Rim highlights (top bright, bottom faint) -->
+  <circle cx="512" cy="512" r="359" fill="none" stroke="#fff3d0" stroke-width="2" opacity="0.38"/>
+  <circle cx="512" cy="512" r="321" fill="none" stroke="#fff3d0" stroke-width="1.5" opacity="0.2"/>
+
+  <!-- Three spokes -->
+  <g stroke="url(#spoke)" fill="none" stroke-linecap="round" stroke-width="30">
+    <line x1="512"   y1="186" x2="512" y2="512"/>
+    <line x1="799.4" y1="676" x2="512" y2="512"/>
+    <line x1="224.6" y1="676" x2="512" y2="512"/>
+  </g>
+  <!-- Spoke top-edge highlights -->
+  <g stroke="#fff3d0" fill="none" stroke-linecap="round" stroke-width="2.5" opacity="0.25">
+    <line x1="504" y1="200" x2="504" y2="500"/>
+    <line x1="789" y1="672" x2="510" y2="510"/>
+    <line x1="235" y1="672" x2="514" y2="510"/>
   </g>
 
-  <g fill="#1f1b16">
-    <circle cx="512"   cy="172" r="36"/>
-    <circle cx="806.4" cy="342" r="36"/>
-    <circle cx="806.4" cy="682" r="36"/>
-    <circle cx="512"   cy="852" r="36"/>
-    <circle cx="217.6" cy="682" r="36"/>
-    <circle cx="217.6" cy="342" r="36"/>
+  <!-- Six polished screws around the rim -->
+  <g>
+    <circle cx="512"   cy="186" r="40" fill="url(#screw)"/>
+    <circle cx="799.4" cy="352" r="40" fill="url(#screw)"/>
+    <circle cx="799.4" cy="676" r="40" fill="url(#screw)"/>
+    <circle cx="512"   cy="842" r="40" fill="url(#screw)"/>
+    <circle cx="224.6" cy="676" r="40" fill="url(#screw)"/>
+    <circle cx="224.6" cy="352" r="40" fill="url(#screw)"/>
+  </g>
+  <!-- Screw slot cuts -->
+  <g stroke="#000" stroke-width="4" stroke-linecap="round" opacity="0.7">
+    <line x1="484" y1="174" x2="540" y2="198"/>
+    <line x1="771" y1="340" x2="827" y2="364"/>
+    <line x1="771" y1="664" x2="827" y2="688"/>
+    <line x1="484" y1="830" x2="540" y2="854"/>
+    <line x1="197" y1="664" x2="253" y2="688"/>
+    <line x1="197" y1="340" x2="253" y2="364"/>
+  </g>
+  <!-- Screw specular highlights -->
+  <g fill="#fff3d0" opacity="0.38">
+    <circle cx="504"   cy="176" r="6"/>
+    <circle cx="791.4" cy="342" r="6"/>
+    <circle cx="791.4" cy="666" r="6"/>
+    <circle cx="504"   cy="832" r="6"/>
+    <circle cx="216.6" cy="666" r="6"/>
+    <circle cx="216.6" cy="342" r="6"/>
   </g>
 
-  <circle cx="512" cy="512" r="102" fill="#1f1b16"/>
-  <circle cx="512" cy="512" r="102" fill="none" stroke="#1f1b16" stroke-width="2"/>
+  <!-- Central hub -->
+  <circle cx="512" cy="512" r="120" fill="url(#hub)"/>
+  <circle cx="512" cy="512" r="120" fill="none" stroke="#000" stroke-width="2" opacity="0.55"/>
+  <circle cx="512" cy="512" r="117" fill="none" stroke="#fff3d0" stroke-width="1.5" opacity="0.22"/>
 
-  <circle cx="512" cy="512" r="62" fill="#b4553a"/>
-  <circle cx="512" cy="512" r="62" fill="none" stroke="#6b2f1b" stroke-width="4"/>
-  <ellipse cx="496" cy="492" rx="16" ry="10" fill="#fffaf1" opacity="0.35"/>
+  <!-- Gold chaton ring -->
+  <circle cx="512" cy="512" r="90" fill="url(#gold)"/>
+  <circle cx="512" cy="512" r="90" fill="none" stroke="#3a2608" stroke-width="2" opacity="0.6"/>
+
+  <!-- Ruby jewel -->
+  <circle cx="512" cy="512" r="68" fill="url(#ruby)"/>
+  <circle cx="512" cy="512" r="68" fill="none" stroke="#3a0a03" stroke-width="2.5"/>
+  <!-- Ruby highlights -->
+  <ellipse cx="488" cy="486" rx="22" ry="13" fill="#fff" opacity="0.55"/>
+  <ellipse cx="498" cy="496" rx="8" ry="5" fill="#fff" opacity="0.55"/>
 </svg>
