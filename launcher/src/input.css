@@ -34,7 +34,14 @@
       Roboto, "Inter", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-    height: 100dvh;
+    /* Use 100% (ICB-relative) rather than 100dvh — in iOS standalone
+       PWA with viewport-fit=cover + black-translucent status bar,
+       100dvh can resolve to the "layout" viewport that excludes the
+       bottom home-indicator safe area, which leaves fixed-positioned
+       backgrounds clipped and exposes a white bar below the content.
+       100% on html resolves to the initial containing block, which is
+       the true visual viewport. */
+    height: 100%;
     /* pan-y (not manipulation) so pinch-zoom is also blocked, not just
        double-tap zoom. JS gesture/touchmove handlers in app.js back this
        up for iOS Safari which sometimes ignores touch-action. */
@@ -43,6 +50,9 @@
     overscroll-behavior: none;
     max-width: 100%;
     margin: 0;
+  }
+  html {
+    background-color: var(--color-optimus-bg);
   }
   body {
     background-color: var(--color-optimus-bg);
@@ -122,8 +132,11 @@
   .shell {
     position: relative;
     z-index: 2;
-    min-height: 100dvh;
-    height: 100dvh;
+    /* Match html/body — 100% resolves to the true visual viewport in
+       standalone PWA mode, which includes the home-indicator safe area
+       that the shell's bottom padding then reserves space inside. */
+    min-height: 100%;
+    height: 100%;
     display: grid;
     grid-template-rows: auto auto 1fr auto;
     gap: 1.75rem;
