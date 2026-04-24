@@ -163,15 +163,24 @@
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
     overflow: hidden;
+    /* iOS Safari intermittently fails to cull the backface on composited
+       subtrees (iframes, canvas, many stacking contexts), so the hidden
+       face bleeds through mirrored. Hard-swap visibility at the flip
+       midpoint (880ms / 2) as a fallback — the face is edge-on then, so
+       the swap is invisible to the viewer. */
+    transition: visibility 0s linear 440ms;
   }
   .flip-back {
     transform: rotateY(180deg);
     background: var(--color-optimus-bg);
   }
-  /* Block pointer events on the hidden face so taps don't leak to
-     elements behind the visible one during/after the flip. */
-  .flip-card.is-flipped .flip-front { pointer-events: none; }
-  .flip-card:not(.is-flipped) .flip-back { pointer-events: none; }
+  .flip-card.is-flipped .flip-front,
+  .flip-card:not(.is-flipped) .flip-back {
+    visibility: hidden;
+    /* Block pointer events on the hidden face so taps don't leak to
+       elements behind the visible one during/after the flip. */
+    pointer-events: none;
+  }
 
   .bg-noise {
     position: fixed;
