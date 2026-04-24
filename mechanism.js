@@ -2645,15 +2645,13 @@ export function startMovement(canvas) {
   }
   requestAnimationFrame(frame);
 
-  /* ===== Peek easter egg — hit test on the train bridge's escape-end
-     screw. At ambient zoom, the barrel-side screws sit above the top
-     of the viewport, so we anchor the gesture to a screw that's
-     reliably rendered inside the visible corridor: the countersunk
-     blued screw at the escape-wheel end of the train bridge, roughly
-     right-of-center on the composition. Press-and-hold tweens the
-     camera to the 'wide' preset (whole plate framed); release tweens
-     back to 'ambient'. Hit radius is generous (~3× the visual) so
-     fingers can find it. */
+  /* ===== Peek easter egg — tap the train bridge's escape-end screw
+     to toggle between 'ambient' and 'wide' camera presets.
+     At ambient zoom the barrel-side screws sit above the top of the
+     viewport, so the gesture is anchored to a reliably-visible screw:
+     the countersunk blued screw at the escape-wheel end of the train
+     bridge, roughly right-of-center on the composition. Hit radius is
+     generous (~3× the visual) so fingers can find it. */
   const peekScrewUV = () => {
     // bridges[2] = train bridge. Its endpoint array's last entry is
     // the escape-end; this is where drawBridges renders a drawBluedScrew
@@ -2674,8 +2672,6 @@ export function startMovement(canvas) {
     return (dx * dx + dy * dy) <= hitR * hitR;
   };
 
-  const peek = { pointerId: null };
-
   canvas.addEventListener("pointerdown", (ev) => {
     // Swallow the default regardless of hit — canvas long-press
     // otherwise triggers iOS text/image selection and callouts. The
@@ -2686,25 +2682,13 @@ export function startMovement(canvas) {
     const ex = ev.clientX - rect.left;
     const ey = ev.clientY - rect.top;
     if (!hitPeekScrew(ex, ey)) return;
-    peek.pointerId = ev.pointerId;
-    try { canvas.setPointerCapture(ev.pointerId); } catch {}
-    setCamera("wide", 520);
+    // Single tap toggles: ambient ⇄ wide.
+    setCamera(cam.name === "wide" ? "ambient" : "wide", 520);
   });
 
   // Block the iOS long-press context menu even when the event isn't a
   // peek gesture (e.g. user is just resting a finger on the canvas).
   canvas.addEventListener("contextmenu", (ev) => ev.preventDefault());
-
-  const releaseIfMatching = (ev) => {
-    if (peek.pointerId === null || ev.pointerId !== peek.pointerId) return;
-    peek.pointerId = null;
-    // Only revert if the user is still in the wide preset — if they
-    // navigated elsewhere mid-hold, don't stomp on that state.
-    if (cam.name === "wide") setCamera("ambient", 520);
-  };
-  canvas.addEventListener("pointerup",     releaseIfMatching);
-  canvas.addEventListener("pointercancel", releaseIfMatching);
-  canvas.addEventListener("pointerleave",  releaseIfMatching);
 
   return { canvas, setCamera };
 }
