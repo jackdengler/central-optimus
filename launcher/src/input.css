@@ -107,7 +107,11 @@
     width: 100%;
     height: 100%;
     z-index: 0;
-    pointer-events: none;
+    /* Accepts pointer events so the peek-easter-egg hit test on the
+       ratchet screw can fire. Clicks on shell tiles (z-index 2) still
+       land on the tile, not the canvas. */
+    pointer-events: auto;
+    touch-action: none;
     opacity: 0;
     mix-blend-mode: multiply;
     animation: watch-fade-in 1.1s cubic-bezier(0.2, 0.8, 0.2, 1) 0s forwards;
