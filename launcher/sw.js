@@ -1,4 +1,4 @@
-const CACHE = "launcher-v15";
+const CACHE = "launcher-v16";
 const SHELL = [
   "./",
   "./index.html",
