@@ -2645,5 +2645,48 @@ export function startMovement(canvas) {
   }
   requestAnimationFrame(frame);
 
+  /* ===== Peek easter egg — hit test on the barrel ratchet screw =====
+     The slotted screw at the centre of the ratchet (on top of the
+     barrel arbor) is the hidden handle. Press-and-hold tweens the
+     camera to the 'wide' preset (whole plate framed); release tweens
+     back to 'ambient'. Hit radius is generous (~3× the visual) so
+     fingers can find it. */
+  const hitRatchetScrew = (ex, ey) => {
+    const bg = gears[0];
+    const [bcx, bcy] = U(bg.x, bg.y, yaw);
+    const ratchetR = 0.088 * R;
+    const visualR  = ratchetR * 0.18;
+    const hitR     = Math.max(22, visualR * 3.0);
+    const dx = ex - bcx, dy = ey - bcy;
+    return (dx * dx + dy * dy) <= hitR * hitR;
+  };
+
+  const peek = { pointerId: null };
+
+  canvas.addEventListener("pointerdown", (ev) => {
+    // Don't fire while launched into an app — the case-back flip owns
+    // the camera there.
+    if (cam.name === "closeup") return;
+    const rect = canvas.getBoundingClientRect();
+    const ex = ev.clientX - rect.left;
+    const ey = ev.clientY - rect.top;
+    if (!hitRatchetScrew(ex, ey)) return;
+    ev.preventDefault();
+    peek.pointerId = ev.pointerId;
+    try { canvas.setPointerCapture(ev.pointerId); } catch {}
+    setCamera("wide", 520);
+  });
+
+  const releaseIfMatching = (ev) => {
+    if (peek.pointerId === null || ev.pointerId !== peek.pointerId) return;
+    peek.pointerId = null;
+    // Only revert if the user is still in the wide preset — if they
+    // navigated elsewhere mid-hold, don't stomp on that state.
+    if (cam.name === "wide") setCamera("ambient", 520);
+  };
+  canvas.addEventListener("pointerup",     releaseIfMatching);
+  canvas.addEventListener("pointercancel", releaseIfMatching);
+  canvas.addEventListener("pointerleave",  releaseIfMatching);
+
   return { canvas, setCamera };
 }
