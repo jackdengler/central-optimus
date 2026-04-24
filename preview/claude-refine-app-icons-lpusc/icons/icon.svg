@@ -1,17 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Central Optimus">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#d97757"/>
-      <stop offset="1" stop-color="#b85a3d"/>
-    </linearGradient>
+    <radialGradient id="paper" cx="50%" cy="42%" r="75%">
+      <stop offset="0%" stop-color="#fbf6ec"/>
+      <stop offset="62%" stop-color="#f6f1e7"/>
+      <stop offset="100%" stop-color="#e4dac5"/>
+    </radialGradient>
   </defs>
-  <rect width="1024" height="1024" rx="224" ry="224" fill="url(#bg)"/>
-  <g fill="none" stroke="#faf9f5" stroke-width="56" stroke-linecap="round">
-    <circle cx="512" cy="512" r="220"/>
-    <circle cx="512" cy="512" r="80" fill="#faf9f5" stroke="none"/>
-    <line x1="512" y1="180" x2="512" y2="280"/>
-    <line x1="512" y1="744" x2="512" y2="844"/>
-    <line x1="180" y1="512" x2="280" y2="512"/>
-    <line x1="744" y1="512" x2="844" y2="512"/>
+
+  <rect width="1024" height="1024" fill="url(#paper)"/>
+
+  <g stroke="#1f1b16" fill="none" stroke-linecap="round">
+    <line x1="512"   y1="172" x2="512" y2="512" stroke-width="26"/>
+    <line x1="806.4" y1="682" x2="512" y2="512" stroke-width="26"/>
+    <line x1="217.6" y1="682" x2="512" y2="512" stroke-width="26"/>
   </g>
+
+  <g stroke="#1f1b16" fill="none">
+    <circle cx="512" cy="512" r="340" stroke-width="30"/>
+    <circle cx="512" cy="512" r="310" stroke-width="4" opacity="0.35"/>
+  </g>
+
+  <g fill="#1f1b16">
+    <circle cx="512"   cy="172" r="36"/>
+    <circle cx="806.4" cy="342" r="36"/>
+    <circle cx="806.4" cy="682" r="36"/>
+    <circle cx="512"   cy="852" r="36"/>
+    <circle cx="217.6" cy="682" r="36"/>
+    <circle cx="217.6" cy="342" r="36"/>
+  </g>
+
+  <circle cx="512" cy="512" r="102" fill="#1f1b16"/>
+  <circle cx="512" cy="512" r="102" fill="none" stroke="#1f1b16" stroke-width="2"/>
+
+  <circle cx="512" cy="512" r="62" fill="#b4553a"/>
+  <circle cx="512" cy="512" r="62" fill="none" stroke="#6b2f1b" stroke-width="4"/>
+  <ellipse cx="496" cy="492" rx="16" ry="10" fill="#fffaf1" opacity="0.35"/>
 </svg>
