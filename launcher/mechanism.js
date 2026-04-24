@@ -8,13 +8,18 @@
    these values darker or cooler; depth comes from opacity, not darkness.
 
    Exposed API (assigned onto the canvas element):
-     canvas._launch(targetName)  — zoom the camera toward a component
-     canvas._close()             — pull back to the ambient wide shot
-     canvas._getLaunchProgress() — eased 0..1, 0 = ambient, 1 = closeup
+     canvas._setCamera(name, duration) — tween to a preset
+                                         ('wide' | 'ambient' | 'closeup')
+     canvas._getCameraName()           — name of the active (or tweening-to)
+                                         preset
+     canvas._launch(targetName)        — legacy alias for closeup dive
+     canvas._close()                   — legacy alias for back-to-ambient
 
-   The only registered launch target is 'fourthWheel' (gears[3] — the
-   ~60 rpm wheel that drives the seconds hand). All app tiles share
-   the same dive for consistency.
+   Camera presets:
+     wide     — entire watch plate framed on-screen (boot + pre-launch)
+     ambient  — plate fills canvas, mechanism reads as a backdrop (default)
+     closeup  — dive into the fourth wheel (kept for reduced-motion paths
+                and possible future use)
    ===================================================================== */
 
 export function startMovement(canvas) {
@@ -39,27 +44,53 @@ export function startMovement(canvas) {
 
   let W = 0, H = 0, DPR = 1;
   let cx = 0, cy = 0, R = 0;
-  let cxA = 0, cyA = 0, RA = 0; // ambient camera
   let isPortrait = true;
 
-  /* Launch state machine.
-     mode: 'idle' | 'launching' | 'open' | 'closing'
-     Eased 0..1 drives camera lerp between ambient and target. When the
-     app is fully open, frozenT latches the animation clock so the gears
-     sit perfectly still — the quiet-backdrop feeling behind the open app. */
-  const launch = {
-    mode: "idle",
-    startTime: 0,
-    durationIn: 1100,
-    durationOut: 800,
-    target: null,
-    eased: 0,
-    frozenT: null,
+  /* Camera tween engine.
+     The camera is defined by (cx, cy, R) where R is the plate radius
+     in screen px. A preset is a function of (W, H) → {cx, cy, R}.
+     _setCamera(name, duration) tweens from the current values to the
+     target preset; duration=0 snaps immediately. */
+  const PRESETS = {
+    // Whole watch plate framed with margin. Diameter ≈ 0.86× the short
+    // screen edge, so the full mechanism — bezel, bridges, balance —
+    // reads as one object floating in the parchment.
+    wide: () => ({
+      cx: W * 0.5,
+      cy: H * 0.5,
+      R:  Math.min(W, H) * 0.43,
+    }),
+    // Plate fills the canvas; mechanism sits under the UI as a backdrop.
+    // cy pushed below center so the gear cluster lands in the lower half
+    // (the empty zone beneath the icon grid).
+    ambient: () => ({
+      cx: W * 0.5,
+      cy: H * 0.52,
+      R:  Math.max(W, H) * 1.7,
+    }),
+    // Dive into the fourth wheel (kept for reduced-motion / legacy paths).
+    closeup: () => {
+      const a = PRESETS.ambient();
+      const g = gears && gears[3];
+      if (!g) return a;
+      const targetR = a.R * 4.5;
+      return {
+        cx: W / 2 - g.x * targetR,
+        cy: H / 2 - g.y * targetR,
+        R:  targetR,
+      };
+    },
   };
 
-  // Launch targets in UNIT space; zoom multiplies the ambient R.
-  const LAUNCH_TARGETS = {
-    fourthWheel: { u: null, v: null, zoom: 4.5 },
+  // Start the session at "wide" so the launcher boots showing the whole
+  // watch, then app.js tweens to "ambient" after first paint.
+  const cam = {
+    name: "wide",
+    from: null,
+    to: null,
+    startTime: 0,
+    duration: 0,
+    eased: 0,
   };
 
   function resize() {
@@ -70,18 +101,21 @@ export function startMovement(canvas) {
     canvas.height = Math.round(H * DPR);
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
     isPortrait = H >= W;
-    // Center the plate disc on the screen and size it so the disc
-    // diameter ≥ the long screen edge — the whole movement is always
-    // visible (every gear, bridge, balance, pallet) and the plate
-    // fills the canvas with no empty corners.
-    // cyA pushed below center so the gear cluster + bridges land
-    // in the lower half of the screen — the empty area beneath the
-    // icon grid — while plate texture still extends upward behind
-    // the greeting.
-    cxA = W * 0.5;
-    cyA = H * 0.52;
-    RA  = Math.max(W, H) * 1.7;
-    if (launch.mode === "idle") { cx = cxA; cy = cyA; R = RA; }
+
+    // No tween in flight → snap camera to current preset at new dims.
+    // Tween in flight → rebase endpoints so the animation re-resolves
+    //   against the new viewport rather than drifting to stale coords.
+    if (cam.to) {
+      const toResolved = PRESETS[cam.name] ? PRESETS[cam.name]() : null;
+      if (toResolved) cam.to = toResolved;
+      if (cam.from) {
+        const fromResolved = PRESETS[cam._fromName] ? PRESETS[cam._fromName]() : null;
+        if (fromResolved) cam.from = fromResolved;
+      }
+    } else {
+      const p = PRESETS[cam.name]();
+      cx = p.cx; cy = p.cy; R = p.R;
+    }
   }
 
   const ro = new ResizeObserver(resize);
@@ -96,24 +130,34 @@ export function startMovement(canvas) {
     return 1 - Math.pow(-2 * t + 2, 3) / 2;
   }
 
-  function launchTo(targetName) {
-    const target = LAUNCH_TARGETS[targetName];
-    if (!target || target.u == null) return;
-    const targetR  = RA * target.zoom;
-    const targetCx = W / 2 - target.u * targetR;
-    const targetCy = H / 2 - target.v * targetR;
-    launch.mode = "launching";
-    launch.startTime = performance.now();
-    launch.target = { cx: targetCx, cy: targetCy, R: targetR };
+  function setCamera(name, duration = 900) {
+    if (!PRESETS[name]) return;
+    const target = PRESETS[name]();
+    if (!duration || duration <= 0) {
+      cam.name = name;
+      cam.from = null;
+      cam.to = null;
+      cam._fromName = null;
+      cam.duration = 0;
+      cam.eased = 0;
+      cx = target.cx; cy = target.cy; R = target.R;
+      return;
+    }
+    cam._fromName = cam.name;
+    cam.name = name;
+    cam.from = { cx, cy, R };
+    cam.to = target;
+    cam.startTime = performance.now();
+    cam.duration = duration;
+    cam.eased = 0;
   }
-  function closeTo() {
-    if (launch.mode === "idle") return;
-    launch.mode = "closing";
-    launch.startTime = performance.now();
-  }
-  canvas._launch = launchTo;
-  canvas._close  = closeTo;
-  canvas._getLaunchProgress = () => launch.eased;
+
+  canvas._setCamera     = setCamera;
+  canvas._getCameraName = () => cam.name;
+  // Legacy aliases — any remaining callers still work.
+  canvas._launch = (name) => setCamera(name === "fourthWheel" ? "closeup" : name, 1100);
+  canvas._close  = () => setCamera("ambient", 800);
+  canvas._getLaunchProgress = () => (cam.name === "closeup" ? cam.eased || 1 : 0);
 
   /* ====== Gear train — pinned to real ETA 2824-2 tooth counts ======
      Each stage has a wheel (driven by previous) + pinion (drives next)
@@ -228,11 +272,6 @@ export function startMovement(canvas) {
     x: escG.x + 0.17, y: escG.y + 0.17,
     r: 0.17, freqHz: 2.0, amp: 0.12 * Math.PI,
   };
-
-  // Register fourth wheel as the shared launch target for all apps.
-  // gears[3] rotates at ~60 rpm — visibly alive motion as background.
-  LAUNCH_TARGETS.fourthWheel.u = gears[3].x;
-  LAUNCH_TARGETS.fourthWheel.v = gears[3].y;
 
   // Pallet fork — offset from escape toward balance.
   const pallet = {
@@ -2412,52 +2451,26 @@ export function startMovement(canvas) {
     // phase error across decades is imperceptible.
     const t = Date.now();
 
-    if (launch.mode === "launching" || launch.mode === "closing") {
-      const elapsed = now - launch.startTime;
-      const dur = launch.mode === "launching" ? launch.durationIn : launch.durationOut;
-      const raw = Math.min(1, elapsed / dur);
+    if (cam.to) {
+      const elapsed = now - cam.startTime;
+      const raw = Math.min(1, elapsed / cam.duration);
       const e = easeInOutCubicSoft(raw);
-      launch.eased = launch.mode === "launching" ? e : 1 - e;
-
-      if (launch.target) {
-        cx = cxA + (launch.target.cx - cxA) * launch.eased;
-        cy = cyA + (launch.target.cy - cyA) * launch.eased;
-        R  = RA  + (launch.target.R  - RA)  * launch.eased;
-      }
-
+      cam.eased = e;
+      cx = cam.from.cx + (cam.to.cx - cam.from.cx) * e;
+      cy = cam.from.cy + (cam.to.cy - cam.from.cy) * e;
+      R  = cam.from.R  + (cam.to.R  - cam.from.R)  * e;
       if (raw >= 1) {
-        if (launch.mode === "launching") {
-          launch.mode = "open";
-          launch.eased = 1;
-          launch.frozenT = t;
-        } else {
-          launch.mode = "idle";
-          launch.eased = 0;
-          launch.target = null;
-          launch.frozenT = null;
-          cx = cxA; cy = cyA; R = RA;
-        }
+        cx = cam.to.cx; cy = cam.to.cy; R = cam.to.R;
+        cam.from = null;
+        cam.to = null;
+        cam._fromName = null;
+        cam.duration = 0;
+        cam.eased = 0;
       }
-    } else if (launch.mode === "idle") {
-      cx = cxA; cy = cyA; R = RA;
-      launch.eased = 0;
-    } else if (launch.mode === "open") {
-      cx = launch.target.cx; cy = launch.target.cy; R = launch.target.R;
-      launch.eased = 1;
     }
 
-    // Yaw is static — see declaration above.
-
-    // While the app is fully open, hold the clock still — the gears,
-    // balance, pallet, and jewels all sit perfectly static behind it.
-    const renderT =
-      launch.mode === "open" && launch.frozenT !== null
-        ? launch.frozenT
-        : reduced
-          ? 0
-          : t;
-
-    const zoomFactor = R / RA;
+    const renderT = reduced ? 0 : t;
+    const zoomFactor = R / PRESETS.ambient().R;
 
     ctx.clearRect(0, 0, W, H);
     drawMainplate(yaw);
@@ -2476,9 +2489,7 @@ export function startMovement(canvas) {
     drawRegulator(yaw);
     drawJewelsAndScrews(renderT, yaw, zoomFactor);
 
-    // Shimmers pause entirely while the app is open (they'd contradict
-    // the frozen-mechanism rule otherwise).
-    if (!reduced && launch.mode !== "open") {
+    if (!reduced) {
       for (const sh of shimmers) {
         sh.t += sh.speed * 16;
         if (sh.t > 1.15) {
@@ -2493,5 +2504,5 @@ export function startMovement(canvas) {
   }
   requestAnimationFrame(frame);
 
-  return { canvas, launchTo, closeTo };
+  return { canvas, setCamera };
 }
