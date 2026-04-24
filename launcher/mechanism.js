@@ -2645,31 +2645,24 @@ export function startMovement(canvas) {
   }
   requestAnimationFrame(frame);
 
-  /* ===== Peek easter egg — tap the train bridge's escape-end screw
-     to toggle between 'ambient' and 'wide' camera presets.
-     At ambient zoom the barrel-side screws sit above the top of the
-     viewport, so the gesture is anchored to a reliably-visible screw:
-     the countersunk blued screw at the escape-wheel end of the train
-     bridge, roughly right-of-center on the composition. Hit radius is
-     generous (~3× the visual) so fingers can find it. */
-  const peekScrewUV = () => {
-    // bridges[2] = train bridge. Its endpoint array's last entry is
-    // the escape-end; this is where drawBridges renders a drawBluedScrew
-    // inside a countersunk well.
-    const tb = bridges[2];
-    const pts = tb.points;
-    return pts[pts.length - 1];
-  };
-
+  /* ===== Peek easter egg — tap any bridge endpoint screw to toggle
+     between 'ambient' and 'wide' camera presets. drawBridges renders
+     a drawBluedScrew at both endpoints of every bridge, so the hit
+     test walks all 8 screws. This makes the gesture discoverable
+     regardless of which visible screw a finger lands on. Hit radius
+     is generous (~3× the visual) so fingers can find it. */
   const hitPeekScrew = (ex, ey) => {
-    const [u, v] = peekScrewUV();
-    const [scx, scy] = U(u, v, yaw);
-    // Matches the drawBridges screwR = w * 0.24 sizing for the train
-    // bridge (w = trainBridge.width * R = 0.075 * R).
-    const visualR = 0.075 * R * 0.24;
-    const hitR    = Math.max(28, visualR * 3.0);
-    const dx = ex - scx, dy = ey - scy;
-    return (dx * dx + dy * dy) <= hitR * hitR;
+    for (const br of bridges) {
+      const w = br.width * R;
+      const visualR = w * 0.24;
+      const hitR2 = Math.pow(Math.max(28, visualR * 3.0), 2);
+      for (const [u, v] of [br.points[0], br.points[br.points.length - 1]]) {
+        const [scx, scy] = U(u, v, yaw);
+        const dx = ex - scx, dy = ey - scy;
+        if (dx * dx + dy * dy <= hitR2) return true;
+      }
+    }
+    return false;
   };
 
   canvas.addEventListener("pointerdown", (ev) => {
