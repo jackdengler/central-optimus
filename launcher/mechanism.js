@@ -488,17 +488,21 @@ export function startMovement(canvas) {
      watched a frame render. They are not.
      ===================================================================== */
 
-  function drawMainplate(yaw) {
-    // Halo tightened — at 1.7x zoom it was mostly off-screen and not
-    // contributing. Anchor to the visible viewport radius, not the
-    // oversize plate R.
+  // Parchment halo — drawn per-frame on the live canvas (NOT into the
+  // static cache). Keeping the halo out of the cache means a pinch-out
+  // gesture can shrink the cached plate disc without exposing a hard
+  // rectangular bitmap edge: the halo always fills the visible canvas
+  // at the current camera pose.
+  function drawHalo() {
     const haloR = Math.max(W, H) * 0.9;
-    const halo = ctx.createRadialGradient(cx, cy, haloR * 0.15, cx, cy, haloR);
+    const halo = mainCtx.createRadialGradient(cx, cy, haloR * 0.15, cx, cy, haloR);
     halo.addColorStop(0, col(C.plateHi, 0.14));
     halo.addColorStop(1, col(C.plateDark, 0.00));
-    ctx.fillStyle = halo;
-    ctx.beginPath(); ctx.arc(cx, cy, haloR, 0, Math.PI * 2); ctx.fill();
+    mainCtx.fillStyle = halo;
+    mainCtx.beginPath(); mainCtx.arc(cx, cy, haloR, 0, Math.PI * 2); mainCtx.fill();
+  }
 
+  function drawMainplate(yaw) {
     // Disc gradient — stronger directional falloff sells the "light from
     // upper-left" read at the new zoom. Light source pulled in closer
     // (0.45 → 0.35) so the specular hot region is visible on-screen.
@@ -2875,6 +2879,11 @@ export function startMovement(canvas) {
     }
 
     mainCtx.clearRect(0, 0, W, H);
+
+    // Halo first, on the live canvas. Stays canvas-sized regardless of
+    // zoom so pinch-out doesn't expose a hard rectangular bitmap edge
+    // around the cached plate disc.
+    drawHalo();
 
     // Blit the cached static layers. If we're at the cached pose, blit
     // 1:1. Otherwise (mid-tween or mid-gesture) apply the transform
