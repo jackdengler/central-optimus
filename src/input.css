@@ -60,6 +60,20 @@
        the safe-area fill deterministic. */
     background-color: var(--color-optimus-bg);
     background-image:
+      /* Hard-stop band that pre-darkens the bottom safe-area inset
+         (and a 12px feather above it) so the home-indicator zone reads
+         the same as the noise-darkened body area above. Without this,
+         that strip looks visibly lighter because .bg-noise is
+         fixed-positioned and iOS clips it to the layout viewport, so
+         the noise multiply never reaches the safe area. On devices
+         with no bottom inset env() resolves to 0 and the band
+         collapses to a no-op. */
+      linear-gradient(
+        to top,
+        rgba(31, 27, 22, 0.085) 0,
+        rgba(31, 27, 22, 0.085) env(safe-area-inset-bottom),
+        rgba(31, 27, 22, 0)     calc(env(safe-area-inset-bottom) + 12px)
+      ),
       radial-gradient(28rem 22rem at 8% 6%,   rgba(201, 106, 71, 0.28), transparent 62%),
       radial-gradient(26rem 22rem at 96% 10%, rgba(138, 160, 120, 0.22), transparent 62%),
       radial-gradient(34rem 28rem at 50% 108%, rgba(70, 74, 120, 0.26), transparent 62%);
