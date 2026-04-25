@@ -216,14 +216,13 @@
       calc(env(safe-area-inset-bottom) + 0.85rem);
     max-width: 64rem;
     margin: 0 auto;
-    /* Don't swallow pointer events on the shell's empty regions —
-       the watch-canvas under it owns the peek-screw tap gesture. The
-       interactive children (greeting, grid, base) re-enable below. */
+    /* Shell doesn't swallow pointer events on its empty regions — the
+       watch-canvas under it owns the tap-to-zoom gesture. Real
+       interactive children (.icon tiles, .lock-btn) opt back in. */
     pointer-events: none;
   }
-  .shell > .greeting,
-  .shell > .grid,
-  .shell > .base { pointer-events: auto; }
+  .shell .icon,
+  .shell .lock-btn { pointer-events: auto; }
 
   .shell .spacer { min-height: 0; }
 

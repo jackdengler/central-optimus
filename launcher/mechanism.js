@@ -84,6 +84,10 @@ export function startMovement(canvas) {
      in screen px. A preset is a function of (W, H) → {cx, cy, R}.
      _setCamera(name, duration) tweens from the current values to the
      target preset; duration=0 snaps immediately. */
+  // Plate-space (u, v) of the last tap, used by PRESETS.focus to
+  // re-resolve on resize so the focused feature stays centered.
+  let focusUV = null;
+
   const PRESETS = {
     // Whole watch plate framed with margin. Diameter ≈ 0.86× the short
     // screen edge, so the full mechanism — bezel, bridges, balance —
@@ -101,6 +105,21 @@ export function startMovement(canvas) {
       cy: H * 0.52,
       R:  Math.max(W, H) * 1.7,
     }),
+    // Tap-to-zoom — recenters on the tapped plate coordinates and
+    // pushes R up so the feature under the finger fills the frame.
+    // Falls back to ambient if no tap has been recorded yet.
+    focus: () => {
+      const a = PRESETS.ambient();
+      if (!focusUV) return a;
+      const [u, v] = focusUV;
+      const yawC = Math.cos(Math.PI / 4), yawS = Math.sin(Math.PI / 4);
+      const targetR = a.R * 2.2;
+      return {
+        cx: W / 2 - (u * yawC - v * yawS) * targetR,
+        cy: H / 2 - (u * yawS + v * yawC) * targetR,
+        R:  targetR,
+      };
+    },
     // Dive into the fourth wheel (kept for reduced-motion / legacy paths).
     closeup: () => {
       const a = PRESETS.ambient();
@@ -2738,38 +2757,35 @@ export function startMovement(canvas) {
   renderStatic();
   requestAnimationFrame(frame);
 
-  /* ===== Peek easter egg — tap any bridge endpoint screw to toggle
-     between 'ambient' and 'wide' camera presets. drawBridges renders
-     a drawBluedScrew at both endpoints of every bridge, so the hit
-     test walks all 8 screws. This makes the gesture discoverable
-     regardless of which visible screw a finger lands on. Hit radius
-     is generous (~3× the visual) so fingers can find it. */
-  const hitPeekScrew = (ex, ey) => {
-    for (const br of bridges) {
-      const w = br.width * R;
-      const visualR = w * 0.24;
-      const hitR2 = Math.pow(Math.max(28, visualR * 3.0), 2);
-      for (const [u, v] of [br.points[0], br.points[br.points.length - 1]]) {
-        const [scx, scy] = U(u, v, yaw);
-        const dx = ex - scx, dy = ey - scy;
-        if (dx * dx + dy * dy <= hitR2) return true;
-      }
-    }
-    return false;
-  };
-
+  /* ===== Tap-to-zoom — tap anywhere on the canvas to dive into that
+     point; tap again to come back out. The .shell layer above is
+     transparent to pointer events outside its tiles + lock button, so
+     any tap on the watch movement reaches us here. */
   canvas.addEventListener("pointerdown", (ev) => {
     // Swallow the default regardless of hit — canvas long-press
     // otherwise triggers iOS text/image selection and callouts. The
     // canvas doesn't own any other gesture, so this is safe.
     ev.preventDefault();
-    if (cam.name === "closeup") return;
+    if (cam.name === "focus") {
+      // Already zoomed in — any tap returns to the ambient backdrop.
+      setCamera("ambient", 380);
+      return;
+    }
+    // Only let the user dive in from the steady ambient state. During
+    // boot ('wide' → 'ambient'), app launch ('wide'), or closeup we
+    // ignore the tap so it can't hijack those flows.
+    if (cam.name !== "ambient") return;
     const rect = canvas.getBoundingClientRect();
     const ex = ev.clientX - rect.left;
     const ey = ev.clientY - rect.top;
-    if (!hitPeekScrew(ex, ey)) return;
-    // Single tap toggles: ambient ⇄ wide.
-    setCamera(cam.name === "wide" ? "ambient" : "wide", 380);
+    // Invert U(u, v, yaw) at the current camera to recover the plate
+    // coordinates under the finger, then store them for PRESETS.focus
+    // to recenter on (and to re-resolve on resize).
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    const xr = (ex - cx) / R;
+    const yr = (ey - cy) / R;
+    focusUV = [xr * c + yr * s, -xr * s + yr * c];
+    setCamera("focus", 480);
   });
 
   // Block the iOS long-press context menu even when the event isn't a
