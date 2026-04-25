@@ -40,7 +40,7 @@ export function startMovement(canvas) {
      the new pose for pixel-perfect quality at rest. */
   const staticCanvas = document.createElement("canvas");
   const staticCtx = staticCanvas.getContext("2d", { alpha: true });
-  const cache = { cx: 0, cy: 0, R: 1, W: 0, H: 0, DPR: 1, valid: false };
+  const cache = { cx: 0, cy: 0, R: 1, yaw: 0, W: 0, H: 0, DPR: 1, valid: false };
   // Snapshot of the previous static cache. When a tween starts we
   // pre-render the destination cache into staticCanvas and copy the
   // outgoing bitmap here; the blit loop then blends prev → new tracking
@@ -48,7 +48,7 @@ export function startMovement(canvas) {
   // during the zoom rather than after it.
   const prevStaticCanvas = document.createElement("canvas");
   const prevStaticCtx = prevStaticCanvas.getContext("2d", { alpha: true });
-  const prevCache = { cx: 0, cy: 0, R: 1, valid: false };
+  const prevCache = { cx: 0, cy: 0, R: 1, yaw: 0, valid: false };
 
   /* Mechanism palette — warm monotone. Reads as brass-and-ivory on
      parchment: never near-black, never cool. Depth comes from opacity
@@ -2768,11 +2768,12 @@ export function startMovement(canvas) {
     }
   }
 
-  // Static yaw — the composition holds still as a backdrop. Aliveness
-  // comes from the gear train and balance, not from the whole frame
-  // rotating. 45° tilt — bridges and gear train read on a strong
-  // diagonal across the canvas.
-  const yaw = Math.PI / 4;
+  // Plate yaw — default 45° tilt so bridges + train read on a strong
+  // diagonal. Mutable so the two-finger gesture can spin the plate;
+  // the static cache records the yaw it was rendered at and the blit
+  // transform applies the delta, so rotation tracks at full frame rate
+  // without rebuilding the cache mid-gesture.
+  let yaw = Math.PI / 4;
   const YAW_SPEED = 0;
 
   /* Render the deeply-layered static background (mainplate grain,
@@ -2795,6 +2796,7 @@ export function startMovement(canvas) {
       prevCache.cx = cache.cx;
       prevCache.cy = cache.cy;
       prevCache.R  = cache.R;
+      prevCache.yaw = cache.yaw;
       prevCache.valid = true;
     }
     // Optional pose override — temporarily swap globals so the static
@@ -2821,6 +2823,7 @@ export function startMovement(canvas) {
     cache.cx = useCx;
     cache.cy = useCy;
     cache.R = useR;
+    cache.yaw = yaw;
     cache.W = W;
     cache.H = H;
     cache.DPR = DPR;
@@ -2874,15 +2877,18 @@ export function startMovement(canvas) {
     mainCtx.clearRect(0, 0, W, H);
 
     // Blit the cached static layers. If we're at the cached pose, blit
-    // 1:1. Otherwise (mid-tween) apply the transform that maps the
-    // cached (cx, cy, R) to the current (cx, cy, R) — this scales the
-    // whole pre-rendered bitmap to track the camera for free.
-    const blitCache = (canvasSrc, srcCx, srcCy, srcR, alpha) => {
+    // 1:1. Otherwise (mid-tween or mid-gesture) apply the transform
+    // that maps the cached (cx, cy, R, yaw) to the current pose — this
+    // pans, scales, AND rotates the pre-rendered bitmap to track the
+    // camera for free.
+    const blitCache = (canvasSrc, srcCx, srcCy, srcR, srcYaw, alpha) => {
       mainCtx.save();
       if (alpha < 1) mainCtx.globalAlpha = alpha;
-      if (cx !== srcCx || cy !== srcCy || R !== srcR) {
+      const dyaw = yaw - srcYaw;
+      if (cx !== srcCx || cy !== srcCy || R !== srcR || dyaw !== 0) {
         const scale = R / srcR;
         mainCtx.translate(cx, cy);
+        if (dyaw !== 0) mainCtx.rotate(dyaw);
         mainCtx.scale(scale, scale);
         mainCtx.translate(-srcCx, -srcCy);
       }
@@ -2898,11 +2904,11 @@ export function startMovement(canvas) {
     // continuously across the zoom rather than snapping after it.
     if (prevCache.valid && cam.to) {
       const t2 = cam.eased;
-      blitCache(prevStaticCanvas, prevCache.cx, prevCache.cy, prevCache.R, 1 - t2);
-      blitCache(staticCanvas, cache.cx, cache.cy, cache.R, t2);
+      blitCache(prevStaticCanvas, prevCache.cx, prevCache.cy, prevCache.R, prevCache.yaw, 1 - t2);
+      blitCache(staticCanvas, cache.cx, cache.cy, cache.R, cache.yaw, t2);
     } else {
       if (prevCache.valid) prevCache.valid = false;
-      blitCache(staticCanvas, cache.cx, cache.cy, cache.R, 1);
+      blitCache(staticCanvas, cache.cx, cache.cy, cache.R, cache.yaw, 1);
     }
 
     // Dynamic layers — these actually animate (or must render in this
@@ -2981,6 +2987,7 @@ export function startMovement(canvas) {
     const p2 = it.next().value;
     pinch = {
       dist: Math.hypot(p2.x - p1.x, p2.y - p1.y),
+      ang:  Math.atan2(p2.y - p1.y, p2.x - p1.x),
       midX: (p1.x + p2.x) / 2,
       midY: (p1.y + p2.y) / 2,
     };
@@ -3012,22 +3019,31 @@ export function startMovement(canvas) {
       const p1 = it.next().value;
       const p2 = it.next().value;
       const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      const ang  = Math.atan2(p2.y - p1.y, p2.x - p1.x);
       const midX = (p1.x + p2.x) / 2;
       const midY = (p1.y + p2.y) / 2;
       const rect = canvas.getBoundingClientRect();
       const fx = pinch.midX - rect.left;
       const fy = pinch.midY - rect.top;
       const scale = pinch.dist > 0 ? dist / pinch.dist : 1;
-      // Zoom around the previous midpoint (so the plate point under
-      // the fingers stays under the fingers), then translate by the
-      // midpoint delta to capture two-finger panning.
-      cx = fx + (cx - fx) * scale;
-      cy = fy + (cy - fy) * scale;
+      // Wrap to [-π, π] so a finger crossing the ±π discontinuity
+      // doesn't slingshot the plate around the long way.
+      let dA = ang - pinch.ang;
+      if (dA >  Math.PI) dA -= Math.PI * 2;
+      if (dA < -Math.PI) dA += Math.PI * 2;
+      // Zoom + rotate around the previous midpoint (so the plate
+      // point under the fingers stays under the fingers), then
+      // translate by the midpoint delta to capture two-finger pan.
+      const dx = cx - fx, dy = cy - fy;
+      const cs = Math.cos(dA), sn = Math.sin(dA);
+      cx = fx + (dx * cs - dy * sn) * scale;
+      cy = fy + (dx * sn + dy * cs) * scale;
       R *= scale;
+      yaw += dA;
       cx += midX - pinch.midX;
       cy += midY - pinch.midY;
       clampR();
-      pinch = { dist, midX, midY };
+      pinch = { dist, ang, midX, midY };
     }
   });
 
