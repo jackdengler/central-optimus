@@ -41,6 +41,14 @@ export function startMovement(canvas) {
   const staticCanvas = document.createElement("canvas");
   const staticCtx = staticCanvas.getContext("2d", { alpha: true });
   const cache = { cx: 0, cy: 0, R: 1, W: 0, H: 0, DPR: 1, valid: false };
+  // Snapshot of the previous static cache, kept so a rebuild can
+  // crossfade the old (bilinear-stretched) bitmap into the new (crisp)
+  // one over ~CROSSFADE_MS instead of swapping in a single frame.
+  const prevStaticCanvas = document.createElement("canvas");
+  const prevStaticCtx = prevStaticCanvas.getContext("2d", { alpha: true });
+  const prevCache = { cx: 0, cy: 0, R: 1, valid: false };
+  let crossfadeStart = 0;
+  const CROSSFADE_MS = 260;
   let rebuildScheduled = false;
 
   /* Schedule a static-cache refresh OFF the current frame (idle if
@@ -164,7 +172,14 @@ export function startMovement(canvas) {
     staticCanvas.width  = canvas.width;
     staticCanvas.height = canvas.height;
     staticCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    prevStaticCanvas.width  = canvas.width;
+    prevStaticCanvas.height = canvas.height;
+    prevStaticCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
     cache.valid = false;
+    // Resize discards the previous bitmap — invalidate prev so the
+    // next rebuild snaps to the fresh render rather than crossfading
+    // through stale dimensions.
+    prevCache.valid = false;
     isPortrait = H >= W;
 
     // No tween in flight → snap camera to current preset at new dims.
@@ -461,8 +476,9 @@ export function startMovement(canvas) {
     // the plate from "gradient fill" to "machined nickel-silver"; every
     // decorated layer above (perlage, côtes, bridges) reads more
     // premium against a textured substrate than a smooth one. Seed is
-    // derived from R so the pattern is deterministic per viewport size
-    // (doesn't shimmer between frames).
+    // a fixed constant so the pattern is stable across rebuilds — if
+    // it varied with R or cx/cy the grain would reshuffle every time
+    // the cache rebuilt at a new pose, reading as a flicker.
     ctx.save();
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
     // Grain density scaled to visible viewport so grain reads the same
@@ -471,8 +487,10 @@ export function startMovement(canvas) {
     // low enough that a rebuild fits in a single frame on mobile.
     const visArea = W * H;
     const grainCount = Math.min(1100, Math.round(visArea * 0.0024));
-    // Deterministic PRNG so grain doesn't flicker every frame.
-    let seed = Math.floor(R * 997 + cx + cy);
+    // Deterministic PRNG, seeded with a fixed constant so the grain
+    // pattern is anchored to plate-space and tracks the camera through
+    // bilinear scaling without reshuffling between cache rebuilds.
+    let seed = 0x9E3779B9;
     const rnd = () => {
       seed = (seed * 1664525 + 1013904223) >>> 0;
       return seed / 4294967296;
@@ -2716,6 +2734,21 @@ export function startMovement(canvas) {
      the original z-order is preserved: regulator sits ON TOP of the
      balance wheel, jewels sit ON TOP of gears. */
   function renderStatic() {
+    // Snapshot the existing cache (and the pose it was rendered at)
+    // before we overwrite staticCanvas. The blit loop will fade from
+    // this snapshot to the fresh render over CROSSFADE_MS so a rebuild
+    // never appears as a one-frame swap.
+    if (cache.valid) {
+      prevStaticCtx.setTransform(1, 0, 0, 1, 0, 0);
+      prevStaticCtx.clearRect(0, 0, prevStaticCanvas.width, prevStaticCanvas.height);
+      prevStaticCtx.drawImage(staticCanvas, 0, 0);
+      prevStaticCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      prevCache.cx = cache.cx;
+      prevCache.cy = cache.cy;
+      prevCache.R  = cache.R;
+      prevCache.valid = true;
+      crossfadeStart = performance.now();
+    }
     const renderT = reduced ? 0 : Date.now();
     ctx = staticCtx;
     try {
@@ -2785,16 +2818,37 @@ export function startMovement(canvas) {
     // 1:1. Otherwise (mid-tween) apply the transform that maps the
     // cached (cx, cy, R) to the current (cx, cy, R) — this scales the
     // whole pre-rendered bitmap to track the camera for free.
-    if (cx === cache.cx && cy === cache.cy && R === cache.R) {
-      mainCtx.drawImage(staticCanvas, 0, 0, W, H);
-    } else {
-      const scale = R / cache.R;
+    const blitCache = (canvasSrc, srcCx, srcCy, srcR, alpha) => {
       mainCtx.save();
-      mainCtx.translate(cx, cy);
-      mainCtx.scale(scale, scale);
-      mainCtx.translate(-cache.cx, -cache.cy);
-      mainCtx.drawImage(staticCanvas, 0, 0, W, H);
+      if (alpha < 1) mainCtx.globalAlpha = alpha;
+      if (cx !== srcCx || cy !== srcCy || R !== srcR) {
+        const scale = R / srcR;
+        mainCtx.translate(cx, cy);
+        mainCtx.scale(scale, scale);
+        mainCtx.translate(-srcCx, -srcCy);
+      }
+      mainCtx.drawImage(canvasSrc, 0, 0, W, H);
       mainCtx.restore();
+    };
+
+    // Rebuild crossfade — when prev is valid, draw prev underneath and
+    // fade the fresh cache in on top so the bilinear-stretched bitmap
+    // dissolves into the crisp render instead of snapping in one frame.
+    let crossfadeT = 1;
+    if (prevCache.valid) {
+      const elapsed = now - crossfadeStart;
+      if (elapsed >= CROSSFADE_MS) {
+        prevCache.valid = false;
+      } else {
+        const raw = Math.max(0, elapsed / CROSSFADE_MS);
+        crossfadeT = raw * raw * (3 - 2 * raw);
+      }
+    }
+    if (prevCache.valid && crossfadeT < 1) {
+      blitCache(prevStaticCanvas, prevCache.cx, prevCache.cy, prevCache.R, 1);
+      blitCache(staticCanvas, cache.cx, cache.cy, cache.R, crossfadeT);
+    } else {
+      blitCache(staticCanvas, cache.cx, cache.cy, cache.R, 1);
     }
 
     // Dynamic layers — these actually animate (or must render in this
