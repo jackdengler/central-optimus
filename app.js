@@ -8,12 +8,13 @@ function haptic(pattern) {
   } catch (_) {}
 }
 
-/* Block all pinch-zoom paths. The viewport meta has user-scalable=no
-   but iOS Safari ignores it in standalone PWA mode. We also stop the
-   WebKit gesture* events (two-finger zoom on iOS) and ctrl+wheel
-   (desktop trackpad pinch). touch-action on html/body in CSS handles
-   the passive case; this catches active gesture attempts. */
-(function lockPinchZoom() {
+/* Block the page itself from pinch-zooming. The viewport meta has
+   user-scalable=no but iOS Safari ignores it in standalone PWA mode.
+   We stop the WebKit gesture* events (two-finger zoom on iOS) and
+   ctrl+wheel (desktop trackpad pinch) at the document level so the
+   shell stays put — the watch canvas owns its own pinch handler and
+   consumes the pointer events directly. */
+(function lockPagePinchZoom() {
   const swallow = (e) => { e.preventDefault(); };
   ["gesturestart", "gesturechange", "gestureend"].forEach((evt) => {
     document.addEventListener(evt, swallow, { passive: false });
@@ -27,6 +28,7 @@ function haptic(pattern) {
 })();
 
 const TOKEN_KEY = "co.gh.token";
+const GESTURE_LOCK_KEY = "co.bg.locked";
 
 /* -------------------------------------------------------------------
    Motion choreography
@@ -382,14 +384,8 @@ async function unlock(config, registry) {
     setPublishStamp();
     wireLauncherGrid();
     startWatchCanvas();
+    wireGestureLock();
     bootSequence();
-
-    const lockBtn = document.getElementById("lock");
-    if (lockBtn) {
-      lockBtn.dataset.state = "unlocked";
-      lockBtn.setAttribute("aria-label", "Sign out");
-      lockBtn.title = "Sign out";
-    }
 
     const weatherEl = document.getElementById("hero-weather");
     if (weatherEl) {
@@ -428,12 +424,36 @@ async function unlock(config, registry) {
   });
 }
 
-function lockAndReload() {
-  localStorage.removeItem(TOKEN_KEY);
-  location.reload();
+/* Background gesture lock — the corner button toggles whether the
+   watch canvas accepts pinch/drag. State persists across reloads so
+   the user's preference survives navigating away and back. */
+function applyGestureLock(locked) {
+  const btn = document.getElementById("lock");
+  if (btn) {
+    btn.dataset.state = locked ? "locked" : "unlocked";
+    const label = locked ? "Unlock background" : "Lock background";
+    btn.setAttribute("aria-label", label);
+    btn.setAttribute("aria-pressed", locked ? "true" : "false");
+    btn.title = label;
+  }
+  if (watchCanvas && watchCanvas._setGestureLock) {
+    watchCanvas._setGestureLock(locked);
+  }
 }
 
-document.getElementById("lock")?.addEventListener("click", lockAndReload);
+function wireGestureLock() {
+  const initial = localStorage.getItem(GESTURE_LOCK_KEY) === "1";
+  applyGestureLock(initial);
+  const btn = document.getElementById("lock");
+  if (!btn || btn._wired) return;
+  btn._wired = true;
+  btn.addEventListener("click", () => {
+    const next = btn.dataset.state !== "locked";
+    localStorage.setItem(GESTURE_LOCK_KEY, next ? "1" : "0");
+    applyGestureLock(next);
+    haptic(6);
+  });
+}
 
 function startWatchCanvas() {
   watchCanvas = document.querySelector(".watch-canvas");
