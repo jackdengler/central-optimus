@@ -2821,6 +2821,18 @@ export function startMovement(canvas) {
       drawEngraving(yaw);
       drawDateWheel(renderT, yaw);
       drawBridges(yaw);
+      // Hard-mask to the plate disc so nothing in the cache sits
+      // outside it — without this, anti-aliased rim strokes and
+      // sub-pixel content near the bitmap edge can leave a faint
+      // rectangle visible when the cache is later scaled or panned.
+      // 1.01 leaves a touch of headroom for the rim chamfer.
+      staticCtx.save();
+      staticCtx.globalCompositeOperation = "destination-in";
+      staticCtx.fillStyle = "#000"; // alpha=1; only the source alpha matters here
+      staticCtx.beginPath();
+      staticCtx.arc(useCx, useCy, useR * 1.01, 0, Math.PI * 2);
+      staticCtx.fill();
+      staticCtx.restore();
     } finally {
       ctx = mainCtx;
     }
