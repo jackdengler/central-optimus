@@ -75,6 +75,16 @@ export function startMovement(canvas) {
   };
   const col = (c, a) => c.replace("%a", a);
 
+  /* LOD ramps. Detail levels used to flip on hard zoomFactor thresholds
+     (pop in). Replace each binary gate with a smoothstep over a window
+     centred on the old threshold so detail fades in continuously as
+     the camera tweens through it. */
+  const smoothstep = (e0, e1, x) => {
+    const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0)));
+    return t * t * (3 - 2 * t);
+  };
+  const lerp = (a, b, t) => a + (b - a) * t;
+
   let W = 0, H = 0, DPR = 1;
   let cx = 0, cy = 0, R = 0;
   let isPortrait = true;
@@ -1038,8 +1048,8 @@ export function startMovement(canvas) {
       const spokeLW = Math.max(1, wR * 0.05);
       const rInner = Math.max(pR * 1.35, wR * 0.18);
       const rOuter = wR * 0.88;
-      const gearClose = zoomFactor > 1.5;
-      const gearVeryClose = zoomFactor > 5.0;
+      const gearCloseFade = smoothstep(1.2, 1.8, zoomFactor);
+      const gearVeryCloseFade = smoothstep(4.0, 6.0, zoomFactor);
 
       ctx.strokeStyle = col(C.plateDark, 0.42);
       ctx.lineWidth = spokeLW;
@@ -1051,14 +1061,18 @@ export function startMovement(canvas) {
         ctx.stroke();
       }
 
-      // Closeup: round-bar shading so each spoke reads as a machined bar.
-      if (gearClose) {
+      // Closeup: round-bar shading so each spoke reads as a machined
+      // bar. Fades in continuously across the 1.5 threshold; the
+      // very-close embellishments fade across the 5.0 threshold.
+      if (gearCloseFade > 0) {
+        ctx.save();
+        ctx.globalAlpha *= gearCloseFade;
         for (let i = 0; i < spokes; i++) {
           const a = angle + (i / spokes) * Math.PI * 2;
           const perp = a + Math.PI / 2;
           const offset = spokeLW * 0.28;
 
-          ctx.strokeStyle = `rgba(255, 245, 225, ${gearVeryClose ? 0.45 : 0.30})`;
+          ctx.strokeStyle = `rgba(255, 245, 225, ${lerp(0.30, 0.45, gearVeryCloseFade)})`;
           ctx.lineWidth = Math.max(0.8, spokeLW * 0.20);
           ctx.beginPath();
           ctx.moveTo(
@@ -1071,7 +1085,7 @@ export function startMovement(canvas) {
           );
           ctx.stroke();
 
-          ctx.strokeStyle = col(C.shadow, gearVeryClose ? 0.55 : 0.35);
+          ctx.strokeStyle = col(C.shadow, lerp(0.35, 0.55, gearVeryCloseFade));
           ctx.lineWidth = Math.max(0.8, spokeLW * 0.18);
           ctx.beginPath();
           ctx.moveTo(
@@ -1084,17 +1098,22 @@ export function startMovement(canvas) {
           );
           ctx.stroke();
 
-          if (gearVeryClose) {
+          if (gearVeryCloseFade > 0) {
+            ctx.save();
+            ctx.globalAlpha *= gearVeryCloseFade;
             ctx.strokeStyle = col(C.shadow, 0.30);
             ctx.lineWidth = Math.max(0.4, spokeLW * 0.06);
             ctx.beginPath();
             ctx.moveTo(sx + Math.cos(a) * rInner, sy + Math.sin(a) * rInner);
             ctx.lineTo(sx + Math.cos(a) * rOuter, sy + Math.sin(a) * rOuter);
             ctx.stroke();
+            ctx.restore();
           }
         }
 
-        if (gearVeryClose) {
+        if (gearVeryCloseFade > 0) {
+          ctx.save();
+          ctx.globalAlpha *= gearVeryCloseFade;
           for (let i = 0; i < spokes; i++) {
             const a = angle + (i / spokes) * Math.PI * 2;
             ctx.fillStyle = col(C.plateDark, 0.30);
@@ -1106,7 +1125,9 @@ export function startMovement(canvas) {
             );
             ctx.fill();
           }
+          ctx.restore();
         }
+        ctx.restore();
       }
     }
 
@@ -1114,47 +1135,58 @@ export function startMovement(canvas) {
     // stage has no downstream wheel to drive.
     const isLast = stageIdx === gears.length - 1;
     if (!isLast && g.kind !== "escape") {
-      const gearVeryClose = zoomFactor > 5.0;
-      const pBody = ctx.createRadialGradient(sx - pR * 0.3, sy - pR * 0.3, 0, sx, sy, pR);
-      if (gearVeryClose) {
-        pBody.addColorStop(0,   "rgba(180, 148, 112, 0.88)");
-        pBody.addColorStop(0.6, "rgba(98, 74, 52, 0.95)");
-        pBody.addColorStop(1,   "rgba(42, 28, 16, 0.97)");
-      } else {
-        pBody.addColorStop(0, col(C.steel, 0.60));
-        pBody.addColorStop(1, col(C.shadow, 0.70));
-      }
-      ctx.fillStyle = pBody;
-      ctx.beginPath(); ctx.arc(sx, sy, pR, 0, Math.PI * 2); ctx.fill();
-
-      ctx.strokeStyle = col(C.shadow, 0.85);
-      ctx.lineWidth = 0.7;
-      ctx.fillStyle = pBody;
+      const gearVeryCloseFade = smoothstep(4.0, 6.0, zoomFactor);
       const tCount = g.pinionT;
       const tPitch = (Math.PI * 2) / tCount;
       const rRoot = pR * 0.80;
       const rMid  = pR * 1.02;
       const rTip  = pR * 1.22;
-      ctx.beginPath();
-      for (let i = 0; i < tCount; i++) {
-        const aC = angle + i * tPitch;
-        const aRoot0 = aC - tPitch * 0.46;
-        const aFlk0  = aC - tPitch * 0.22;
-        const aTip0  = aC - tPitch * 0.10;
-        const aTip1  = aC + tPitch * 0.10;
-        const aFlk1  = aC + tPitch * 0.22;
-        const aRoot1 = aC + tPitch * 0.46;
-        if (i === 0) ctx.moveTo(sx + Math.cos(aRoot0) * rRoot, sy + Math.sin(aRoot0) * rRoot);
-        else         ctx.lineTo(sx + Math.cos(aRoot0) * rRoot, sy + Math.sin(aRoot0) * rRoot);
-        ctx.lineTo(sx + Math.cos(aFlk0) * rMid, sy + Math.sin(aFlk0) * rMid);
-        ctx.lineTo(sx + Math.cos(aTip0) * rTip, sy + Math.sin(aTip0) * rTip);
-        ctx.lineTo(sx + Math.cos(aTip1) * rTip, sy + Math.sin(aTip1) * rTip);
-        ctx.lineTo(sx + Math.cos(aFlk1) * rMid, sy + Math.sin(aFlk1) * rMid);
-        ctx.lineTo(sx + Math.cos(aRoot1) * rRoot, sy + Math.sin(aRoot1) * rRoot);
+      const tracePinion = () => {
+        ctx.beginPath(); ctx.arc(sx, sy, pR, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = col(C.shadow, 0.85);
+        ctx.lineWidth = 0.7;
+        ctx.beginPath();
+        for (let i = 0; i < tCount; i++) {
+          const aC = angle + i * tPitch;
+          const aRoot0 = aC - tPitch * 0.46;
+          const aFlk0  = aC - tPitch * 0.22;
+          const aTip0  = aC - tPitch * 0.10;
+          const aTip1  = aC + tPitch * 0.10;
+          const aFlk1  = aC + tPitch * 0.22;
+          const aRoot1 = aC + tPitch * 0.46;
+          if (i === 0) ctx.moveTo(sx + Math.cos(aRoot0) * rRoot, sy + Math.sin(aRoot0) * rRoot);
+          else         ctx.lineTo(sx + Math.cos(aRoot0) * rRoot, sy + Math.sin(aRoot0) * rRoot);
+          ctx.lineTo(sx + Math.cos(aFlk0) * rMid, sy + Math.sin(aFlk0) * rMid);
+          ctx.lineTo(sx + Math.cos(aTip0) * rTip, sy + Math.sin(aTip0) * rTip);
+          ctx.lineTo(sx + Math.cos(aTip1) * rTip, sy + Math.sin(aTip1) * rTip);
+          ctx.lineTo(sx + Math.cos(aFlk1) * rMid, sy + Math.sin(aFlk1) * rMid);
+          ctx.lineTo(sx + Math.cos(aRoot1) * rRoot, sy + Math.sin(aRoot1) * rRoot);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      };
+
+      // Base pass — softer steel/shadow gradient. Always rendered.
+      const pBodyFar = ctx.createRadialGradient(sx - pR * 0.3, sy - pR * 0.3, 0, sx, sy, pR);
+      pBodyFar.addColorStop(0, col(C.steel, 0.60));
+      pBodyFar.addColorStop(1, col(C.shadow, 0.70));
+      ctx.fillStyle = pBodyFar;
+      tracePinion();
+
+      // Detail pass — warmer, higher-contrast brass gradient layered
+      // on top with fade alpha so the swap blends instead of popping.
+      if (gearVeryCloseFade > 0) {
+        const pBodyClose = ctx.createRadialGradient(sx - pR * 0.3, sy - pR * 0.3, 0, sx, sy, pR);
+        pBodyClose.addColorStop(0,   "rgba(180, 148, 112, 0.88)");
+        pBodyClose.addColorStop(0.6, "rgba(98, 74, 52, 0.95)");
+        pBodyClose.addColorStop(1,   "rgba(42, 28, 16, 0.97)");
+        ctx.save();
+        ctx.globalAlpha *= gearVeryCloseFade;
+        ctx.fillStyle = pBodyClose;
+        tracePinion();
+        ctx.restore();
       }
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
 
       // Polished crescent highlight — always drawn now that ambient is
       // zoomed in. Brightens the upper-left arc of the pinion.
@@ -1220,7 +1252,15 @@ export function startMovement(canvas) {
       // Larger hub centering dot — previous 0.18 of pinion radius
       // vanished at close zoom. 0.28 reads as a proper arbor cap.
       const hubR = Math.max(1.4, pR * 0.28);
-      if (zoomFactor > 1.5 && g.kind !== "barrel") {
+      const hubFade = g.kind === "barrel" ? 0 : smoothstep(1.2, 1.8, zoomFactor);
+      // Far-zoom base — flat shadow disc, always drawn.
+      ctx.fillStyle = col(C.shadow, 0.55);
+      ctx.beginPath(); ctx.arc(sx, sy, hubR, 0, Math.PI * 2); ctx.fill();
+      // Close-zoom detail — brass dome with rim highlight + arbor pin,
+      // layered on top with fade alpha so it blends in continuously.
+      if (hubFade > 0) {
+        ctx.save();
+        ctx.globalAlpha *= hubFade;
         const hubGrad = ctx.createRadialGradient(
           sx - hubR * 0.35, sy - hubR * 0.4, 0, sx, sy, hubR * 1.1,
         );
@@ -1239,9 +1279,7 @@ export function startMovement(canvas) {
         ctx.stroke();
         ctx.fillStyle = "rgba(42, 28, 16, 0.90)";
         ctx.beginPath(); ctx.arc(sx, sy, hubR * 0.22, 0, Math.PI * 2); ctx.fill();
-      } else {
-        ctx.fillStyle = col(C.shadow, 0.55);
-        ctx.beginPath(); ctx.arc(sx, sy, hubR, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
       }
     }
 
@@ -1424,22 +1462,24 @@ export function startMovement(canvas) {
     const [bx, by] = U(balance.x, balance.y, yaw);
     const rr = balance.r * R;
 
-    const closeUp = zoomFactor > 1.5;
-    const veryClose = zoomFactor > 3.0;
+    const closeUpFade = smoothstep(1.2, 1.8, zoomFactor);
+    const veryCloseFade = smoothstep(2.4, 3.6, zoomFactor);
 
     ctx.save();
     ctx.translate(bx, by);
 
-    // Hairspring — breathing spiral. More turns + thinner line at the
-    // new zoom so the coil reads as filament, not wire.
+    // Hairspring — breathing spiral. Always draw the higher-detail
+    // turn/segment count so the coil pattern doesn't reorganise as
+    // you zoom; only the outer radius and stroke alpha lerp across
+    // the closeUp threshold.
     const breathe = 1 + phase * 0.04;
-    const turns = closeUp ? 12 : 9;
-    const segs = closeUp ? 480 : 240;
+    const turns = 12;
+    const segs = 480;
     const hairLW = Math.max(0.45, rr * 0.006);
     const innerR = rr * 0.12;
-    const outerR = rr * (closeUp ? 0.64 : 0.58);
+    const outerR = rr * lerp(0.58, 0.64, closeUpFade);
 
-    ctx.strokeStyle = col(C.steelBlue, closeUp ? 0.72 : 0.58);
+    ctx.strokeStyle = col(C.steelBlue, lerp(0.58, 0.72, closeUpFade));
     ctx.lineWidth = hairLW;
     ctx.beginPath();
     for (let i = 0; i <= segs; i++) {
@@ -1451,7 +1491,9 @@ export function startMovement(canvas) {
     }
     ctx.stroke();
 
-    if (closeUp) {
+    if (closeUpFade > 0) {
+      ctx.save();
+      ctx.globalAlpha *= closeUpFade;
       const studA = turns * Math.PI * 2 + ang;
       const studX = Math.cos(studA) * outerR * breathe;
       const studY = Math.sin(studA) * outerR * breathe;
@@ -1511,6 +1553,7 @@ export function startMovement(canvas) {
         ctx.lineTo(Math.cos(ma) * r2, Math.sin(ma) * r2);
         ctx.stroke();
       }
+      ctx.restore();
     }
     ctx.restore();
 
@@ -1528,8 +1571,10 @@ export function startMovement(canvas) {
     ctx.lineWidth = 0.6;
     ctx.beginPath(); ctx.arc(0, 0, rimR, 0, Math.PI * 2); ctx.stroke();
 
-    if (closeUp) {
+    if (closeUpFade > 0) {
       // Brushed circular polish marks on the gold rim.
+      ctx.save();
+      ctx.globalAlpha *= closeUpFade;
       ctx.strokeStyle = col(C.gold, 0.22);
       ctx.lineWidth = 0.4;
       const polishMarks = 72;
@@ -1550,6 +1595,7 @@ export function startMovement(canvas) {
       ctx.beginPath();
       ctx.arc(0, 0, rimR + rimW * 0.2, -Math.PI * 0.85, -Math.PI * 0.25);
       ctx.stroke();
+      ctx.restore();
     }
 
     // Crossbar.
@@ -1559,7 +1605,9 @@ export function startMovement(canvas) {
     ctx.moveTo(-rimR, 0); ctx.lineTo(rimR, 0);
     ctx.stroke();
 
-    if (closeUp) {
+    if (closeUpFade > 0) {
+      ctx.save();
+      ctx.globalAlpha *= closeUpFade;
       ctx.strokeStyle = "rgba(255, 245, 225, 0.48)";
       ctx.lineWidth = Math.max(0.4, rr * 0.015);
       ctx.beginPath();
@@ -1572,6 +1620,7 @@ export function startMovement(canvas) {
       ctx.moveTo(-rimR * 0.95, rr * 0.020);
       ctx.lineTo( rimR * 0.95, rr * 0.020);
       ctx.stroke();
+      ctx.restore();
     }
 
     // Timing screws — now always routed through drawBluedScrew so each
@@ -1587,7 +1636,19 @@ export function startMovement(canvas) {
     // Impulse roller + impulse jewel.
     const toPallet = Math.atan2(pallet.y - balance.y, pallet.x - balance.x);
 
-    if (closeUp) {
+    // Roller — far view is a simple steel disc; near view is a brass
+    // disc with a safety crescent notch. Render the simple disc always,
+    // then layer the detailed disc + notch on top with closeUp fade so
+    // the swap blends into a continuous cross-dissolve.
+    const rollerRBase = rr * 0.20;
+    ctx.fillStyle = col(C.steel, 0.65);
+    ctx.beginPath(); ctx.arc(0, 0, rollerRBase, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = col(C.shadow, 0.5);
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+    if (closeUpFade > 0) {
+      ctx.save();
+      ctx.globalAlpha *= closeUpFade;
       const rollerR = rr * 0.22;
       const rollerGrad = ctx.createRadialGradient(
         -rollerR * 0.3, -rollerR * 0.3, 0, 0, 0, rollerR,
@@ -1606,21 +1667,43 @@ export function startMovement(canvas) {
       ctx.arc(0, 0, rollerR * 0.55, toPallet - ang + 0.9, toPallet - ang - 0.9, true);
       ctx.closePath();
       ctx.fill();
-    } else {
-      ctx.fillStyle = col(C.steel, 0.65);
-      ctx.beginPath(); ctx.arc(0, 0, rr * 0.20, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = col(C.shadow, 0.5);
-      ctx.lineWidth = 0.5;
-      ctx.stroke();
+      ctx.restore();
     }
 
     const ijAngle = toPallet - ang;
-    const ijR = rr * (closeUp ? 0.22 : 0.18);
+    const ijR = rr * lerp(0.18, 0.22, closeUpFade);
     const ijX = Math.cos(ijAngle) * ijR;
     const ijY = Math.sin(ijAngle) * ijR;
 
-    if (veryClose) {
+    // Impulse jewel — three render styles stacked back-to-front, each
+    // alpha-faded by its own zoom ramp:
+    //   far  : tiny ruby disc      (always at full alpha)
+    //   close: ellipse pill         (closeUpFade)
+    //   very : rectangular cabochon (veryCloseFade)
+    // Each tier overpaints the previous, so partial fades blend into a
+    // continuous transition instead of swapping in one frame.
+    ctx.fillStyle = col(C.ruby, 0.95);
+    ctx.beginPath(); ctx.arc(ijX, ijY, rr * 0.045, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = col(C.shadow, 0.7);
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+
+    if (closeUpFade > 0) {
       ctx.save();
+      ctx.globalAlpha *= closeUpFade;
+      ctx.fillStyle = col(C.ruby, 0.95);
+      ctx.beginPath();
+      ctx.ellipse(ijX, ijY, rr * 0.055, rr * 0.032, ijAngle, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = col(C.shadow, 0.70);
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    if (veryCloseFade > 0) {
+      ctx.save();
+      ctx.globalAlpha *= veryCloseFade;
       ctx.translate(ijX, ijY);
       ctx.rotate(ijAngle);
       const w = rr * 0.055, h = rr * 0.080;
@@ -1639,20 +1722,6 @@ export function startMovement(canvas) {
       ctx.lineTo( w * 0.8, -h / 2 + 0.4);
       ctx.stroke();
       ctx.restore();
-    } else if (closeUp) {
-      ctx.fillStyle = col(C.ruby, 0.95);
-      ctx.beginPath();
-      ctx.ellipse(ijX, ijY, rr * 0.055, rr * 0.032, ijAngle, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = col(C.shadow, 0.70);
-      ctx.lineWidth = 0.5;
-      ctx.stroke();
-    } else {
-      ctx.fillStyle = col(C.ruby, 0.95);
-      ctx.beginPath(); ctx.arc(ijX, ijY, rr * 0.045, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = col(C.shadow, 0.7);
-      ctx.lineWidth = 0.5;
-      ctx.stroke();
     }
 
     // Central staff.
@@ -1661,10 +1730,13 @@ export function startMovement(canvas) {
     ctx.fillStyle = col(C.shadow, 0.7);
     ctx.beginPath(); ctx.arc(0, 0, rr * 0.035, 0, Math.PI * 2); ctx.fill();
 
-    if (veryClose) {
+    if (veryCloseFade > 0) {
+      ctx.save();
+      ctx.globalAlpha *= veryCloseFade;
       ctx.strokeStyle = col(C.shadow, 0.5);
       ctx.lineWidth = 0.3;
       ctx.beginPath(); ctx.arc(0, 0, rr * 0.055, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
     }
     ctx.restore();
   }
