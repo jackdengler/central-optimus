@@ -52,10 +52,20 @@
     margin: 0;
   }
   html {
-    background-color: var(--color-optimus-bg);
+    /* Transparent so the body's background propagates to the viewport
+       canvas — including the iOS PWA home-indicator safe area, which
+       fixed-positioned elements can't reach. */
+    background: transparent;
   }
   body {
+    /* Warm radial washes painted directly on body so they propagate to
+       the viewport canvas (per CSS bg-propagation rule). This fills the
+       safe-area zones on iOS PWA where fixed elements stop short. */
     background-color: var(--color-optimus-bg);
+    background-image:
+      radial-gradient(28rem 22rem at 8% 6%,   rgba(201, 106, 71, 0.28), transparent 62%),
+      radial-gradient(26rem 22rem at 96% 10%, rgba(138, 160, 120, 0.22), transparent 62%),
+      radial-gradient(34rem 28rem at 50% 108%, rgba(70, 74, 120, 0.26), transparent 62%);
     /* Launcher-local palette shared with the canvas script. */
     --base: #f6f1e7;
     --surface-hi: #fffaf1;
@@ -77,33 +87,14 @@
 @layer components {
   /* ============================================================
      BACKGROUND LAYERS
-     Three stacked layers behind everything else:
-       1. bg-washes — warm radial gradients (terracotta bloom,
-          olive right, indigo bottom)
-       2. watch-canvas — the mechanical watch movement, multiplied
-          over the washes
-       3. bg-noise — paper-grain fractal noise, multiplied on top
+     Two layers stacked behind the launcher shell:
+       1. watch-canvas — the mechanical watch movement, multiplied
+          over the body's gradient washes
+       2. bg-noise    — paper-grain fractal noise, multiplied on top
+     The warm radial washes are painted on <body> itself (above) so
+     they propagate to the viewport canvas and fill iOS PWA safe-area
+     zones that fixed elements can't reach.
      ============================================================ */
-
-  /* On iOS standalone PWA, position:fixed + inset:0 (and even 100lvh)
-     resolve to the layout viewport, which stops short of the
-     home-indicator safe area — leaving a strip of body bg below.
-     Pushing the bottom edge past the safe-area inset with a negative
-     offset is the only reliable way to paint through it. Applied to
-     every fixed background layer + the flip scene. */
-  .bg-washes {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: calc(-1 * env(safe-area-inset-bottom));
-    z-index: 0;
-    pointer-events: none;
-    background:
-      radial-gradient(28rem 22rem at 8% 6%,   rgba(201, 106, 71, 0.28), transparent 62%),
-      radial-gradient(26rem 22rem at 96% 10%, rgba(138, 160, 120, 0.22), transparent 62%),
-      radial-gradient(34rem 28rem at 50% 108%, rgba(70, 74, 120, 0.26), transparent 62%);
-  }
 
   /* Watch canvas lives on the front face of the flip card, so it uses
      absolute positioning inside .flip-front rather than fixed to the
@@ -150,10 +141,7 @@
 
   .flip-scene {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: calc(-1 * env(safe-area-inset-bottom));
+    inset: 0;
     z-index: 5;
     perspective: 1800px;
     perspective-origin: 50% 50%;
@@ -196,10 +184,9 @@
 
   .bg-noise {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: calc(-1 * env(safe-area-inset-bottom));
+    inset: 0;
+    width: 100%;
+    height: 100%;
     z-index: 1;
     pointer-events: none;
     opacity: 0.55;
