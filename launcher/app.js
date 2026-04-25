@@ -38,25 +38,76 @@ const GESTURE_LOCK_KEY = "co.bg.locked";
      ambient  — plate fills viewport, mechanism is the UI backdrop
      (closeup — legacy dive into the 4th wheel; used only by reduced motion)
 
-   Boot:        wide → ambient              (BOOT_ZOOM_MS)
-                shell fades in during the last stretch (BOOT_SHELL_DELAY)
-   Launch tap:  ambient → wide              (PULL_OUT_MS)
-                then flip card 180° (FLIP_MS) — app is on the back face
-   Close:       flip back (FLIP_MS)
-                then wide → ambient         (CLOSE_ZOOM_MS)
+   Boot:        wide → ambient              (--boot-zoom-ms)
+                shell fades in during the last stretch (--boot-shell-delay-ms)
+   Launch tap:  ambient → wide              (--pull-out-ms)
+                then flip card 180° (--flip-ms) — app is on the back face
+   Close:       flip back (--flip-ms)
+                then wide → ambient         (--close-zoom-ms)
+
+   Durations live in input.css as CSS custom properties on :root and are
+   read here via getComputedStyle so the CSS transition and JS timeouts
+   share a single source of truth.
    ------------------------------------------------------------------- */
-const BOOT_ZOOM_MS     = 500;
-const BOOT_SHELL_DELAY = 280;
-const PULL_OUT_MS      = 280;
-const FLIP_MS          = 500;   // keep in sync with .flip-card CSS transition
-const CLOSE_ZOOM_MS    = 420;
-const CLOSE_SHELL_LEAD = 150;   // shell fade starts this much before flip lands
+function readMs(name, fallback) {
+  const raw = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+  if (!raw) return fallback;
+  if (raw.endsWith("ms")) return parseFloat(raw);
+  if (raw.endsWith("s"))  return parseFloat(raw) * 1000;
+  const n = parseFloat(raw);
+  return Number.isNaN(n) ? fallback : n;
+}
+const TIMING = {
+  bootZoom:       readMs("--boot-zoom-ms",       500),
+  bootShellDelay: readMs("--boot-shell-delay-ms", 280),
+  pullOut:        readMs("--pull-out-ms",        280),
+  flip:           readMs("--flip-ms",            500),
+  closeZoom:      readMs("--close-zoom-ms",      420),
+  closeShellLead: readMs("--close-shell-lead-ms", 150),
+};
 
 let APPS = [];
 let weatherController = null;
 let clockTimer = null;
 let watchCanvas = null;
 let reducedMotion = false;
+
+/* Flip state machine — guards launch/close against re-entry from
+   double-taps, popstate during animation, and ESC mid-flip. */
+let flipState = "idle"; // 'idle' | 'opening' | 'open' | 'closing'
+let activeAppId = null;
+let lastLaunchTrigger = null; // tile element to restore focus to on close
+
+const REDUCED_MOTION_MQL = window.matchMedia("(prefers-reduced-motion: reduce)");
+reducedMotion = REDUCED_MOTION_MQL.matches;
+REDUCED_MOTION_MQL.addEventListener("change", (e) => {
+  reducedMotion = e.matches;
+});
+
+/* Promise that resolves when the flip card's transform transition ends.
+   Falls back to a timer ~50ms past the declared duration in case the
+   transitionend event is missed (browsers occasionally drop it when the
+   element is hidden mid-transition). */
+function awaitFlip(card) {
+  return new Promise((resolve) => {
+    if (!card) return resolve();
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      card.removeEventListener("transitionend", onEnd);
+      clearTimeout(timer);
+      resolve();
+    };
+    const onEnd = (e) => {
+      if (e.target === card && e.propertyName === "transform") finish();
+    };
+    card.addEventListener("transitionend", onEnd);
+    const timer = setTimeout(finish, TIMING.flip + 50);
+  });
+}
 
 async function loadJSON(path) {
   const res = await fetch(path, { cache: "no-cache" });
@@ -166,11 +217,18 @@ async function setPublishStamp() {
 /* ---------- App launch orchestration ----------
    Tile tap reverses the boot zoom and then flips the card:
      ambient → wide → flip 180° (app on back face)
-   The shell fades out during the pull-out; the iframe is mounted a bit
-   before the flip starts so it has loading time to cover. Close is the
-   exact reverse: unflip, then zoom back in. */
+   The shell fades out during the pull-out; the iframe mounts before
+   the flip so it has loading time to cover, and a cream curtain
+   (`.flip-back.is-loading`) hides any pre-paint flash until the
+   iframe's load event fires. Close is the exact reverse: unflip,
+   then zoom back in.
 
-function launchApp(appId) {
+   The flipState machine guards every entry point — double-taps, ESC
+   mid-flip, popstate during animation, and a tile tap during a close
+   are all coalesced. */
+
+async function launchApp(appId, opts = {}) {
+  if (flipState !== "idle") return;
   const app = APPS.find((a) => a.id === appId);
   if (!app) {
     haptic(8);
@@ -178,55 +236,106 @@ function launchApp(appId) {
   }
   haptic(8);
 
+  flipState = "opening";
+  activeAppId = appId;
+  lastLaunchTrigger =
+    opts.trigger ||
+    document.querySelector(`#launcher-grid a.icon[data-app="${CSS.escape(appId)}"]`) ||
+    null;
+
   const shell = document.getElementById("app");
   const card = document.getElementById("flip-card");
+
+  // a11y: hide the front face from screen readers while the back is in view.
+  const front = document.querySelector(".flip-front");
+  const back = document.getElementById("flip-back");
+
+  const finishOpen = () => {
+    flipState = "open";
+    if (front) front.setAttribute("aria-hidden", "true");
+    if (back) back.removeAttribute("aria-hidden");
+    if (card) card.classList.remove("is-flipping");
+    // Move focus into the iframe so keyboard users land inside the app.
+    const frame = document.getElementById("embed-frame");
+    if (frame) {
+      try { frame.focus({ preventScroll: true }); } catch (_) {}
+    }
+  };
 
   if (reducedMotion || !watchCanvas || !watchCanvas._setCamera) {
     if (shell) shell.classList.add("app-open");
     openEmbed(app);
     if (card) card.classList.add("is-flipped");
+    finishOpen();
     return;
   }
 
   if (shell) shell.classList.add("app-open");
-  watchCanvas._setCamera("wide", PULL_OUT_MS);
+  if (card) card.classList.add("is-flipping");
+  watchCanvas._setCamera("wide", TIMING.pullOut);
 
-  // Mount the iframe partway through the pull-out so network/render
-  // overlap with the camera move. The flip itself waits until the
-  // wide shot has landed so the user sees the full watch for an
-  // instant before it turns over.
-  setTimeout(() => openEmbed(app), Math.max(0, PULL_OUT_MS - 280));
-  setTimeout(() => {
-    if (card) card.classList.add("is-flipped");
-  }, PULL_OUT_MS + 40);
+  // Mount the iframe at the start of the pull-out so it has the full
+  // pull-out + flip durations to load behind the cream curtain.
+  openEmbed(app);
+
+  // Hold the flip until the wide shot has landed so the user sees the
+  // full watch for an instant before the card turns over.
+  await new Promise((r) => setTimeout(r, TIMING.pullOut + 40));
+  if (flipState !== "opening") return;
+  if (card) card.classList.add("is-flipped");
+  await awaitFlip(card);
+  if (flipState !== "opening") return;
+  finishOpen();
 }
 
-function closeActiveApp() {
+async function closeActiveApp() {
   const wrap = document.getElementById("embed");
   const shell = document.getElementById("app");
   const card = document.getElementById("flip-card");
   if (!wrap || wrap.hidden) return;
+  if (flipState !== "open" && flipState !== "opening") return;
+
+  flipState = "closing";
+  const front = document.querySelector(".flip-front");
+  const back = document.getElementById("flip-back");
+  if (front) front.removeAttribute("aria-hidden");
+  if (back) back.setAttribute("aria-hidden", "true");
+
+  const finishClose = () => {
+    flipState = "idle";
+    activeAppId = null;
+    if (card) card.classList.remove("is-flipping");
+    hideEmbed();
+    if (lastLaunchTrigger) {
+      try { lastLaunchTrigger.focus({ preventScroll: true }); } catch (_) {}
+    }
+    lastLaunchTrigger = null;
+  };
 
   if (reducedMotion || !watchCanvas || !watchCanvas._setCamera) {
     if (card) card.classList.remove("is-flipped");
-    hideEmbed();
     if (shell) shell.classList.remove("app-open");
+    finishClose();
     return;
   }
 
   // Flip back first — camera is still at 'wide' so the front face lands
   // showing the whole watch. Then zoom back in to ambient and fade the
   // shell in near the tail of the flip.
-  if (card) card.classList.remove("is-flipped");
+  if (card) {
+    card.classList.add("is-flipping");
+    card.classList.remove("is-flipped");
+  }
   setTimeout(() => {
     if (shell) shell.classList.remove("app-open");
-  }, Math.max(0, FLIP_MS - CLOSE_SHELL_LEAD));
-  setTimeout(() => {
-    if (watchCanvas && watchCanvas._setCamera) {
-      watchCanvas._setCamera("ambient", CLOSE_ZOOM_MS);
-    }
-    hideEmbed();
-  }, FLIP_MS);
+  }, Math.max(0, TIMING.flip - TIMING.closeShellLead));
+
+  await awaitFlip(card);
+  if (flipState !== "closing") return;
+  if (watchCanvas && watchCanvas._setCamera) {
+    watchCanvas._setCamera("ambient", TIMING.closeZoom);
+  }
+  finishClose();
 }
 
 function wireLauncherGrid() {
@@ -237,7 +346,7 @@ function wireLauncherGrid() {
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
       e.preventDefault();
       const appId = el.dataset.app;
-      launchApp(appId);
+      launchApp(appId, { trigger: el });
     });
   });
 }
@@ -293,7 +402,7 @@ function ensureEmbedShell() {
       </button>
       <div id="embed-title" class="embed-title"></div>
     </div>
-    <iframe id="embed-frame" class="embed-frame" referrerpolicy="no-referrer" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
+    <iframe id="embed-frame" class="embed-frame" title="App" referrerpolicy="no-referrer" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
   `;
   const back = document.getElementById("flip-back") || document.body;
   back.appendChild(wrap);
@@ -303,7 +412,46 @@ function ensureEmbedShell() {
     }
     closeActiveApp();
   });
+
+  // Cream curtain on .flip-back hides any pre-paint flash from the iframe
+  // until it fires its load event. Each openEmbed adds .is-loading; the
+  // load handler clears it.
+  const frame = wrap.querySelector("#embed-frame");
+  frame.addEventListener("load", () => {
+    if (back && back.classList) back.classList.remove("is-loading");
+    sendPatHandshake(frame);
+  });
+
   return wrap;
+}
+
+/* PostMessage handshake for PAT-gated apps. The PAT used to be appended
+   as a query string (?pat=...), which leaked into server access logs and
+   Referer headers despite referrerpolicy="no-referrer" (the embedded
+   app's own outbound requests still see it via document.referrer /
+   location.href). PostMessage targets the iframe's specific origin and
+   stays in memory.
+
+   For backwards compat we still include the query string for apps that
+   haven't been updated yet — once every PAT-gated app listens for the
+   `co.pat` message, the query-string fallback can be dropped. */
+function sendPatHandshake(frame) {
+  if (!frame || !frame.contentWindow) return;
+  const id = activeAppId;
+  if (!id) return;
+  const app = APPS.find((a) => a.id === id);
+  if (!app || app.auth !== "pat") return;
+  const pat = localStorage.getItem(TOKEN_KEY) || "";
+  if (!pat) return;
+  let origin;
+  try {
+    origin = new URL(app.url).origin;
+  } catch (_) {
+    return;
+  }
+  try {
+    frame.contentWindow.postMessage({ type: "co.pat", pat }, origin);
+  } catch (_) {}
 }
 
 function embedUrlFor(app) {
@@ -318,8 +466,12 @@ function openEmbed(app) {
   const wrap = ensureEmbedShell();
   document.getElementById("embed-title").textContent = app.name;
   const frame = document.getElementById("embed-frame");
+  const back = document.getElementById("flip-back");
   const src = embedUrlFor(app);
-  if (frame.src !== src) frame.src = src;
+  if (frame.src !== src) {
+    if (back) back.classList.add("is-loading");
+    frame.src = src;
+  }
   wrap.hidden = false;
   const hash = `#app/${app.id}`;
   if (location.hash !== hash) {
@@ -331,28 +483,29 @@ function hideEmbed() {
   const wrap = document.getElementById("embed");
   if (!wrap) return;
   wrap.hidden = true;
+  const back = document.getElementById("flip-back");
+  if (back) back.classList.remove("is-loading");
   const frame = document.getElementById("embed-frame");
   if (frame) frame.src = "about:blank";
 }
 
 /* Back/forward navigation: sync the flip state without pushing more
    history entries (launchApp/openEmbed already pushState themselves
-   when invoked from a tile tap). */
+   when invoked from a tile tap). The state-machine guard inside
+   launchApp/closeActiveApp coalesces popstate during an in-flight
+   flip — it's a no-op then and the next idle state catches up. */
 function handleHash() {
-  const card = document.getElementById("flip-card");
   const m = location.hash.match(/^#app\/(.+)$/);
   if (!m) {
-    if (card && card.classList.contains("is-flipped")) closeActiveApp();
+    if (flipState === "open" || flipState === "opening") closeActiveApp();
     return;
   }
   const app = APPS.find((a) => a.id === m[1] && a.url);
   if (!app) {
-    if (card && card.classList.contains("is-flipped")) closeActiveApp();
+    if (flipState === "open" || flipState === "opening") closeActiveApp();
     return;
   }
-  if (card && !card.classList.contains("is-flipped")) {
-    launchApp(app.id);
-  }
+  if (flipState === "idle") launchApp(app.id);
 }
 
 window.addEventListener("popstate", handleHash);
@@ -458,7 +611,6 @@ function wireGestureLock() {
 function startWatchCanvas() {
   watchCanvas = document.querySelector(".watch-canvas");
   if (!watchCanvas || watchCanvas._setCamera) return;
-  reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   try {
     startMovement(watchCanvas);
   } catch (err) {
@@ -488,8 +640,14 @@ function bootSequence() {
       shell.classList.remove("is-booting");
       shell.classList.add("app-open");
     }
+    flipState = "open";
+    activeAppId = hashApp.id;
     openEmbed(hashApp);
     if (card) card.classList.add("is-flipped");
+    const front = document.querySelector(".flip-front");
+    const back = document.getElementById("flip-back");
+    if (front) front.setAttribute("aria-hidden", "true");
+    if (back) back.removeAttribute("aria-hidden");
     return;
   }
 
@@ -502,13 +660,13 @@ function bootSequence() {
   }
 
   // Fresh boot: camera starts at 'wide' (mechanism's default), tween
-  // in to 'ambient' over BOOT_ZOOM_MS. The shell's fade-in is held
-  // until BOOT_SHELL_DELAY so the greeting lands as the mechanism
-  // settles behind it rather than floating over a tiny watch.
-  watchCanvas._setCamera("ambient", BOOT_ZOOM_MS);
+  // in to 'ambient' over the boot-zoom duration. The shell's fade-in
+  // is held until the shell-delay so the greeting lands as the
+  // mechanism settles behind it rather than floating over a tiny watch.
+  watchCanvas._setCamera("ambient", TIMING.bootZoom);
   setTimeout(() => {
     if (shell) shell.classList.remove("is-booting");
-  }, BOOT_SHELL_DELAY);
+  }, TIMING.bootShellDelay);
 }
 
 wireGlobalShortcuts();
