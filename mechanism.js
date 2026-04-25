@@ -105,19 +105,18 @@ export function startMovement(canvas) {
       cy: H * 0.52,
       R:  Math.max(W, H) * 1.7,
     }),
-    // Tap-to-zoom — recenters on the tapped plate coordinates and
-    // pushes R up so the feature under the finger fills the frame.
+    // Tap-to-zoom — keeps the ambient zoom level (same R) but slides
+    // the camera so the tapped plate coordinate sits at screen center.
     // Falls back to ambient if no tap has been recorded yet.
     focus: () => {
       const a = PRESETS.ambient();
       if (!focusUV) return a;
       const [u, v] = focusUV;
       const yawC = Math.cos(Math.PI / 4), yawS = Math.sin(Math.PI / 4);
-      const targetR = a.R * 2.2;
       return {
-        cx: W / 2 - (u * yawC - v * yawS) * targetR,
-        cy: H / 2 - (u * yawS + v * yawC) * targetR,
-        R:  targetR,
+        cx: W / 2 - (u * yawC - v * yawS) * a.R,
+        cy: H / 2 - (u * yawS + v * yawC) * a.R,
+        R:  a.R,
       };
     },
     // Dive into the fourth wheel (kept for reduced-motion / legacy paths).
@@ -2757,24 +2756,29 @@ export function startMovement(canvas) {
   renderStatic();
   requestAnimationFrame(frame);
 
-  /* ===== Tap-to-zoom — tap anywhere on the canvas to dive into that
-     point; tap again to come back out. The .shell layer above is
-     transparent to pointer events outside its tiles + lock button, so
-     any tap on the watch movement reaches us here. */
+  /* ===== Tap-to-zoom — three-state cycle:
+       ambient (default backdrop) → tap → wide (whole watch in frame)
+       wide                       → tap → focus (ambient zoom, recentered on tap)
+       focus                      → tap → wide (back out, pick another spot)
+     The .shell layer above is transparent to pointer events outside
+     its tiles + lock button, so any tap on the watch movement reaches
+     us here. */
   canvas.addEventListener("pointerdown", (ev) => {
     // Swallow the default regardless of hit — canvas long-press
     // otherwise triggers iOS text/image selection and callouts. The
     // canvas doesn't own any other gesture, so this is safe.
     ev.preventDefault();
-    if (cam.name === "focus") {
-      // Already zoomed in — any tap returns to the ambient backdrop.
-      setCamera("ambient", 380);
+    if (cam.name === "ambient") {
+      // First tap from the default view — pull back to see the whole watch.
+      setCamera("wide", 480);
       return;
     }
-    // Only let the user dive in from the steady ambient state. During
-    // boot ('wide' → 'ambient'), app launch ('wide'), or closeup we
-    // ignore the tap so it can't hijack those flows.
-    if (cam.name !== "ambient") return;
+    if (cam.name === "focus") {
+      // Already on a chosen point — pull back out so the next tap can pick a new one.
+      setCamera("wide", 380);
+      return;
+    }
+    if (cam.name !== "wide") return;
     const rect = canvas.getBoundingClientRect();
     const ex = ev.clientX - rect.left;
     const ey = ev.clientY - rect.top;
