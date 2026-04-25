@@ -145,6 +145,14 @@ export function startMovement(canvas) {
     eased: 0,
   };
 
+  // Oversize the offscreen static cache so the cached plate has
+  // headroom around it. Pinch-out, pan, and rotate then sweep across
+  // pre-rendered pixels without ever needing a mid-gesture rebuild —
+  // the bitmap is bilinearly scaled / panned / rotated to track the
+  // camera "for free". 2× headroom on each side handles a full pan
+  // off-center plus a ~2× zoom-out before the user could outrun it.
+  const STATIC_OVERSIZE = 2.0;
+
   function resize() {
     DPR = Math.min(window.devicePixelRatio || 1, 1.5);
     const rect = canvas.getBoundingClientRect();
@@ -152,11 +160,11 @@ export function startMovement(canvas) {
     canvas.width  = Math.round(W * DPR);
     canvas.height = Math.round(H * DPR);
     mainCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    staticCanvas.width  = canvas.width;
-    staticCanvas.height = canvas.height;
+    staticCanvas.width  = Math.round(W * STATIC_OVERSIZE * DPR);
+    staticCanvas.height = Math.round(H * STATIC_OVERSIZE * DPR);
     staticCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
-    prevStaticCanvas.width  = canvas.width;
-    prevStaticCanvas.height = canvas.height;
+    prevStaticCanvas.width  = staticCanvas.width;
+    prevStaticCanvas.height = staticCanvas.height;
     prevStaticCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
     cache.valid = false;
     // Resize discards the previous bitmap — invalidate prev so the
@@ -2806,16 +2814,21 @@ export function startMovement(canvas) {
     }
     // Optional pose override — temporarily swap globals so the static
     // draw functions render at the requested pose (e.g. a tween's
-    // destination), then restore.
-    const useCx = atCx !== undefined ? atCx : cx;
-    const useCy = atCy !== undefined ? atCy : cy;
+    // destination), then restore. The cache itself is always centered
+    // on the OVERSIZE static canvas so panning has headroom on every
+    // side; only useR (the plate radius at render time) is honored
+    // from the input. cx, cy are forced to the static-canvas center.
+    const STATIC_W = W * STATIC_OVERSIZE;
+    const STATIC_H = H * STATIC_OVERSIZE;
+    const useCx = STATIC_W / 2;
+    const useCy = STATIC_H / 2;
     const useR  = atR  !== undefined ? atR  : R;
     const savedCx = cx, savedCy = cy, savedR = R;
     cx = useCx; cy = useCy; R = useR;
     const renderT = reduced ? 0 : Date.now();
     ctx = staticCtx;
     try {
-      staticCtx.clearRect(0, 0, W, H);
+      staticCtx.clearRect(0, 0, STATIC_W, STATIC_H);
       drawMainplate(yaw);
       drawPerlage(yaw);
       drawCotes(yaw);
@@ -2891,21 +2904,15 @@ export function startMovement(canvas) {
       renderStatic();
     }
 
-    // Mid-gesture re-rasterisation. The bitmap is bilinearly scaled +
-    // rotated to track the camera for free, but if the user has zoomed
-    // or panned far enough that the cached pose is significantly off,
-    // the disc-shaped bitmap can stop covering the area where plate
-    // should be. Rebuild on the spot when the pose has drifted past a
-    // threshold, so detail is "always loaded everywhere" instead of
-    // popping in only when the gesture ends. Skip during camera tweens
-    // (those have their own pre-rendered destination cache).
-    if (cache.valid && !cam.to) {
-      const scaleDrift = R / cache.R;
-      const panDrift = Math.hypot(cx - cache.cx, cy - cache.cy);
-      const panThreshold = Math.max(W, H) * 0.20;
-      if (scaleDrift < 0.85 || scaleDrift > 1.18 || panDrift > panThreshold) {
-        renderStatic(undefined, undefined, undefined, false);
-      }
+    // Mid-gesture re-rasterisation — only when the user has zoomed
+    // IN past the source bitmap's resolution (so the bilinear scale
+    // would visibly soften the detail). Pan and zoom-out are handled
+    // by the OVERSIZE static cache without rebuild: the cached disc
+    // has headroom around it and just gets translated / shrunk by the
+    // blit transform. Skipped during camera tweens (those have their
+    // own pre-rendered destination cache).
+    if (cache.valid && !cam.to && R / cache.R > 1.18) {
+      renderStatic(undefined, undefined, undefined, false);
     }
 
     mainCtx.clearRect(0, 0, W, H);
@@ -2915,23 +2922,22 @@ export function startMovement(canvas) {
     // around the cached plate disc.
     drawHalo();
 
-    // Blit the cached static layers. If we're at the cached pose, blit
-    // 1:1. Otherwise (mid-tween or mid-gesture) apply the transform
-    // that maps the cached (cx, cy, R, yaw) to the current pose — this
-    // pans, scales, AND rotates the pre-rendered bitmap to track the
-    // camera for free.
+    // Blit the cached static layers. The transform maps the cached
+    // (srcCx, srcCy, srcR, srcYaw) to the current pose — pans, scales,
+    // AND rotates the pre-rendered bitmap to track the camera for
+    // free. The source is drawn at natural CSS size (which is the
+    // OVERSIZE static canvas dimensions); the transform handles all
+    // the positioning.
     const blitCache = (canvasSrc, srcCx, srcCy, srcR, srcYaw, alpha) => {
       mainCtx.save();
       if (alpha < 1) mainCtx.globalAlpha = alpha;
       const dyaw = yaw - srcYaw;
-      if (cx !== srcCx || cy !== srcCy || R !== srcR || dyaw !== 0) {
-        const scale = R / srcR;
-        mainCtx.translate(cx, cy);
-        if (dyaw !== 0) mainCtx.rotate(dyaw);
-        mainCtx.scale(scale, scale);
-        mainCtx.translate(-srcCx, -srcCy);
-      }
-      mainCtx.drawImage(canvasSrc, 0, 0, W, H);
+      const scale = R / srcR;
+      mainCtx.translate(cx, cy);
+      if (dyaw !== 0) mainCtx.rotate(dyaw);
+      mainCtx.scale(scale, scale);
+      mainCtx.translate(-srcCx, -srcCy);
+      mainCtx.drawImage(canvasSrc, 0, 0);
       mainCtx.restore();
     };
 
