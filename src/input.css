@@ -226,7 +226,7 @@
     grid-template-rows: auto auto 1fr auto;
     gap: 1.75rem;
     padding:
-      calc(env(safe-area-inset-top) + 1rem)
+      calc(env(safe-area-inset-top) + 1rem + 0.5cm)
       1.25rem
       calc(env(safe-area-inset-bottom) + 0.85rem);
     max-width: 64rem;
