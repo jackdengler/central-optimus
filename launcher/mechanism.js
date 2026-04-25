@@ -260,63 +260,60 @@ export function startMovement(canvas) {
   const S_CENTER = S_THIRD  / (72 / 10);
   const S_BARREL = S_CENTER / (72 / 10);
 
+  /* Asymmetric polar layout. Each component is placed at (angle°,
+     distance) measured from the case center in the visible (screen)
+     frame: 0° points to 3 o'clock, angles increase counter-clockwise,
+     +y is up. The plate is drawn yawed by π/4, so we inverse-rotate
+     each polar coord into plate space — the visible composition then
+     matches the spec regardless of plate yaw, and tweaking an angle
+     or distance moves the gear exactly where you'd expect.
+
+     Visual gear radii are explicit (not derived from MODULE) so the
+     train can spread across the case the way a real movement does
+     instead of clustering along a tight mesh chain. Tooth counts
+     still drive the rotation ratios so the speed hierarchy holds. */
+  const PLATE_YAW = Math.PI / 4;
+  const polar = (deg, dist) => {
+    const a = (deg * Math.PI) / 180;
+    const X =  Math.cos(a) * dist;
+    const Y = -Math.sin(a) * dist; // canvas y is down, math y is up
+    return {
+      x:  X * Math.cos(PLATE_YAW) + Y * Math.sin(PLATE_YAW),
+      y: -X * Math.sin(PLATE_YAW) + Y * Math.cos(PLATE_YAW),
+    };
+  };
+
+  const LAYOUT = {
+    barrel:  { ang: 135, dist: 0.45, r: 0.22, teeth: 72, pinion: 10 },
+    center:  { ang:   0, dist: 0.00, r: 0.13, teeth: 72, pinion: 10 },
+    third:   { ang: 200, dist: 0.30, r: 0.10, teeth: 75, pinion: 10 },
+    fourth:  { ang: 250, dist: 0.40, r: 0.08, teeth: 70, pinion: 10 },
+    escape:  { ang: 290, dist: 0.45, r: 0.06, teeth: 15, pinion:  7 },
+    balance: { ang: 330, dist: 0.50, r: 0.18 },
+  };
+
   const gears = [];
   {
-    // Stage 0 — barrel anchor. Placed on the screen-vertical axis
-    // (u = v) near the lower end of the visible diagonal corridor, so
-    // the barrel-side cluster (mainspring, click, ratchet, barrel
-    // bridge) actually lands inside the portrait viewport.
-    const g0 = {
-      kind: "barrel", x: -0.32, y: -0.32,
-      wheelT: 72, pinionT: 10, wheelR: pr(72), pinionR: pr(10),
-      speed: S_BARREL, phaseBias: 0,
+    const make = (kind, key, speed) => {
+      const L = LAYOUT[key];
+      const p = polar(L.ang, L.dist);
+      return {
+        kind, x: p.x, y: p.y,
+        wheelT: L.teeth, pinionT: L.pinion,
+        wheelR: L.r, pinionR: L.r * (L.pinion / L.teeth),
+        speed, phaseBias: 0,
+      };
     };
-    gears.push(g0);
+    gears.push(make("barrel", "barrel", S_BARREL));
+    gears.push(make("wheel",  "center", S_CENTER));
+    gears.push(make("wheel",  "third",  S_THIRD));
+    gears.push(make("wheel",  "fourth", S_FOUR));
+    gears.push(make("escape", "escape", S_ESC));
 
-    // Stage 1 — center wheel, up-right from barrel.
-    // Cascade angles are now tuned to hug the yaw=π/4 diagonal (≈0.785
-    // rad) with ±0.25 rad wobble so the train zig-zags visually but
-    // stays inside the portrait corridor |u - v| ≤ 0.28.
-    const dir1 = { x: Math.cos(1.05), y: Math.sin(1.05) };
-    const g1 = {
-      kind: "wheel", wheelT: 72, pinionT: 10, wheelR: pr(72), pinionR: pr(10),
-      speed: S_CENTER, phaseBias: 0,
-    };
-    const d01 = g0.wheelR + g1.pinionR;
-    g1.x = g0.x + dir1.x * d01; g1.y = g0.y + dir1.y * d01;
-    gears.push(g1);
-
-    // Stage 2 — third wheel.
-    const dir2 = { x: Math.cos(0.55), y: Math.sin(0.55) };
-    const g2 = {
-      kind: "wheel", wheelT: 75, pinionT: 10, wheelR: pr(75), pinionR: pr(10),
-      speed: S_THIRD, phaseBias: 0,
-    };
-    const d12 = g1.wheelR + g2.pinionR;
-    g2.x = g1.x + dir2.x * d12; g2.y = g1.y + dir2.y * d12;
-    gears.push(g2);
-
-    // Stage 3 — fourth wheel (this is the launch target).
-    const dir3 = { x: Math.cos(1.05), y: Math.sin(1.05) };
-    const g3 = {
-      kind: "wheel", wheelT: 70, pinionT: 10, wheelR: pr(70), pinionR: pr(10),
-      speed: S_FOUR, phaseBias: 0,
-    };
-    const d23 = g2.wheelR + g3.pinionR;
-    g3.x = g2.x + dir3.x * d23; g3.y = g2.y + dir3.y * d23;
-    gears.push(g3);
-
-    // Stage 4 — escape wheel.
-    const dir4 = { x: Math.cos(0.55), y: Math.sin(0.55) };
-    const g4 = {
-      kind: "escape", wheelT: 15, pinionT: 7, wheelR: pr(15), pinionR: pr(7),
-      speed: S_ESC, phaseBias: 0,
-    };
-    const d34 = g3.wheelR + g4.pinionR;
-    g4.x = g3.x + dir4.x * d34; g4.y = g3.y + dir4.y * d34;
-    gears.push(g4);
-
-    // Tooth phasing so meshed teeth actually interleave at the mesh.
+    // Tooth phasing — best-effort interleave at the line connecting
+    // each pair of adjacent gears. With the polar layout the gears
+    // don't strictly mesh tooth-to-tooth, but aligning the contact
+    // line still keeps the train reading as a coherent assembly.
     for (let i = 1; i < gears.length; i++) {
       const driver = gears[i - 1];
       const driven = gears[i];
@@ -343,31 +340,36 @@ export function startMovement(canvas) {
   // clean oscillation. Keep amp under ~π/8 so each screw stays in its
   // own 45° lane and per-frame motion at 60 fps is well under 3°.
   const escG = gears[4];
+  const balanceP = polar(LAYOUT.balance.ang, LAYOUT.balance.dist);
   const balance = {
-    x: escG.x + 0.17, y: escG.y + 0.17,
-    r: 0.17, freqHz: 2.0, amp: 0.12 * Math.PI,
+    x: balanceP.x, y: balanceP.y,
+    r: LAYOUT.balance.r, freqHz: 2.0, amp: 0.12 * Math.PI,
   };
 
-  // Pallet fork — offset from escape toward balance.
+  // Pallet fork — sits between escape wheel and balance, biased a
+  // bit closer to the escape so the pallet jewels read as engaging
+  // the escape teeth.
+  const palletF = 0.42; // 0..1: 0 sits on escape, 1 on balance
   const pallet = {
-    x: escG.x + 0.08,
-    y: escG.y + 0.08,
-    armLen: escG.wheelR * 0.95,
+    x: escG.x + (balance.x - escG.x) * palletF,
+    y: escG.y + (balance.y - escG.y) * palletF,
+    armLen: 0.085,
     armWidth: 0.018,
-    forkReach: 0.14,
+    forkReach: 0.060,
   };
 
-  /* Jewels at real pivot points. A standard 17-jewel Swiss movement
-     shows one cap jewel per arbor from the back; skip the barrel (not
-     jeweled on most budget calibers). Balance staff is the
-     chronometer-grade large cap jewel. */
+  /* Ruby jewels at every pivot — one cap jewel per arbor (including
+     the barrel, since the asymmetric layout makes that pivot visible),
+     plus the pallet staff and the chronometer-grade balance staff
+     cap jewel. */
   const jewels = [
+    { px: gears[0].x, py: gears[0].y, size: 0.022, kind: "train"   },
     { px: gears[1].x, py: gears[1].y, size: 0.020, kind: "train"   },
-    { px: gears[2].x, py: gears[2].y, size: 0.020, kind: "train"   },
-    { px: gears[3].x, py: gears[3].y, size: 0.020, kind: "train"   },
-    { px: gears[4].x, py: gears[4].y, size: 0.018, kind: "train"   },
-    { px: pallet.x,   py: pallet.y,   size: 0.024, kind: "pallet"  },
-    { px: balance.x,  py: balance.y,  size: 0.032, kind: "balance" },
+    { px: gears[2].x, py: gears[2].y, size: 0.018, kind: "train"   },
+    { px: gears[3].x, py: gears[3].y, size: 0.016, kind: "train"   },
+    { px: gears[4].x, py: gears[4].y, size: 0.015, kind: "train"   },
+    { px: pallet.x,   py: pallet.y,   size: 0.022, kind: "pallet"  },
+    { px: balance.x,  py: balance.y,  size: 0.030, kind: "balance" },
   ];
 
   /* Bridges — each bridge anchors to two pivots (= a real bridge
@@ -389,38 +391,52 @@ export function startMovement(canvas) {
     return out;
   }
 
+  /* Bridge endpoints sit a touch beyond each pivot in the rough
+     direction the bridge runs. That spacing gives visible "feet" of
+     bare mainplate around the screws and keeps the bridge silhouette
+     from sitting flush against the gear it's holding. */
+  const bridgeOff = (from, to, pad) => {
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return [from.x - (dx / len) * pad, from.y - (dy / len) * pad];
+  };
+
   const bridges = [
-    { // balance cock
+    { // Barrel bridge — big organic span from beyond the barrel,
+      // sweeping across the upper-left quadrant down to the center
+      // wheel arbor. This is the largest bridge on the plate.
       points: bridgeArc(
-        [balance.x - 0.22, balance.y - 0.18],
-        [balance.x + 0.18, balance.y + 0.05],
-        0.18, 22,
+        bridgeOff(gears[0], gears[1],  0.10),
+        bridgeOff(gears[1], gears[0],  0.06),
+        0.30, 36,
       ),
-      width: 0.045,
+      width: 0.115,
     },
-    { // pallet cock
+    { // Train bridge — covers the third → fourth → escape cluster
+      // along the lower arc of the case.
+      points: (() => {
+        const start = bridgeOff(gears[2], gears[3], 0.05);
+        const end   = bridgeOff(gears[4], gears[3], 0.07);
+        return bridgeArc(start, end, 0.22, 32);
+      })(),
+      width: 0.085,
+    },
+    { // Pallet cock — short stub bridge over the pallet staff.
       points: bridgeArc(
-        [pallet.x - 0.12, pallet.y - 0.10],
-        [pallet.x + 0.08, pallet.y + 0.10],
+        [pallet.x - 0.085, pallet.y - 0.060],
+        [pallet.x + 0.060, pallet.y + 0.075],
         0.22, 16,
       ),
-      width: 0.032,
+      width: 0.034,
     },
-    { // train bridge
+    { // Balance cock — narrow cantilevered bridge reaching out
+      // alone over the balance wheel from the upper-right anchor.
       points: bridgeArc(
-        [gears[2].x - 0.04, gears[2].y + 0.05],
-        [gears[4].x + 0.08, gears[4].y - 0.05],
-        0.22, 28,
+        [balance.x + 0.20, balance.y - 0.08],
+        [balance.x - 0.18, balance.y + 0.10],
+        0.16, 24,
       ),
-      width: 0.075,
-    },
-    { // barrel bridge
-      points: bridgeArc(
-        [gears[0].x - 0.08, gears[0].y - 0.08],
-        [gears[1].x + 0.08, gears[1].y - 0.04],
-        0.28, 30,
-      ),
-      width: 0.090,
+      width: 0.052,
     },
   ];
 
@@ -1889,6 +1905,18 @@ export function startMovement(canvas) {
     jewels.forEach((j) => {
       const [x, y] = U(j.px, j.py, yaw);
       drawJewel(j, x, y);
+    });
+    // Tiny screws at each bridge's mounting points — the visible
+    // heads of the screws holding each bridge down to the mainplate.
+    const screwR = Math.max(1.6, R * 0.011);
+    bridges.forEach((br, bi) => {
+      const ends = [br.points[0], br.points[br.points.length - 1]];
+      ends.forEach(([u, v], ei) => {
+        const [x, y] = U(u, v, yaw);
+        // Slot angle keys off bridge index so the slots aren't all
+        // parallel — looks like the watchmaker tightened them by hand.
+        drawBluedScrew(x, y, screwR, (bi * 0.7 + ei * 1.3) % Math.PI);
+      });
     });
   }
 
