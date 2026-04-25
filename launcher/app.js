@@ -43,12 +43,12 @@ const TOKEN_KEY = "co.gh.token";
    Close:       flip back (FLIP_MS)
                 then wide → ambient         (CLOSE_ZOOM_MS)
    ------------------------------------------------------------------- */
-const BOOT_ZOOM_MS     = 700;
-const BOOT_SHELL_DELAY = 400;
-const PULL_OUT_MS      = 420;
-const FLIP_MS          = 620;   // keep in sync with .flip-card CSS transition
-const CLOSE_ZOOM_MS    = 600;
-const CLOSE_SHELL_LEAD = 200;   // shell fade starts this much before flip lands
+const BOOT_ZOOM_MS     = 500;
+const BOOT_SHELL_DELAY = 280;
+const PULL_OUT_MS      = 280;
+const FLIP_MS          = 500;   // keep in sync with .flip-card CSS transition
+const CLOSE_ZOOM_MS    = 420;
+const CLOSE_SHELL_LEAD = 150;   // shell fade starts this much before flip lands
 
 let APPS = [];
 let weatherController = null;

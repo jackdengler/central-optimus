@@ -41,6 +41,23 @@ export function startMovement(canvas) {
   const staticCanvas = document.createElement("canvas");
   const staticCtx = staticCanvas.getContext("2d", { alpha: true });
   const cache = { cx: 0, cy: 0, R: 1, W: 0, H: 0, DPR: 1, valid: false };
+  let rebuildScheduled = false;
+
+  /* Schedule a static-cache refresh OFF the current frame (idle if
+     possible, microtask-ish otherwise). Used right after a camera tween
+     settles so the moment the watch lands we don't pay for a full
+     mainplate render in the same frame — the next frame still blits the
+     prior cache (slight bilinear softness for one beat, then crisp). */
+  function scheduleRebuild() {
+    if (rebuildScheduled) return;
+    rebuildScheduled = true;
+    const cb = () => { rebuildScheduled = false; renderStatic(); };
+    if (typeof requestIdleCallback === "function") {
+      requestIdleCallback(cb, { timeout: 120 });
+    } else {
+      setTimeout(cb, 0);
+    }
+  }
 
   /* Mechanism palette — warm monotone. Reads as brass-and-ivory on
      parchment: never near-black, never cool. Depth comes from opacity
@@ -110,7 +127,7 @@ export function startMovement(canvas) {
   };
 
   function resize() {
-    DPR = Math.min(window.devicePixelRatio || 1, 1.75);
+    DPR = Math.min(window.devicePixelRatio || 1, 1.5);
     const rect = canvas.getBoundingClientRect();
     W = rect.width; H = rect.height;
     canvas.width  = Math.round(W * DPR);
@@ -422,8 +439,10 @@ export function startMovement(canvas) {
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
     // Grain density scaled to visible viewport so grain reads the same
     // density on-screen regardless of how much plate bleeds off-edge.
+    // Cache rebuild dominates the static-render cost; keep the count
+    // low enough that a rebuild fits in a single frame on mobile.
     const visArea = W * H;
-    const grainCount = Math.min(2200, Math.round(visArea * 0.0045));
+    const grainCount = Math.min(1100, Math.round(visArea * 0.0024));
     // Deterministic PRNG so grain doesn't flicker every frame.
     let seed = Math.floor(R * 997 + cx + cy);
     const rnd = () => {
@@ -451,7 +470,7 @@ export function startMovement(canvas) {
       ctx.stroke();
     }
     // Tiny dark specks — pores / inclusions in the metal grain.
-    const speckCount = Math.min(500, Math.round(visArea * 0.0010));
+    const speckCount = Math.min(260, Math.round(visArea * 0.00055));
     for (let i = 0; i < speckCount; i++) {
       const a = rnd() * Math.PI * 2;
       const r = Math.sqrt(rnd()) * R * 0.98;
@@ -2639,7 +2658,6 @@ export function startMovement(canvas) {
     // phase error across decades is imperceptible.
     const t = Date.now();
 
-    let justSettled = false;
     if (cam.to) {
       const elapsed = now - cam.startTime;
       const raw = Math.min(1, elapsed / cam.duration);
@@ -2655,17 +2673,19 @@ export function startMovement(canvas) {
         cam._fromName = null;
         cam.duration = 0;
         cam.eased = 0;
-        justSettled = true;
+        // Cache is now slightly stale (rendered at the start pose); refresh
+        // it off-frame so this frame stays cheap.
+        scheduleRebuild();
       }
     }
 
     const renderT = reduced ? 0 : t;
     const zoomFactor = R / (Math.max(W, H) * 1.04);
 
-    // Rebuild the static cache only when it's invalid (first frame, resize,
-    // or right after a tween settles). Tween-in-flight frames reuse the
-    // stale cache with a scale+translate transform — that's the whole win.
-    if (!cache.valid || justSettled) {
+    // Rebuild only on hard invalidation (first frame, resize). Tween
+    // settles defer rebuild via scheduleRebuild(); in-flight frames
+    // reuse the cache with a scale+translate — that's the whole win.
+    if (!cache.valid) {
       renderStatic();
     }
 
@@ -2749,7 +2769,7 @@ export function startMovement(canvas) {
     const ey = ev.clientY - rect.top;
     if (!hitPeekScrew(ex, ey)) return;
     // Single tap toggles: ambient ⇄ wide.
-    setCamera(cam.name === "wide" ? "ambient" : "wide", 520);
+    setCamera(cam.name === "wide" ? "ambient" : "wide", 380);
   });
 
   // Block the iOS long-press context menu even when the event isn't a
