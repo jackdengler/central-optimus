@@ -284,13 +284,42 @@ export function startMovement(canvas) {
   };
 
   const LAYOUT = {
-    barrel:  { ang: 135, dist: 0.45, r: 0.22, teeth: 72, pinion: 10 },
+    barrel:  { ang: 135,             r: 0.22, teeth: 72, pinion: 10, meshWith: "center" },
     center:  { ang:   0, dist: 0.00, r: 0.13, teeth: 72, pinion: 10 },
-    third:   { ang: 200, dist: 0.30, r: 0.10, teeth: 75, pinion: 10 },
-    fourth:  { ang: 250, dist: 0.40, r: 0.08, teeth: 70, pinion: 10 },
-    escape:  { ang: 290, dist: 0.45, r: 0.06, teeth: 15, pinion:  7 },
+    third:   { ang: 200,             r: 0.10, teeth: 75, pinion: 10, meshWith: "center" },
+    fourth:  { ang: 250,             r: 0.08, teeth: 70, pinion: 10, meshWith: "third"  },
+    escape:  { ang: 290,             r: 0.06, teeth: 15, pinion:  7, meshWith: "fourth" },
     balance: { ang: 330, dist: 0.50, r: 0.18 },
   };
+
+  // Solve for the radial distance from case center along `angDeg`
+  // such that the resulting point sits at `gap` from `anchor` (which
+  // carries its own resolved {ang, dist}). The two screen-frame
+  // points are (ax·d, ay·d) and (px, py); we want |delta| = gap,
+  // which gives a quadratic in d. We pick the outer root so meshing
+  // gears land beyond the center wheel rather than overlapping it.
+  const distToMesh = (angDeg, anchor, gap) => {
+    const a  = (angDeg * Math.PI) / 180;
+    const ax = Math.cos(a), ay = -Math.sin(a);
+    const aA = (anchor.ang * Math.PI) / 180;
+    const px =  Math.cos(aA) * anchor.dist;
+    const py = -Math.sin(aA) * anchor.dist;
+    const b = -2 * (ax * px + ay * py);
+    const c = (px * px + py * py) - gap * gap;
+    const disc = b * b - 4 * c;
+    if (disc < 0) return Math.hypot(px, py); // unreachable from this angle
+    return (-b + Math.sqrt(disc)) / 2;
+  };
+
+  // Resolve `dist` for any entry that meshes with another. Anchors
+  // (`center`, `balance`) keep their user-set dist; train wheels
+  // derive theirs so adjacent edges actually touch.
+  for (const key of Object.keys(LAYOUT)) {
+    const L = LAYOUT[key];
+    if (L.dist != null) continue;
+    const anchor = LAYOUT[L.meshWith];
+    L.dist = distToMesh(L.ang, anchor, anchor.r + L.r);
+  }
 
   const gears = [];
   {
