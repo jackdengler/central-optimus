@@ -17,6 +17,16 @@
   --color-optimus-accent: #c96a47;
   --color-optimus-accent-2: #a44f30;
   --color-optimus-shadow: 60, 46, 30;
+
+  /* Motion choreography — single source of truth, mirrored into JS via
+     getComputedStyle so a tweak here propagates to setTimeout fallbacks
+     and the camera tween durations. */
+  --boot-zoom-ms: 500ms;
+  --boot-shell-delay-ms: 280ms;
+  --pull-out-ms: 280ms;
+  --flip-ms: 500ms;
+  --close-zoom-ms: 420ms;
+  --close-shell-lead-ms: 150ms;
 }
 
 /* ============================================================
@@ -166,7 +176,12 @@
     inset: 0;
     transform-style: preserve-3d;
     -webkit-transform-style: preserve-3d;
-    transition: transform 500ms cubic-bezier(0.72, 0.02, 0.24, 1);
+    transition: transform var(--flip-ms) cubic-bezier(0.72, 0.02, 0.24, 1);
+  }
+  /* will-change is expensive (keeps a compositor layer alive) — only
+     promote during an active flip. JS toggles .is-flipping on launch/
+     close and clears it on transitionend. */
+  .flip-card.is-flipping {
     will-change: transform;
   }
   .flip-card.is-flipped {
@@ -181,9 +196,9 @@
     /* iOS Safari intermittently fails to cull the backface on composited
        subtrees (iframes, canvas, many stacking contexts), so the hidden
        face bleeds through mirrored. Hard-swap visibility at the flip
-       midpoint (500ms / 2) as a fallback — the face is edge-on then, so
-       the swap is invisible to the viewer. */
-    transition: visibility 0s linear 250ms;
+       midpoint as a fallback — the face is edge-on then, so the swap is
+       invisible to the viewer. */
+    transition: visibility 0s linear calc(var(--flip-ms) / 2);
   }
   .flip-back {
     transform: rotateY(180deg);
@@ -195,6 +210,24 @@
     /* Block pointer events on the hidden face so taps don't leak to
        elements behind the visible one during/after the flip. */
     pointer-events: none;
+  }
+  /* Cream curtain over the back face while the iframe is still loading.
+     Without it, the user sees whatever the iframe paints first (browser
+     default white, half-rendered HTML) the moment the card crosses 90°.
+     JS adds .is-loading on iframe mount and removes it on the iframe's
+     load event. */
+  .flip-back::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--color-optimus-bg);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+    z-index: 2;
+  }
+  .flip-back.is-loading::after {
+    opacity: 1;
   }
 
   .bg-noise {
