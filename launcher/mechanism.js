@@ -489,17 +489,18 @@ export function startMovement(canvas) {
      ===================================================================== */
 
   // Parchment halo — drawn per-frame on the live canvas (NOT into the
-  // static cache). Keeping the halo out of the cache means a pinch-out
-  // gesture can shrink the cached plate disc without exposing a hard
-  // rectangular bitmap edge: the halo always fills the visible canvas
-  // at the current camera pose.
+  // static cache). Anchored to the canvas center, not the camera, so
+  // panning the watch around the screen leaves a consistent warm tint
+  // across the whole viewport instead of dragging a halo "spotlight"
+  // with the watch.
   function drawHalo() {
     const haloR = Math.max(W, H) * 0.9;
-    const halo = mainCtx.createRadialGradient(cx, cy, haloR * 0.15, cx, cy, haloR);
+    const hx = W / 2, hy = H / 2;
+    const halo = mainCtx.createRadialGradient(hx, hy, haloR * 0.15, hx, hy, haloR);
     halo.addColorStop(0, col(C.plateHi, 0.14));
     halo.addColorStop(1, col(C.plateDark, 0.00));
     mainCtx.fillStyle = halo;
-    mainCtx.beginPath(); mainCtx.arc(cx, cy, haloR, 0, Math.PI * 2); mainCtx.fill();
+    mainCtx.fillRect(0, 0, W, H);
   }
 
   function drawMainplate(yaw) {
@@ -2888,6 +2889,23 @@ export function startMovement(canvas) {
     // setCamera, so this path runs only on cold start and resize.
     if (!cache.valid) {
       renderStatic();
+    }
+
+    // Mid-gesture re-rasterisation. The bitmap is bilinearly scaled +
+    // rotated to track the camera for free, but if the user has zoomed
+    // or panned far enough that the cached pose is significantly off,
+    // the disc-shaped bitmap can stop covering the area where plate
+    // should be. Rebuild on the spot when the pose has drifted past a
+    // threshold, so detail is "always loaded everywhere" instead of
+    // popping in only when the gesture ends. Skip during camera tweens
+    // (those have their own pre-rendered destination cache).
+    if (cache.valid && !cam.to) {
+      const scaleDrift = R / cache.R;
+      const panDrift = Math.hypot(cx - cache.cx, cy - cache.cy);
+      const panThreshold = Math.max(W, H) * 0.20;
+      if (scaleDrift < 0.85 || scaleDrift > 1.18 || panDrift > panThreshold) {
+        renderStatic(undefined, undefined, undefined, false);
+      }
     }
 
     mainCtx.clearRect(0, 0, W, H);
