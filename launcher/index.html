@@ -17,8 +17,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Optimus" />
+    <!-- Pre-paint the cream on html so the iOS PWA home-indicator safe
+         area is filled before the linked stylesheet lands. -->
     <style>
-      html, body { margin: 0; background: transparent; }
+      html, body { margin: 0; }
+      html { background-color: #f6f1e7; }
     </style>
 
     <link

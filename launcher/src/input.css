@@ -52,20 +52,21 @@
     margin: 0;
   }
   html {
-    /* Transparent so the body's background propagates to the viewport
-       canvas — including the iOS PWA home-indicator safe area, which
-       fixed-positioned elements can't reach. */
-    background: transparent;
-  }
-  body {
-    /* Warm radial washes painted directly on body so they propagate to
-       the viewport canvas (per CSS bg-propagation rule). This fills the
-       safe-area zones on iOS PWA where fixed elements stop short. */
+    /* Cream + radial washes painted on html (the root element). The root
+       element's background paints the viewport canvas including the iOS
+       PWA home-indicator safe area, which fixed-positioned elements and
+       even body's background (via propagation) can fail to reach in
+       standalone mode with viewport-fit=cover. Painting on html makes
+       the safe-area fill deterministic. */
     background-color: var(--color-optimus-bg);
     background-image:
       radial-gradient(28rem 22rem at 8% 6%,   rgba(201, 106, 71, 0.28), transparent 62%),
       radial-gradient(26rem 22rem at 96% 10%, rgba(138, 160, 120, 0.22), transparent 62%),
       radial-gradient(34rem 28rem at 50% 108%, rgba(70, 74, 120, 0.26), transparent 62%);
+    background-attachment: fixed;
+  }
+  body {
+    background: transparent;
     /* Launcher-local palette shared with the canvas script. */
     --base: #f6f1e7;
     --surface-hi: #fffaf1;
@@ -91,9 +92,9 @@
        1. watch-canvas — the mechanical watch movement, multiplied
           over the body's gradient washes
        2. bg-noise    — paper-grain fractal noise, multiplied on top
-     The warm radial washes are painted on <body> itself (above) so
-     they propagate to the viewport canvas and fill iOS PWA safe-area
-     zones that fixed elements can't reach.
+     The warm radial washes are painted on <html> (the root element)
+     so they fill the entire viewport canvas, including iOS PWA safe-
+     area zones that fixed elements can't reach.
      ============================================================ */
 
   /* Watch canvas lives on the front face of the flip card, so it uses
