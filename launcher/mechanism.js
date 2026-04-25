@@ -227,6 +227,13 @@ export function startMovement(canvas) {
   canvas._close  = () => setCamera("ambient", 800);
   canvas._getLaunchProgress = () => (cam.name === "closeup" ? cam.eased || 1 : 0);
 
+  // Gesture lock — when true, pinch/drag on the canvas is ignored. Owned
+  // by the launcher's lock button; default unlocked so the background
+  // responds to touch out of the box.
+  let gestureLocked = false;
+  canvas._setGestureLock = (v) => { gestureLocked = !!v; };
+  canvas._getGestureLock = () => gestureLocked;
+
   /* ====== Gear train — pinned to real ETA 2824-2 tooth counts ======
      Each stage has a wheel (driven by previous) + pinion (drives next)
      on one arbor. Mesh ratio is driver_wheel_teeth / driven_pinion_teeth.
@@ -2872,41 +2879,134 @@ export function startMovement(canvas) {
   renderStatic();
   requestAnimationFrame(frame);
 
-  /* ===== Tap-to-zoom — three-state cycle:
-       ambient (default backdrop) → tap → wide (whole watch in frame)
-       wide                       → tap → focus (ambient zoom, recentered on tap)
-       focus                      → tap → wide (back out, pick another spot)
-     The .shell layer above is transparent to pointer events outside
-     its tiles + lock button, so any tap on the watch movement reaches
-     us here. */
+  /* ===== Pinch + drag — the background camera responds directly to
+     touch:
+       1 finger  → pan         (translate cx, cy)
+       2 fingers → pinch zoom  (scale R around the gesture midpoint,
+                                pan from midpoint motion)
+     Gestures are ignored when the user has locked the background via
+     the corner lock button. The shell layer above is transparent to
+     pointer events outside its tiles + lock button, so any touch on
+     the watch movement reaches us here. */
+  const pointers = new Map();
+  let pinch = null; // {dist, midX, midY} from the previous frame
+
+  // Soft clamps so the user can't lose the watch off-screen. Tied to
+  // the ambient/closeup band so the reachable zoom matches the
+  // mechanism's intended LOD ramps.
+  const clampR = () => {
+    const minR = Math.min(W, H) * 0.25;
+    const maxR = Math.max(W, H) * 12;
+    if (R < minR) R = minR;
+    if (R > maxR) R = maxR;
+  };
+
+  const cancelTween = () => {
+    if (cam.to) {
+      cam.from = null;
+      cam.to = null;
+      cam._fromName = null;
+      cam.duration = 0;
+      cam.eased = 0;
+      // Don't crossfade old → new during a free-form gesture; the
+      // user's pose isn't a preset and there's no destination cache.
+      prevCache.valid = false;
+    }
+  };
+
+  const updatePinchAnchors = () => {
+    if (pointers.size < 2) {
+      pinch = null;
+      return;
+    }
+    const it = pointers.values();
+    const p1 = it.next().value;
+    const p2 = it.next().value;
+    pinch = {
+      dist: Math.hypot(p2.x - p1.x, p2.y - p1.y),
+      midX: (p1.x + p2.x) / 2,
+      midY: (p1.y + p2.y) / 2,
+    };
+  };
+
   canvas.addEventListener("pointerdown", (ev) => {
     // Swallow the default regardless of hit — canvas long-press
-    // otherwise triggers iOS text/image selection and callouts. The
-    // canvas doesn't own any other gesture, so this is safe.
+    // otherwise triggers iOS text/image selection and callouts.
     ev.preventDefault();
-    if (cam.name === "ambient") {
-      // First tap from the default view — pull back to see the whole watch.
-      setCamera("wide", 480);
-      return;
-    }
-    if (cam.name === "focus") {
-      // Already on a chosen point — pull back out so the next tap can pick a new one.
-      setCamera("wide", 380);
-      return;
-    }
-    if (cam.name !== "wide") return;
-    const rect = canvas.getBoundingClientRect();
-    const ex = ev.clientX - rect.left;
-    const ey = ev.clientY - rect.top;
-    // Invert U(u, v, yaw) at the current camera to recover the plate
-    // coordinates under the finger, then store them for PRESETS.focus
-    // to recenter on (and to re-resolve on resize).
-    const c = Math.cos(yaw), s = Math.sin(yaw);
-    const xr = (ex - cx) / R;
-    const yr = (ey - cy) / R;
-    focusUV = [xr * c + yr * s, -xr * s + yr * c];
-    setCamera("focus", 480);
+    if (gestureLocked) return;
+    canvas.setPointerCapture(ev.pointerId);
+    pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    cancelTween();
+    updatePinchAnchors();
   });
+
+  canvas.addEventListener("pointermove", (ev) => {
+    if (!pointers.has(ev.pointerId)) return;
+    ev.preventDefault();
+    const prev = pointers.get(ev.pointerId);
+    const cur = { x: ev.clientX, y: ev.clientY };
+    pointers.set(ev.pointerId, cur);
+
+    if (pointers.size === 1) {
+      cx += cur.x - prev.x;
+      cy += cur.y - prev.y;
+    } else if (pointers.size >= 2 && pinch) {
+      const it = pointers.values();
+      const p1 = it.next().value;
+      const p2 = it.next().value;
+      const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      const midX = (p1.x + p2.x) / 2;
+      const midY = (p1.y + p2.y) / 2;
+      const rect = canvas.getBoundingClientRect();
+      const fx = pinch.midX - rect.left;
+      const fy = pinch.midY - rect.top;
+      const scale = pinch.dist > 0 ? dist / pinch.dist : 1;
+      // Zoom around the previous midpoint (so the plate point under
+      // the fingers stays under the fingers), then translate by the
+      // midpoint delta to capture two-finger panning.
+      cx = fx + (cx - fx) * scale;
+      cy = fy + (cy - fy) * scale;
+      R *= scale;
+      cx += midX - pinch.midX;
+      cy += midY - pinch.midY;
+      clampR();
+      pinch = { dist, midX, midY };
+    }
+  });
+
+  const endPointer = (ev) => {
+    if (!pointers.has(ev.pointerId)) return;
+    pointers.delete(ev.pointerId);
+    if (pointers.size < 2) pinch = null;
+    if (pointers.size === 0) {
+      // The cache was bilinearly scaled to follow the gesture; rebuild
+      // at rest for crisp detail at the new pose.
+      cache.valid = false;
+    } else {
+      // One finger lifted from a pinch — reseat anchors so the
+      // remaining finger drives a clean pan from here.
+      updatePinchAnchors();
+    }
+  };
+  canvas.addEventListener("pointerup", endPointer);
+  canvas.addEventListener("pointercancel", endPointer);
+
+  // Desktop trackpad / mouse-wheel zoom. Wheel direction follows the
+  // browser convention (negative deltaY = zoom in).
+  canvas.addEventListener("wheel", (ev) => {
+    if (gestureLocked) return;
+    ev.preventDefault();
+    cancelTween();
+    const rect = canvas.getBoundingClientRect();
+    const fx = ev.clientX - rect.left;
+    const fy = ev.clientY - rect.top;
+    const scale = Math.exp(-ev.deltaY * 0.0015);
+    cx = fx + (cx - fx) * scale;
+    cy = fy + (cy - fy) * scale;
+    R *= scale;
+    clampR();
+    cache.valid = false;
+  }, { passive: false });
 
   // Block the iOS long-press context menu even when the event isn't a
   // peek gesture (e.g. user is just resting a finger on the canvas).
