@@ -41,31 +41,14 @@ export function startMovement(canvas) {
   const staticCanvas = document.createElement("canvas");
   const staticCtx = staticCanvas.getContext("2d", { alpha: true });
   const cache = { cx: 0, cy: 0, R: 1, W: 0, H: 0, DPR: 1, valid: false };
-  // Snapshot of the previous static cache, kept so a rebuild can
-  // crossfade the old (bilinear-stretched) bitmap into the new (crisp)
-  // one over ~CROSSFADE_MS instead of swapping in a single frame.
+  // Snapshot of the previous static cache. When a tween starts we
+  // pre-render the destination cache into staticCanvas and copy the
+  // outgoing bitmap here; the blit loop then blends prev → new tracking
+  // the camera's eased tween progress so the detail transition happens
+  // during the zoom rather than after it.
   const prevStaticCanvas = document.createElement("canvas");
   const prevStaticCtx = prevStaticCanvas.getContext("2d", { alpha: true });
   const prevCache = { cx: 0, cy: 0, R: 1, valid: false };
-  let crossfadeStart = 0;
-  const CROSSFADE_MS = 260;
-  let rebuildScheduled = false;
-
-  /* Schedule a static-cache refresh OFF the current frame (idle if
-     possible, microtask-ish otherwise). Used right after a camera tween
-     settles so the moment the watch lands we don't pay for a full
-     mainplate render in the same frame — the next frame still blits the
-     prior cache (slight bilinear softness for one beat, then crisp). */
-  function scheduleRebuild() {
-    if (rebuildScheduled) return;
-    rebuildScheduled = true;
-    const cb = () => { rebuildScheduled = false; renderStatic(); };
-    if (typeof requestIdleCallback === "function") {
-      requestIdleCallback(cb, { timeout: 120 });
-    } else {
-      setTimeout(cb, 0);
-    }
-  }
 
   /* Mechanism palette — warm monotone. Reads as brass-and-ivory on
      parchment: never near-black, never cool. Depth comes from opacity
@@ -224,6 +207,10 @@ export function startMovement(canvas) {
       cache.valid = false;
       return;
     }
+    // Pre-render the destination static cache so the upcoming tween
+    // can blend old → new at every frame instead of stretching the
+    // outgoing bitmap and snapping to a fresh render at the end.
+    renderStatic(target.cx, target.cy, target.R);
     cam._fromName = cam.name;
     cam.name = name;
     cam.from = { cx, cy, R };
@@ -2733,12 +2720,10 @@ export function startMovement(canvas) {
      Keyless works / regulator / jewels intentionally stay per-frame so
      the original z-order is preserved: regulator sits ON TOP of the
      balance wheel, jewels sit ON TOP of gears. */
-  function renderStatic() {
-    // Snapshot the existing cache (and the pose it was rendered at)
-    // before we overwrite staticCanvas. The blit loop will fade from
-    // this snapshot to the fresh render over CROSSFADE_MS so a rebuild
-    // never appears as a one-frame swap.
-    if (cache.valid) {
+  function renderStatic(atCx, atCy, atR, snapshotPrev = true) {
+    // If a valid cache already exists, copy it to prev so the blit
+    // loop can crossfade the outgoing bitmap into the fresh one.
+    if (snapshotPrev && cache.valid) {
       prevStaticCtx.setTransform(1, 0, 0, 1, 0, 0);
       prevStaticCtx.clearRect(0, 0, prevStaticCanvas.width, prevStaticCanvas.height);
       prevStaticCtx.drawImage(staticCanvas, 0, 0);
@@ -2747,8 +2732,15 @@ export function startMovement(canvas) {
       prevCache.cy = cache.cy;
       prevCache.R  = cache.R;
       prevCache.valid = true;
-      crossfadeStart = performance.now();
     }
+    // Optional pose override — temporarily swap globals so the static
+    // draw functions render at the requested pose (e.g. a tween's
+    // destination), then restore.
+    const useCx = atCx !== undefined ? atCx : cx;
+    const useCy = atCy !== undefined ? atCy : cy;
+    const useR  = atR  !== undefined ? atR  : R;
+    const savedCx = cx, savedCy = cy, savedR = R;
+    cx = useCx; cy = useCy; R = useR;
     const renderT = reduced ? 0 : Date.now();
     ctx = staticCtx;
     try {
@@ -2762,13 +2754,14 @@ export function startMovement(canvas) {
     } finally {
       ctx = mainCtx;
     }
-    cache.cx = cx;
-    cache.cy = cy;
-    cache.R = R;
+    cache.cx = useCx;
+    cache.cy = useCy;
+    cache.R = useR;
     cache.W = W;
     cache.H = H;
     cache.DPR = DPR;
     cache.valid = true;
+    cx = savedCx; cy = savedCy; R = savedR;
   }
 
   function frame(now) {
@@ -2796,18 +2789,20 @@ export function startMovement(canvas) {
         cam._fromName = null;
         cam.duration = 0;
         cam.eased = 0;
-        // Cache is now slightly stale (rendered at the start pose); refresh
-        // it off-frame so this frame stays cheap.
-        scheduleRebuild();
+        // The destination cache was already pre-rendered at tween
+        // start, so the watch lands on a crisp bitmap with no rebuild
+        // flash. Drop the prev snapshot now that the blend has fully
+        // resolved to the new cache.
+        prevCache.valid = false;
       }
     }
 
     const renderT = reduced ? 0 : t;
     const zoomFactor = R / (Math.max(W, H) * 1.04);
 
-    // Rebuild only on hard invalidation (first frame, resize). Tween
-    // settles defer rebuild via scheduleRebuild(); in-flight frames
-    // reuse the cache with a scale+translate — that's the whole win.
+    // First-frame and post-resize fallback — if no cache exists yet,
+    // render at the current pose. Tween rebuilds happen up-front in
+    // setCamera, so this path runs only on cold start and resize.
     if (!cache.valid) {
       renderStatic();
     }
@@ -2831,23 +2826,18 @@ export function startMovement(canvas) {
       mainCtx.restore();
     };
 
-    // Rebuild crossfade — when prev is valid, draw prev underneath and
-    // fade the fresh cache in on top so the bilinear-stretched bitmap
-    // dissolves into the crisp render instead of snapping in one frame.
-    let crossfadeT = 1;
-    if (prevCache.valid) {
-      const elapsed = now - crossfadeStart;
-      if (elapsed >= CROSSFADE_MS) {
-        prevCache.valid = false;
-      } else {
-        const raw = Math.max(0, elapsed / CROSSFADE_MS);
-        crossfadeT = raw * raw * (3 - 2 * raw);
-      }
-    }
-    if (prevCache.valid && crossfadeT < 1) {
-      blitCache(prevStaticCanvas, prevCache.cx, prevCache.cy, prevCache.R, 1);
-      blitCache(staticCanvas, cache.cx, cache.cy, cache.R, crossfadeT);
+    // Tween-driven crossfade — prev is the outgoing pose's bitmap,
+    // staticCanvas is the destination (pre-rendered at setCamera).
+    // Both are transformed to the current camera pose so plate
+    // features stay aligned through the dissolve, and the blend
+    // weight tracks the camera's eased progress so detail fades in
+    // continuously across the zoom rather than snapping after it.
+    if (prevCache.valid && cam.to) {
+      const t2 = cam.eased;
+      blitCache(prevStaticCanvas, prevCache.cx, prevCache.cy, prevCache.R, 1 - t2);
+      blitCache(staticCanvas, cache.cx, cache.cy, cache.R, t2);
     } else {
+      if (prevCache.valid) prevCache.valid = false;
       blitCache(staticCanvas, cache.cx, cache.cy, cache.R, 1);
     }
 
