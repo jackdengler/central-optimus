@@ -276,16 +276,14 @@ async function launchApp(appId, opts = {}) {
   }
 
   if (shell) shell.classList.add("app-open");
+  // Camera pull-out (ambient → wide) and the page-flop animation run
+  // CONCURRENTLY so the watch is visibly receding while the card lifts
+  // toward the viewer — one integrated motion rather than "zoom, pause,
+  // flip". Pull-out duration is shorter than the flip so the watch
+  // settles in time for the back face to dominate.
   watchCanvas._setCamera("wide", TIMING.pullOut);
-
-  // Mount the iframe at the start of the pull-out so it has the full
-  // pull-out + flip durations to load behind the cream curtain.
   openEmbed(app);
 
-  // Hold the flip until the wide shot has landed so the user sees the
-  // full watch for an instant before the card turns over.
-  await new Promise((r) => setTimeout(r, TIMING.pullOut + 40));
-  if (flipState !== "opening") return;
   // Add .is-flipping in the SAME task as .is-flipped so the matched
   // animation selector resolves directly to .is-flipping.is-flipped
   // (flip-page-forward) and starts at the current rotation rather than
@@ -330,13 +328,18 @@ async function closeActiveApp() {
     return;
   }
 
-  // Flip back first — camera is still at 'wide' so the front face lands
-  // showing the whole watch. Both classes toggle in the same task so
-  // the matched animation is .is-flipping:not(.is-flipped) (flip-page-back)
-  // from the start, never briefly the forward direction.
+  // Page-flop and camera zoom-in run CONCURRENTLY — the front face
+  // settles into the plane just as the watch arrives at ambient, so
+  // close reads as one integrated motion mirroring the launch. Both
+  // classes toggle in the same task so the matched animation is
+  // .is-flipping:not(.is-flipped) (flip-page-back) from frame one,
+  // never briefly the forward direction.
   if (card) {
     card.classList.add("is-flipping");
     card.classList.remove("is-flipped");
+  }
+  if (watchCanvas && watchCanvas._setCamera) {
+    watchCanvas._setCamera("ambient", TIMING.closeZoom);
   }
   setTimeout(() => {
     if (shell) shell.classList.remove("app-open");
@@ -344,9 +347,6 @@ async function closeActiveApp() {
 
   await awaitFlip(card);
   if (flipState !== "closing") return;
-  if (watchCanvas && watchCanvas._setCamera) {
-    watchCanvas._setCamera("ambient", TIMING.closeZoom);
-  }
   finishClose();
 }
 
