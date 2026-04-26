@@ -201,9 +201,27 @@ export function startMovement(canvas) {
     return 1 - Math.pow(-2 * t + 2, 3) / 2;
   }
 
-  function setCamera(name, duration = 900) {
-    if (!PRESETS[name]) return;
-    const target = PRESETS[name]();
+  // Accepts either a preset name (e.g. "ambient") or a state object
+  // {cx, cy, R, name?} so callers can capture the user's current
+  // gesture-modified camera and tween back to it later — used by the
+  // launcher to restore the pre-launch view on close instead of always
+  // snapping to the ambient preset.
+  function setCamera(nameOrState, duration = 900) {
+    let target, name;
+    if (typeof nameOrState === "string") {
+      if (!PRESETS[nameOrState]) return;
+      target = PRESETS[nameOrState]();
+      name = nameOrState;
+    } else if (nameOrState && typeof nameOrState === "object") {
+      target = {
+        cx: nameOrState.cx,
+        cy: nameOrState.cy,
+        R:  nameOrState.R,
+      };
+      name = nameOrState.name || cam.name || "custom";
+    } else {
+      return;
+    }
     if (!duration || duration <= 0) {
       cam.name = name;
       cam.from = null;
@@ -230,6 +248,10 @@ export function startMovement(canvas) {
 
   canvas._setCamera     = setCamera;
   canvas._getCameraName = () => cam.name;
+  // Snapshot of the live camera (including any gesture-modified
+  // cx/cy/R), so the launcher can capture pre-launch state and tween
+  // back to the exact same view on close.
+  canvas._getCameraState = () => ({ cx, cy, R, name: cam.name });
   // Legacy aliases — any remaining callers still work.
   canvas._launch = (name) => setCamera(name === "fourthWheel" ? "closeup" : name, 1100);
   canvas._close  = () => setCamera("ambient", 800);
