@@ -86,10 +86,10 @@ REDUCED_MOTION_MQL.addEventListener("change", (e) => {
   reducedMotion = e.matches;
 });
 
-/* Promise that resolves when the flip card's transform transition ends.
-   Falls back to a timer ~50ms past the declared duration in case the
-   transitionend event is missed (browsers occasionally drop it when the
-   element is hidden mid-transition). */
+/* Promise that resolves when the flip card finishes its page-flop
+   animation. Listens for both animationend (the keyframe path) and
+   transitionend (fallback if anything reverts to a plain transition),
+   with a timer ~60ms past the declared duration as a last resort. */
 function awaitFlip(card) {
   return new Promise((resolve) => {
     if (!card) return resolve();
@@ -97,15 +97,20 @@ function awaitFlip(card) {
     const finish = () => {
       if (done) return;
       done = true;
-      card.removeEventListener("transitionend", onEnd);
+      card.removeEventListener("animationend", onAnimEnd);
+      card.removeEventListener("transitionend", onTransEnd);
       clearTimeout(timer);
       resolve();
     };
-    const onEnd = (e) => {
+    const onAnimEnd = (e) => {
+      if (e.target === card) finish();
+    };
+    const onTransEnd = (e) => {
       if (e.target === card && e.propertyName === "transform") finish();
     };
-    card.addEventListener("transitionend", onEnd);
-    const timer = setTimeout(finish, TIMING.flip + 50);
+    card.addEventListener("animationend", onAnimEnd);
+    card.addEventListener("transitionend", onTransEnd);
+    const timer = setTimeout(finish, TIMING.flip + 60);
   });
 }
 
@@ -271,7 +276,6 @@ async function launchApp(appId, opts = {}) {
   }
 
   if (shell) shell.classList.add("app-open");
-  if (card) card.classList.add("is-flipping");
   watchCanvas._setCamera("wide", TIMING.pullOut);
 
   // Mount the iframe at the start of the pull-out so it has the full
@@ -282,7 +286,14 @@ async function launchApp(appId, opts = {}) {
   // full watch for an instant before the card turns over.
   await new Promise((r) => setTimeout(r, TIMING.pullOut + 40));
   if (flipState !== "opening") return;
-  if (card) card.classList.add("is-flipped");
+  // Add .is-flipping in the SAME task as .is-flipped so the matched
+  // animation selector resolves directly to .is-flipping.is-flipped
+  // (flip-page-forward) and starts at the current rotation rather than
+  // briefly matching .is-flipping:not(.is-flipped) and snapping back.
+  if (card) {
+    card.classList.add("is-flipping");
+    card.classList.add("is-flipped");
+  }
   await awaitFlip(card);
   if (flipState !== "opening") return;
   finishOpen();
@@ -320,8 +331,9 @@ async function closeActiveApp() {
   }
 
   // Flip back first — camera is still at 'wide' so the front face lands
-  // showing the whole watch. Then zoom back in to ambient and fade the
-  // shell in near the tail of the flip.
+  // showing the whole watch. Both classes toggle in the same task so
+  // the matched animation is .is-flipping:not(.is-flipped) (flip-page-back)
+  // from the start, never briefly the forward direction.
   if (card) {
     card.classList.add("is-flipping");
     card.classList.remove("is-flipped");
