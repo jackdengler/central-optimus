@@ -79,6 +79,10 @@ let reducedMotion = false;
 let flipState = "idle"; // 'idle' | 'opening' | 'open' | 'closing'
 let activeAppId = null;
 let lastLaunchTrigger = null; // tile element to restore focus to on close
+// Snapshot of the watch camera at the moment of launch so close can
+// tween back to the exact view the user was looking at — including
+// any pinch/pan/rotation they had applied. Null until the first launch.
+let preLaunchCamera = null;
 
 const REDUCED_MOTION_MQL = window.matchMedia("(prefers-reduced-motion: reduce)");
 reducedMotion = REDUCED_MOTION_MQL.matches;
@@ -276,6 +280,13 @@ async function launchApp(appId, opts = {}) {
   }
 
   if (shell) shell.classList.add("app-open");
+  // Snapshot the live camera (cx/cy/R + name) BEFORE we tween away so
+  // closeActiveApp can restore the user back to the exact view they
+  // had — including any pinch/pan they applied — instead of always
+  // landing on the ambient preset.
+  if (watchCanvas._getCameraState) {
+    preLaunchCamera = watchCanvas._getCameraState();
+  }
   // Camera pull-out (ambient → wide) and the page-flop animation run
   // CONCURRENTLY so the watch is visibly receding while the card lifts
   // toward the viewer — one integrated motion rather than "zoom, pause,
@@ -339,7 +350,10 @@ async function closeActiveApp() {
     card.classList.remove("is-flipped");
   }
   if (watchCanvas && watchCanvas._setCamera) {
-    watchCanvas._setCamera("ambient", TIMING.closeZoom);
+    // Restore the exact pre-launch view (cx/cy/R) — preserves any
+    // pinch/pan the user had applied. Falls back to the ambient
+    // preset for direct deep-links where we never captured a state.
+    watchCanvas._setCamera(preLaunchCamera || "ambient", TIMING.closeZoom);
   }
   setTimeout(() => {
     if (shell) shell.classList.remove("app-open");
