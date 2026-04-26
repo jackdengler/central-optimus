@@ -23,9 +23,17 @@
      and the camera tween durations. */
   --boot-zoom-ms: 500ms;
   --boot-shell-delay-ms: 280ms;
-  --pull-out-ms: 280ms;
+  /* The camera "wide" pull-out and the page-flop animation now run
+     concurrently — pull-out is ~78% of the flip so the watch is still
+     visibly receding while the card is mid-lift, then settles just as
+     the back face takes over. Don't make this longer than --flip-ms or
+     the camera will still be moving after the app has landed. */
+  --pull-out-ms: 480ms;
   --flip-ms: 620ms;
-  --close-zoom-ms: 420ms;
+  /* Close zoom-in runs concurrently with the back flip; matched to the
+     flip duration so the watch lands at ambient as the front face
+     finishes settling into the plane. */
+  --close-zoom-ms: 580ms;
   --close-shell-lead-ms: 180ms;
   /* How far the card lifts toward the viewer at the midpoint of a flip
      (Z translation peak). Combined with the tighter scene perspective
