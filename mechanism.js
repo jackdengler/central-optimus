@@ -2947,9 +2947,11 @@ export function startMovement(canvas) {
     // Blit the cached static layers. The transform maps the cached
     // (srcCx, srcCy, srcR, srcYaw) to the current pose — pans, scales,
     // AND rotates the pre-rendered bitmap to track the camera for
-    // free. The source is drawn at natural CSS size (which is the
-    // OVERSIZE static canvas dimensions); the transform handles all
-    // the positioning.
+    // free. drawImage's destination size MUST be passed explicitly in
+    // CSS user units (W*OVERSIZE × H*OVERSIZE); the 3-arg form would
+    // default to the source's pixel size and, combined with mainCtx's
+    // DPR transform, would scale and offset the plate by a factor of
+    // DPR — sliding it off the gears that get drawn live on top.
     const blitCache = (canvasSrc, srcCx, srcCy, srcR, srcYaw, alpha) => {
       mainCtx.save();
       if (alpha < 1) mainCtx.globalAlpha = alpha;
@@ -2959,7 +2961,7 @@ export function startMovement(canvas) {
       if (dyaw !== 0) mainCtx.rotate(dyaw);
       mainCtx.scale(scale, scale);
       mainCtx.translate(-srcCx, -srcCy);
-      mainCtx.drawImage(canvasSrc, 0, 0);
+      mainCtx.drawImage(canvasSrc, 0, 0, W * STATIC_OVERSIZE, H * STATIC_OVERSIZE);
       mainCtx.restore();
     };
 
