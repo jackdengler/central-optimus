@@ -33,6 +33,7 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <a class="skip-link" href="#launcher-grid">Skip to apps</a>
     <!--
       Launcher home screen. The page is a 3D flip-card:
         • front — watch movement (<canvas.watch-canvas>) + shell (#app)
@@ -108,14 +109,14 @@
 
         Tile taps are wired in app.js via data-app → apps.json id.
       -->
-      <div class="grid" id="launcher-grid">
+      <div class="grid" id="launcher-grid" tabindex="-1">
 
         <!-- 1. MOVIES — film camera with spinning reels (wine red).
              Reels are drawn first so the body covers their bottom 0.5
              units, reading as "housed in the camera." Reels rotate
              continuously at slightly mismatched speeds (4s vs 5.2s)
              for a mechanical feel. -->
-        <a class="icon" href="#" aria-label="Movies" data-slot="movies" data-app="upcoming-movies"
+        <button type="button" class="icon" aria-label="Movies" data-slot="movies" data-app="upcoming-movies"
            style="--tile-accent: #a32929;">
           <div class="tile">
             <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
@@ -148,10 +149,10 @@
               <circle cx="6.2" cy="19.2" r="0.8" fill="var(--surface-hi)" stroke="none"/>
             </svg>
           </div>
-        </a>
+        </button>
 
         <!-- 2. BETTING — poker chip face-on (terracotta) -->
-        <a class="icon" href="#" aria-label="Betting" data-slot="betting" data-app="parlay"
+        <button type="button" class="icon" aria-label="Betting" data-slot="betting" data-app="parlay"
            style="--tile-accent: #d97757;">
           <div class="tile">
             <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
@@ -167,10 +168,10 @@
                     fill="currentColor" stroke="none"/>
             </svg>
           </div>
-        </a>
+        </button>
 
         <!-- 3. MONEY — twin overlapping coins (green) -->
-        <a class="icon" href="#" aria-label="Money" data-slot="money" data-app="budget-together"
+        <button type="button" class="icon" aria-label="Money" data-slot="money" data-app="budget-together"
            style="--tile-accent: #4a7c59;">
           <div class="tile">
             <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
@@ -187,10 +188,10 @@
               </g>
             </svg>
           </div>
-        </a>
+        </button>
 
         <!-- 4. UFC — boxing glove (blue) -->
-        <a class="icon" href="#" aria-label="UFC" data-slot="ufc" data-app="cornerman"
+        <button type="button" class="icon" aria-label="UFC" data-slot="ufc" data-app="cornerman"
            style="--tile-accent: #2b6cb0;">
           <div class="tile">
             <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
@@ -226,11 +227,11 @@
               </g>
             </svg>
           </div>
-        </a>
+        </button>
 
         <!-- 5. CHORES — broom that gently sweeps; cleaned-side sparkle
              pulses when the broom finishes its leftward swing (indigo) -->
-        <a class="icon" href="#" aria-label="Chores" data-slot="chores" data-app="polished-space"
+        <button type="button" class="icon" aria-label="Chores" data-slot="chores" data-app="polished-space"
            style="--tile-accent: #312e81;">
           <div class="tile">
             <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
@@ -255,31 +256,10 @@
                     d="M 24 20 L 26 20 M 25 19 L 25 21" stroke-width="1.0"/>
             </svg>
           </div>
-        </a>
+        </button>
 
-        <!-- 6. EMAIL CLEANUP — stack of envelopes + sparkle (purple) -->
-        <a class="icon" href="#" aria-label="Email Cleanup" data-slot="email" data-app="tbd"
-           style="--tile-accent: #6b46c1;">
-          <div class="tile">
-            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
-                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3"   y="14"   width="14" height="9.5" rx="1.6"
-                    fill="var(--tile-accent)" fill-opacity="0.32" stroke="currentColor" stroke-width="1.0"/>
-              <rect x="5.5" y="11.5" width="14" height="9.5" rx="1.6"
-                    fill="var(--tile-accent)" fill-opacity="0.6"  stroke="currentColor" stroke-width="1.0"/>
-              <g class="ico-env-top">
-                <rect x="8" y="9" width="14" height="9.5" rx="1.6"
-                      fill="var(--tile-accent)" fill-opacity="0.9"/>
-                <path d="M 8.5 9.7 L 15 14 L 21.5 9.7" stroke-width="1.0"/>
-              </g>
-              <path class="ico-env-spark"
-                    d="M 23.5 4 L 23.5 6 M 22.5 5 L 24.5 5" stroke-width="1.0"/>
-            </svg>
-          </div>
-        </a>
-
-        <!-- 7. CLEAN SCRIPT — bound screenplay pages (teal) -->
-        <a class="icon" href="#" aria-label="Clean Script" data-slot="script" data-app="clean-script"
+        <!-- 6. CLEAN SCRIPT — bound screenplay pages (teal) -->
+        <button type="button" class="icon" aria-label="Clean Script" data-slot="script" data-app="clean-script"
            style="--tile-accent: #0f766e;">
           <div class="tile">
             <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
@@ -298,7 +278,7 @@
                     x1="9" y1="21" x2="13" y2="21" stroke-width="1.0"/>
             </svg>
           </div>
-        </a>
+        </button>
 
       </div>
 

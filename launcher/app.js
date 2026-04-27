@@ -119,25 +119,78 @@ function awaitFlip(card) {
 }
 
 async function loadJSON(path) {
-  const res = await fetch(path, { cache: "no-cache" });
-  if (!res.ok) throw new Error(`Failed to load ${path}`);
-  return res.json();
+  // Retry transient failures (offline, 5xx) with exponential backoff;
+  // 4xx fails fast since retrying won't change the answer.
+  const delays = [250, 1000];
+  let lastErr;
+  for (let attempt = 0; attempt <= delays.length; attempt++) {
+    try {
+      const res = await fetch(path, { cache: "no-cache" });
+      if (res.ok) return res.json();
+      if (res.status >= 400 && res.status < 500) {
+        throw new Error(`Failed to load ${path}: ${res.status}`);
+      }
+      lastErr = new Error(`Failed to load ${path}: ${res.status}`);
+    } catch (err) {
+      lastErr = err;
+    }
+    if (attempt < delays.length) {
+      await new Promise((r) => setTimeout(r, delays[attempt]));
+    }
+  }
+  throw lastErr;
 }
 
+/* Returns a discriminated result so the caller can render the right
+   copy. Network errors, 401, rate-limit, and wrong-account each have
+   distinct meanings to the user. */
 async function verifyToken(token, expectedLogin) {
-  const res = await fetch("https://api.github.com/user", {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
-  if (!res.ok) return false;
-  const user = await res.json();
-  return (
-    typeof user.login === "string" &&
-    user.login.toLowerCase() === expectedLogin.toLowerCase()
-  );
+  let res;
+  try {
+    res = await fetch("https://api.github.com/user", {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    });
+  } catch (_) {
+    return { ok: false, reason: "network" };
+  }
+  if (res.status === 401) return { ok: false, reason: "unauthorized" };
+  if (
+    res.status === 403 &&
+    res.headers.get("x-ratelimit-remaining") === "0"
+  ) {
+    return { ok: false, reason: "rate-limit" };
+  }
+  if (!res.ok) return { ok: false, reason: "api", status: res.status };
+  let user;
+  try {
+    user = await res.json();
+  } catch (_) {
+    return { ok: false, reason: "api" };
+  }
+  if (typeof user.login !== "string") return { ok: false, reason: "api" };
+  if (user.login.toLowerCase() !== expectedLogin.toLowerCase()) {
+    return { ok: false, reason: "wrong-account", login: user.login };
+  }
+  return { ok: true };
+}
+
+function gateErrorMessage(result, expectedLogin) {
+  switch (result.reason) {
+    case "network":
+      return "Couldn't reach GitHub. Check your connection and try again.";
+    case "unauthorized":
+      return "GitHub rejected that token. Double-check or create a new one.";
+    case "rate-limit":
+      return "GitHub rate limit hit. Try again in a minute.";
+    case "wrong-account":
+      return `That token belongs to ${result.login}, not ${expectedLogin}.`;
+    default:
+      return "Sign-in failed. Try again.";
+  }
 }
 
 /* ---------- Live data (greeting, date, time, publish stamp) ---------- */
@@ -367,10 +420,8 @@ async function closeActiveApp() {
 function wireLauncherGrid() {
   const grid = document.getElementById("launcher-grid");
   if (!grid) return;
-  grid.querySelectorAll("a.icon[data-app]").forEach((el) => {
-    el.addEventListener("click", (e) => {
-      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button > 0) return;
-      e.preventDefault();
+  grid.querySelectorAll(".icon[data-app]").forEach((el) => {
+    el.addEventListener("click", () => {
       const appId = el.dataset.app;
       launchApp(appId, { trigger: el });
     });
@@ -398,7 +449,7 @@ function wireGlobalShortcuts() {
     ) {
       const idx = parseInt(e.key, 10) - 1;
       const tile = document.querySelectorAll(
-        "#launcher-grid a.icon[data-app]",
+        "#launcher-grid .icon[data-app]",
       )[idx];
       if (tile) {
         e.preventDefault();
@@ -439,28 +490,103 @@ function ensureEmbedShell() {
     closeActiveApp();
   });
 
+  // Spinner + failure overlay sit on the .flip-back curtain so they
+  // appear above the iframe. CSS keys both off classes on .flip-back:
+  // .is-loading shows the spinner, .is-failed shows the failure card.
+  if (back && !back.querySelector(".embed-loading")) {
+    const loading = document.createElement("div");
+    loading.className = "embed-loading";
+    loading.setAttribute("aria-hidden", "true");
+    loading.innerHTML = `<div class="embed-spinner" aria-hidden="true"></div>`;
+    back.appendChild(loading);
+  }
+  if (back && !back.querySelector(".embed-failure")) {
+    const failure = document.createElement("div");
+    failure.className = "embed-failure";
+    failure.setAttribute("role", "alert");
+    failure.innerHTML = `
+      <div class="embed-failure-card">
+        <h3>Couldn't load app</h3>
+        <p id="embed-failure-msg">The app didn't respond in time.</p>
+        <div class="embed-failure-actions">
+          <button type="button" id="embed-failure-close">Close</button>
+          <button type="button" id="embed-failure-retry" class="is-primary">Retry</button>
+        </div>
+      </div>
+    `;
+    back.appendChild(failure);
+    failure.querySelector("#embed-failure-close").addEventListener("click", () => {
+      closeActiveApp();
+    });
+    failure.querySelector("#embed-failure-retry").addEventListener("click", () => {
+      const app = APPS.find((a) => a.id === activeAppId);
+      if (app) reloadEmbed(app);
+    });
+  }
+
   // Cream curtain on .flip-back hides any pre-paint flash from the iframe
   // until it fires its load event. Each openEmbed adds .is-loading; the
-  // load handler clears it.
+  // load handler clears it. A 10s watchdog flips to .is-failed if the
+  // load event never arrives.
   const frame = wrap.querySelector("#embed-frame");
   frame.addEventListener("load", () => {
-    if (back && back.classList) back.classList.remove("is-loading");
+    clearEmbedTimeout();
+    if (back && back.classList) {
+      back.classList.remove("is-loading");
+      back.classList.remove("is-failed");
+    }
     sendPatHandshake(frame);
   });
 
   return wrap;
 }
 
-/* PostMessage handshake for PAT-gated apps. The PAT used to be appended
-   as a query string (?pat=...), which leaked into server access logs and
-   Referer headers despite referrerpolicy="no-referrer" (the embedded
-   app's own outbound requests still see it via document.referrer /
-   location.href). PostMessage targets the iframe's specific origin and
-   stays in memory.
+let embedLoadTimer = null;
+const EMBED_LOAD_TIMEOUT_MS = 10000;
 
-   For backwards compat we still include the query string for apps that
-   haven't been updated yet — once every PAT-gated app listens for the
-   `co.pat` message, the query-string fallback can be dropped. */
+function clearEmbedTimeout() {
+  if (embedLoadTimer) {
+    clearTimeout(embedLoadTimer);
+    embedLoadTimer = null;
+  }
+}
+
+function armEmbedTimeout(appName) {
+  clearEmbedTimeout();
+  embedLoadTimer = setTimeout(() => {
+    const back = document.getElementById("flip-back");
+    if (!back) return;
+    back.classList.remove("is-loading");
+    back.classList.add("is-failed");
+    const msg = back.querySelector("#embed-failure-msg");
+    if (msg) {
+      msg.textContent = `${appName || "The app"} didn't respond in time.`;
+    }
+  }, EMBED_LOAD_TIMEOUT_MS);
+}
+
+function reloadEmbed(app) {
+  const frame = document.getElementById("embed-frame");
+  const back = document.getElementById("flip-back");
+  if (!frame) return;
+  if (back) {
+    back.classList.remove("is-failed");
+    back.classList.add("is-loading");
+  }
+  // Force a reload even if the URL is the same as last time.
+  frame.src = "about:blank";
+  // Yield a tick so the about:blank actually swaps before the real src.
+  setTimeout(() => {
+    frame.src = embedUrlFor(app);
+    armEmbedTimeout(app.name);
+  }, 0);
+}
+
+/* PostMessage handshake for PAT-gated apps. The PAT is delivered only
+   through this channel — never through the iframe URL — so it can't
+   leak via history, session restore, or any URL-aware logging the
+   embedded app does. The message targets the iframe's specific origin
+   and stays in memory. */
 function sendPatHandshake(frame) {
   if (!frame || !frame.contentWindow) return;
   const id = activeAppId;
@@ -481,11 +607,10 @@ function sendPatHandshake(frame) {
 }
 
 function embedUrlFor(app) {
-  if (app.auth !== "pat") return app.url;
-  const pat = localStorage.getItem(TOKEN_KEY) || "";
-  const u = new URL(app.url);
-  u.searchParams.set("pat", pat);
-  return u.toString();
+  // PAT-gated apps receive the token via postMessage (see sendPatHandshake)
+  // rather than a URL query param, which would leak through history,
+  // session restore, and any URL-aware logging the embedded app does.
+  return app.url;
 }
 
 function openEmbed(app) {
@@ -493,10 +618,15 @@ function openEmbed(app) {
   document.getElementById("embed-title").textContent = app.name;
   const frame = document.getElementById("embed-frame");
   const back = document.getElementById("flip-back");
+  if (back) back.classList.remove("is-failed");
+  // Iframe title reflects the active app so screen readers announce it
+  // instead of a generic "App".
+  frame.title = app.name;
   const src = embedUrlFor(app);
   if (frame.src !== src) {
     if (back) back.classList.add("is-loading");
     frame.src = src;
+    armEmbedTimeout(app.name);
   }
   wrap.hidden = false;
   const hash = `#app/${app.id}`;
@@ -509,8 +639,12 @@ function hideEmbed() {
   const wrap = document.getElementById("embed");
   if (!wrap) return;
   wrap.hidden = true;
+  clearEmbedTimeout();
   const back = document.getElementById("flip-back");
-  if (back) back.classList.remove("is-loading");
+  if (back) {
+    back.classList.remove("is-loading");
+    back.classList.remove("is-failed");
+  }
   const frame = document.getElementById("embed-frame");
   if (frame) frame.src = "about:blank";
 }
@@ -580,26 +714,36 @@ async function unlock(config, registry) {
   };
 
   const existing = localStorage.getItem(TOKEN_KEY);
-  if (existing && (await verifyToken(existing, config.githubUser))) {
-    finish();
-    return;
+  if (existing) {
+    const result = await verifyToken(existing, config.githubUser);
+    if (result.ok) {
+      finish();
+      return;
+    }
+    // Keep the cached token across transient/network errors so the user
+    // doesn't have to paste it again every time GitHub hiccups.
+    if (result.reason !== "network" && result.reason !== "rate-limit") {
+      localStorage.removeItem(TOKEN_KEY);
+    }
   }
-  if (existing) localStorage.removeItem(TOKEN_KEY);
 
   dialog.showModal();
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     error.hidden = true;
     const token = input.value.trim();
-    const ok = await verifyToken(token, config.githubUser);
-    if (ok) {
+    const result = await verifyToken(token, config.githubUser);
+    if (result.ok) {
       localStorage.setItem(TOKEN_KEY, token);
       finish();
-    } else {
-      error.hidden = false;
-      input.value = "";
-      input.focus();
+      return;
     }
+    error.textContent = gateErrorMessage(result, config.githubUser);
+    error.hidden = false;
+    if (result.reason === "wrong-account" || result.reason === "unauthorized") {
+      input.value = "";
+    }
+    input.focus();
   });
 }
 
@@ -703,15 +847,40 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-(async () => {
-  try {
-    const [config, registry] = await Promise.all([
-      loadJSON("./config.json"),
-      loadJSON("./apps.json"),
-    ]);
-    await unlock(config, registry);
-  } catch (err) {
-    document.body.textContent = "Failed to load launcher.";
-    console.error(err);
-  }
+function showBootError(err, retry) {
+  console.error(err);
+  let overlay = document.getElementById("boot-error");
+  if (overlay) overlay.remove();
+  overlay = document.createElement("div");
+  overlay.id = "boot-error";
+  overlay.className = "boot-error";
+  overlay.innerHTML = `
+    <div class="boot-error-card">
+      <h2>Couldn't load launcher</h2>
+      <p>${(err && err.message) || "Something went wrong."}</p>
+      <button type="button" id="boot-error-retry">Retry</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document
+    .getElementById("boot-error-retry")
+    .addEventListener("click", () => {
+      overlay.remove();
+      retry();
+    });
+}
+
+(function bootLauncher() {
+  const start = async () => {
+    try {
+      const [config, registry] = await Promise.all([
+        loadJSON("./config.json"),
+        loadJSON("./apps.json"),
+      ]);
+      await unlock(config, registry);
+    } catch (err) {
+      showBootError(err, start);
+    }
+  };
+  start();
 })();

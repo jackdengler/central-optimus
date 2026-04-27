@@ -5,11 +5,18 @@
   "type": "module",
   "scripts": {
     "build": "tailwindcss -i ./launcher/src/input.css -o ./launcher/styles.css --minify",
-    "dev": "tailwindcss -i ./launcher/src/input.css -o ./launcher/styles.css --watch"
+    "dev": "tailwindcss -i ./launcher/src/input.css -o ./launcher/styles.css --watch",
+    "lint": "eslint .",
+    "format": "prettier --write \"launcher/**/*.{js,html,css}\" \"*.md\"",
+    "format:check": "prettier --check \"launcher/**/*.{js,html,css}\" \"*.md\""
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "@tailwindcss/cli": "^4.0.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
     "konsta": "^5.0.8",
+    "prettier": "^3.0.0",
     "tailwindcss": "^4.0.0"
   }
 }

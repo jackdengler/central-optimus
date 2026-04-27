@@ -64,6 +64,63 @@ server-side auth. If you later want edge-level protection (no bytes
 served to unauthenticated visitors), put **Cloudflare Access** in front
 of the domain — free for up to 50 users.
 
+### PAT-gated apps
+
+Apps that set `"auth": "pat"` in `apps.json` receive the PAT through a
+`postMessage` from the launcher (type `co.pat`) once the iframe finishes
+loading. The PAT is **never** put in the iframe URL or query string, so
+it can't leak via history, session restore, or referer-style logging.
+Each PAT-gated app must listen for that message on the launcher's
+origin and use the value for whatever it needs (e.g. authenticating
+its own backend).
+
+## Troubleshooting
+
+**"GitHub rejected that token"** — The PAT has been revoked, expired,
+or was mistyped. Generate a new one (no permissions needed) and paste
+it again.
+
+**"That token belongs to X, not Y"** — The PAT belongs to a different
+GitHub account than `githubUser` in `config.json`. Either generate a
+PAT on the right account or update `config.json`.
+
+**"GitHub rate limit hit"** — Unauthenticated `GET /user` is rate
+limited per IP. Wait ~60s and retry. The cached PAT is preserved across
+this kind of transient failure so you don't have to re-paste.
+
+**"Couldn't reach GitHub"** — Network-level failure (offline, captive
+portal, DNS). Check connectivity and hit Retry. The cached PAT is
+preserved.
+
+**"Couldn't load app" inside the flip-card** — The embedded app didn't
+fire its `load` event within 10s. Common causes: the app's GitHub Pages
+isn't published yet, the URL in `apps.json` is wrong, or the embedded
+app's CSP blocks framing. Hit Retry, or click Close to return to the
+launcher and check DevTools → Network.
+
+**Service worker is serving stale code after a deploy** — Bump `CACHE`
+in `launcher/sw.js` (e.g. `launcher-v27` → `launcher-v28`). The next
+load activates the new SW and evicts the old cache. To force eviction
+manually: DevTools → Application → Service Workers → Unregister.
+
+**Local `python3 -m http.server` shows a missing weather chip** — The
+chip stays hidden on first load until the geolocation permission
+prompt is answered. After granting, an em-dash placeholder appears if
+the browser can't get coordinates or Open-Meteo is unreachable.
+
+## Lint + format
+
+```
+npm install
+npm run lint            # ESLint over launcher/*.js
+npm run format          # Prettier --write across launcher/, README
+npm run format:check    # Prettier --check (CI-friendly, no writes)
+```
+
+The `Check` GitHub workflow runs `npm run lint` on every push and PR.
+Lint warnings (e.g. unused vars in `mechanism.js`) are intentionally
+non-fatal so CI stays green; new errors will fail it.
+
 ## Theme / UI
 
 Styling is built with [Tailwind CSS v4](https://tailwindcss.com) and

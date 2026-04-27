@@ -47,15 +47,6 @@
       "shade": "#1a1845"
     },
     {
-      "id": "tbd",
-      "name": "Gmail Cleanup",
-      "subtitle": "Inbox sweeper",
-      "blurb": "Bulk archive, unsubscribe, and triage.",
-      "url": "https://jackdengler.github.io/tbd-repo/",
-      "color": "#6b46c1",
-      "shade": "#3b2670"
-    },
-    {
       "id": "clean-script",
       "name": "Clean Script",
       "subtitle": "Script polish",
