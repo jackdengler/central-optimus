@@ -485,6 +485,19 @@
     -webkit-tap-highlight-color: transparent;
     cursor: pointer;
     color: var(--ink);
+    /* Tiles are <button> elements — strip the UA defaults that would
+       otherwise leak through (background, border, font, padding). */
+    background: transparent;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    text-align: inherit;
+  }
+  .shell .icon:focus-visible {
+    outline: 2px solid var(--color-optimus-accent);
+    outline-offset: 4px;
+    border-radius: 18px;
   }
 
   .shell .icon .tile {
@@ -747,4 +760,157 @@
   }
   .btn-primary:hover { filter: brightness(1.04); }
   .btn-primary:active { transform: scale(0.985); }
+
+  /* ============================================================
+     BOOT ERROR (config.json / apps.json failed to load)
+     ============================================================ */
+  .boot-error {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: grid;
+    place-items: center;
+    background: rgba(30, 22, 14, 0.45);
+    backdrop-filter: blur(6px);
+    padding: 1rem;
+  }
+  .boot-error-card {
+    background: var(--color-optimus-surface);
+    color: var(--color-optimus-ink);
+    border: 1px solid var(--color-optimus-border-strong);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    max-width: 22rem;
+    box-shadow: 0 30px 80px -20px rgba(var(--color-optimus-shadow), 0.4);
+  }
+  .boot-error-card h2 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin: 0 0 0.5rem;
+  }
+  .boot-error-card p {
+    font-size: 0.875rem;
+    color: var(--color-optimus-muted);
+    margin: 0 0 1rem;
+    line-height: 1.4;
+    word-break: break-word;
+  }
+  .boot-error-card button {
+    width: 100%;
+    padding: 0.7rem 1rem;
+    border-radius: 0.75rem;
+    border: 0;
+    font-weight: 600;
+    color: white;
+    background: linear-gradient(
+      180deg,
+      var(--color-optimus-accent),
+      var(--color-optimus-accent-2)
+    );
+    cursor: pointer;
+  }
+  .boot-error-card button:active { transform: scale(0.985); }
+
+  /* ============================================================
+     EMBED IFRAME LOADING + FAILURE OVERLAY
+     ============================================================ */
+  .embed-loading {
+    position: absolute;
+    inset: 0;
+    display: none;
+    place-items: center;
+    pointer-events: none;
+  }
+  .flip-back.is-loading .embed-loading {
+    display: grid;
+  }
+  .embed-spinner {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 3px solid rgba(60, 46, 30, 0.18);
+    border-top-color: var(--color-optimus-accent);
+    animation: embed-spin 0.9s linear infinite;
+  }
+  @keyframes embed-spin {
+    to { transform: rotate(360deg); }
+  }
+  .embed-failure {
+    position: absolute;
+    inset: 0;
+    display: none;
+    place-items: center;
+    padding: 1rem;
+    pointer-events: auto;
+  }
+  .flip-back.is-failed .embed-failure { display: grid; }
+  .flip-back.is-failed .embed-loading { display: none; }
+  .embed-failure-card {
+    background: var(--color-optimus-surface);
+    color: var(--color-optimus-ink);
+    border: 1px solid var(--color-optimus-border-strong);
+    border-radius: 1rem;
+    padding: 1.25rem 1.5rem;
+    max-width: 22rem;
+    text-align: center;
+    box-shadow: 0 20px 60px -15px rgba(var(--color-optimus-shadow), 0.35);
+  }
+  .embed-failure-card h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 0.4rem;
+  }
+  .embed-failure-card p {
+    font-size: 0.85rem;
+    color: var(--color-optimus-muted);
+    margin: 0 0 1rem;
+    line-height: 1.4;
+  }
+  .embed-failure-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+  }
+  .embed-failure-actions button {
+    padding: 0.55rem 1rem;
+    border-radius: 0.6rem;
+    border: 1px solid var(--color-optimus-border-strong);
+    background: var(--color-optimus-surface-2);
+    color: var(--color-optimus-ink);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .embed-failure-actions button.is-primary {
+    border-color: transparent;
+    color: white;
+    background: linear-gradient(
+      180deg,
+      var(--color-optimus-accent),
+      var(--color-optimus-accent-2)
+    );
+  }
+
+  /* ============================================================
+     SKIP LINK (a11y)
+     ============================================================ */
+  .skip-link {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    padding: 0.5rem 0.85rem;
+    background: var(--color-optimus-surface);
+    color: var(--color-optimus-ink);
+    border: 1px solid var(--color-optimus-border-strong);
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    transform: translateY(-200%);
+    transition: transform 160ms ease;
+    z-index: 200;
+  }
+  .skip-link:focus {
+    transform: translateY(0);
+    outline: 2px solid var(--color-optimus-accent);
+    outline-offset: 2px;
+  }
 }

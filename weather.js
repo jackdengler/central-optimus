@@ -155,10 +155,28 @@ function renderChip(mountEl, payload) {
     <span class="co-weather-icon" aria-hidden="true">
       <svg viewBox="0 0 24 24">${glyph}</svg>
     </span>
-    <span class="co-weather-text">${Number.isFinite(payload.temp) ? `${payload.temp}°` : "—"}</span>
+    <span class="co-weather-text"></span>
   `;
+  mountEl.querySelector(".co-weather-text").textContent =
+    Number.isFinite(payload.temp) ? `${payload.temp}°` : "—";
   mountEl.setAttribute("title", payload.label);
   mountEl.setAttribute("aria-label", `${payload.label}, ${payload.temp}°F`);
+}
+
+function renderUnavailable(mountEl, reason) {
+  if (!mountEl) return;
+  // Only show the placeholder when there's no cached value to fall back
+  // to; if we already rendered a cached chip, leave it alone so the user
+  // keeps seeing real (if stale) data.
+  if (mountEl.classList.contains("co-weather")) return;
+  mountEl.hidden = false;
+  mountEl.classList.add("co-weather");
+  mountEl.innerHTML = `<span class="co-weather-text">—</span>`;
+  const title = reason === "location"
+    ? "Weather: location unavailable"
+    : "Weather unavailable";
+  mountEl.setAttribute("title", title);
+  mountEl.setAttribute("aria-label", title);
 }
 
 export function initWeather({ mountEl, onUpdate, onError } = {}) {
@@ -181,6 +199,7 @@ export function initWeather({ mountEl, onUpdate, onError } = {}) {
       if (coords) saveCoords(coords.lat, coords.lon);
     }
     if (!coords) {
+      renderUnavailable(mountEl, "location");
       onError?.(new Error("location unavailable"));
       return;
     }
@@ -192,6 +211,7 @@ export function initWeather({ mountEl, onUpdate, onError } = {}) {
       onUpdate?.(payload);
     } catch (err) {
       console.warn("weather fetch failed:", err);
+      renderUnavailable(mountEl, "fetch");
       onError?.(err);
     }
   };

@@ -1,4 +1,4 @@
-const CACHE = "launcher-v26";
+const CACHE = "launcher-v27";
 const SHELL = [
   "./",
   "./index.html",
@@ -11,10 +11,20 @@ const SHELL = [
   "./manifest.webmanifest",
   "./icons/icon.svg",
 ];
+// build.json is only written by the deploy workflow, so it 404s in local
+// dev. Cache it best-effort so a missing file doesn't break SW install.
+const OPTIONAL = ["./build.json"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())
+    caches
+      .open(CACHE)
+      .then((c) =>
+        c.addAll(SHELL).then(() =>
+          Promise.all(OPTIONAL.map((url) => c.add(url).catch(() => {})))
+        )
+      )
+      .then(() => self.skipWaiting())
   );
 });
 
