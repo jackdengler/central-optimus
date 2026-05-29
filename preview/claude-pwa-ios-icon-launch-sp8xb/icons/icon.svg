@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Central Optimus">
+  <!--
+    Central Optimus app icon — soft "clay" gear.
+    Full-bleed cream background (no transparent corners) so iOS/Android
+    apply their own squircle/circle mask cleanly with no black slivers.
+    The whole gear sits inside the maskable safe zone (max radius ~200 of
+    256, i.e. ~78% diameter). Source of truth — deploy rasterizes this
+    into every PNG size (apple-touch-icon, 512, maskable, startup splash).
+    Kept to gradients + shapes + transforms only so librsvg (rsvg-convert)
+    renders it identically to browsers.
+  -->
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f3ead8"/>
+      <stop offset="0.55" stop-color="#ece3d0"/>
+      <stop offset="1" stop-color="#ddd1b9"/>
+    </linearGradient>
+    <radialGradient id="vignette" cx="50%" cy="40%" r="62%">
+      <stop offset="0.72" stop-color="#000000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#796d54" stop-opacity="0.16"/>
+    </radialGradient>
+    <radialGradient id="shadow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#2a251f" stop-opacity="0.30"/>
+      <stop offset="0.7" stop-color="#2a251f" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#2a251f" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="gear" cx="42%" cy="34%" r="80%">
+      <stop offset="0" stop-color="#8c8278"/>
+      <stop offset="1" stop-color="#6a6158"/>
+    </radialGradient>
+    <radialGradient id="orange" cx="40%" cy="32%" r="82%">
+      <stop offset="0" stop-color="#e0966a"/>
+      <stop offset="1" stop-color="#c87b4f"/>
+    </radialGradient>
+    <radialGradient id="cream" cx="42%" cy="34%" r="80%">
+      <stop offset="0" stop-color="#f3ecdc"/>
+      <stop offset="1" stop-color="#e6ddca"/>
+    </radialGradient>
+  </defs>
+
+  <!-- full-bleed cream plate -->
+  <rect x="0" y="0" width="512" height="512" fill="url(#plate)"/>
+  <rect x="0" y="0" width="512" height="512" fill="url(#vignette)"/>
+
+  <!-- soft cast shadow beneath the gear -->
+  <ellipse cx="256" cy="272" rx="206" ry="200" fill="url(#shadow)"/>
+
+  <!-- GEAR: dark outline layer (teeth grown +10px each side), then taupe fill -->
+  <g fill="#3a342d">
+    <rect x="206" y="56" width="100" height="86" rx="32"/>
+    <rect x="206" y="56" width="100" height="86" rx="32" transform="rotate(45 256 256)"/>
+    <rect x="206" y="56" width="100" height="86" rx="32" transform="rotate(90 256 256)"/>
+    <rect x="206" y="56" width="100" height="86" rx="32" transform="rotate(135 256 256)"/>
+    <rect x="206" y="56" width="100" height="86" rx="32" transform="rotate(180 256 256)"/>
+    <rect x="206" y="56" width="100" height="86" rx="32" transform="rotate(225 256 256)"/>
+    <rect x="206" y="56" width="100" height="86" rx="32" transform="rotate(270 256 256)"/>
+    <rect x="206" y="56" width="100" height="86" rx="32" transform="rotate(315 256 256)"/>
+    <circle cx="256" cy="256" r="156"/>
+  </g>
+  <g fill="url(#gear)">
+    <rect x="216" y="66" width="80" height="66" rx="22"/>
+    <rect x="216" y="66" width="80" height="66" rx="22" transform="rotate(45 256 256)"/>
+    <rect x="216" y="66" width="80" height="66" rx="22" transform="rotate(90 256 256)"/>
+    <rect x="216" y="66" width="80" height="66" rx="22" transform="rotate(135 256 256)"/>
+    <rect x="216" y="66" width="80" height="66" rx="22" transform="rotate(180 256 256)"/>
+    <rect x="216" y="66" width="80" height="66" rx="22" transform="rotate(225 256 256)"/>
+    <rect x="216" y="66" width="80" height="66" rx="22" transform="rotate(270 256 256)"/>
+    <rect x="216" y="66" width="80" height="66" rx="22" transform="rotate(315 256 256)"/>
+    <circle cx="256" cy="256" r="146"/>
+  </g>
+
+  <!-- HUB target: dark ring, cream band, dark gap, orange disc, centre dot -->
+  <circle cx="256" cy="256" r="116" fill="#3a342d"/>
+  <circle cx="256" cy="256" r="106" fill="url(#cream)"/>
+  <circle cx="256" cy="256" r="82"  fill="#3a342d"/>
+  <circle cx="256" cy="256" r="74"  fill="url(#orange)"/>
+  <circle cx="256" cy="256" r="14"  fill="#3a342d"/>
+
+  <!-- four cream tabs at N / E / S / W, bridging the band and the disc -->
+  <g fill="url(#cream)" stroke="#3a342d" stroke-width="7">
+    <rect x="240" y="146" width="32" height="50" rx="12"/>
+    <rect x="240" y="146" width="32" height="50" rx="12" transform="rotate(90 256 256)"/>
+    <rect x="240" y="146" width="32" height="50" rx="12" transform="rotate(180 256 256)"/>
+    <rect x="240" y="146" width="32" height="50" rx="12" transform="rotate(270 256 256)"/>
+  </g>
+</svg>
