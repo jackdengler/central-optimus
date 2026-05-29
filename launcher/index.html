@@ -22,6 +22,94 @@
     <style>
       html, body { margin: 0; }
       html { background-color: #f6f1e7; }
+
+      /* ------------------------------------------------------------------
+         FIRST-LAUNCH SPLASH
+         Inline + critical so it paints on the very first frame, before
+         styles.css / app.js / the 130 KB watch mechanism have loaded.
+         Shows the app icon with a gentle breathe + an indeterminate
+         progress sweep, then crossfades out the moment the real UI is
+         ready (see the dismiss script at the end of <body>). Self-
+         contained: no dependency on app.js. */
+      #co-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 22px;
+        background:
+          radial-gradient(32rem 26rem at 50% 36%, rgba(201, 106, 71, 0.10), transparent 70%),
+          #f6f1e7;
+        padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+        -webkit-tap-highlight-color: transparent;
+        transition: opacity 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+      #co-splash.is-hidden { opacity: 0; pointer-events: none; }
+      #co-splash .co-splash-badge {
+        width: 104px;
+        height: 104px;
+        border-radius: 24px;
+        overflow: hidden;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.6),
+          0 18px 40px -12px rgba(60, 46, 30, 0.45),
+          0 4px 12px -4px rgba(60, 46, 30, 0.30);
+        animation:
+          co-splash-pop 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both,
+          co-splash-breathe 3.2s ease-in-out 0.6s infinite;
+      }
+      #co-splash .co-splash-badge svg { display: block; width: 100%; height: 100%; }
+      #co-splash .co-splash-word {
+        font: 600 14px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text",
+          "Segoe UI", Roboto, system-ui, sans-serif;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #8a7f6c;
+        opacity: 0;
+        animation: co-splash-fade 0.6s ease 0.25s both;
+      }
+      #co-splash .co-splash-track {
+        width: 116px;
+        height: 3px;
+        border-radius: 3px;
+        overflow: hidden;
+        background: rgba(60, 46, 30, 0.12);
+        opacity: 0;
+        animation: co-splash-fade 0.6s ease 0.35s both;
+      }
+      #co-splash .co-splash-bar {
+        display: block;
+        width: 42%;
+        height: 100%;
+        border-radius: 3px;
+        background: linear-gradient(90deg, #c96a47, #a44f30);
+        animation: co-splash-slide 1.25s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+      }
+      @keyframes co-splash-pop {
+        from { opacity: 0; transform: scale(0.92); }
+        to   { opacity: 1; transform: scale(1); }
+      }
+      @keyframes co-splash-breathe {
+        0%, 100% { transform: scale(1); }
+        50%      { transform: scale(1.035); }
+      }
+      @keyframes co-splash-fade {
+        from { opacity: 0; transform: translateY(4px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes co-splash-slide {
+        0%   { transform: translateX(-120%); }
+        100% { transform: translateX(380%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #co-splash .co-splash-badge { animation: none; }
+        #co-splash .co-splash-bar { animation: none; width: 100%; }
+        #co-splash .co-splash-word,
+        #co-splash .co-splash-track { animation: none; opacity: 1; }
+      }
     </style>
 
     <link
@@ -33,6 +121,78 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
+    <!-- First-launch splash. Inline icon (same artwork as icons/icon.svg)
+         so it paints instantly with zero network. role=presentation +
+         aria-hidden keep it out of the a11y tree; the dismiss script at the
+         end of <body> crossfades it away the moment the app is ready. -->
+    <div id="co-splash" role="presentation" aria-hidden="true">
+      <div class="co-splash-badge">
+        <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <linearGradient id="sp-plate" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#f3ead8"/>
+              <stop offset="0.55" stop-color="#ece3d0"/>
+              <stop offset="1" stop-color="#ddd1b9"/>
+            </linearGradient>
+            <radialGradient id="sp-shadow" cx="50%" cy="50%" r="50%">
+              <stop offset="0" stop-color="#2a251f" stop-opacity="0.30"/>
+              <stop offset="0.7" stop-color="#2a251f" stop-opacity="0.14"/>
+              <stop offset="1" stop-color="#2a251f" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="sp-gear" cx="42%" cy="34%" r="80%">
+              <stop offset="0" stop-color="#8c8278"/>
+              <stop offset="1" stop-color="#6a6158"/>
+            </radialGradient>
+            <radialGradient id="sp-orange" cx="40%" cy="32%" r="82%">
+              <stop offset="0" stop-color="#e0966a"/>
+              <stop offset="1" stop-color="#c87b4f"/>
+            </radialGradient>
+            <radialGradient id="sp-cream" cx="42%" cy="34%" r="80%">
+              <stop offset="0" stop-color="#f3ecdc"/>
+              <stop offset="1" stop-color="#e6ddca"/>
+            </radialGradient>
+          </defs>
+          <rect x="0" y="0" width="512" height="512" fill="url(#sp-plate)"/>
+          <ellipse cx="256" cy="272" rx="206" ry="200" fill="url(#sp-shadow)"/>
+          <g fill="#3a342d">
+            <rect x="206" y="56" width="100" height="86" rx="32"/>
+            <rect x="206" y="56" width="100" height="86" rx="32" transform="rotate(45 256 256)"/>
+            <rect x="206" y="56" width="100" height="86" rx="32" transform="rotate(90 256 256)"/>
+            <rect x="206" y="56" width="100" height="86" rx="32" transform="rotate(135 256 256)"/>
+            <rect x="206" y="56" width="100" height="86" rx="32" transform="rotate(180 256 256)"/>
+            <rect x="206" y="56" width="100" height="86" rx="32" transform="rotate(225 256 256)"/>
+            <rect x="206" y="56" width="100" height="86" rx="32" transform="rotate(270 256 256)"/>
+            <rect x="206" y="56" width="100" height="86" rx="32" transform="rotate(315 256 256)"/>
+            <circle cx="256" cy="256" r="156"/>
+          </g>
+          <g fill="url(#sp-gear)">
+            <rect x="216" y="66" width="80" height="66" rx="22"/>
+            <rect x="216" y="66" width="80" height="66" rx="22" transform="rotate(45 256 256)"/>
+            <rect x="216" y="66" width="80" height="66" rx="22" transform="rotate(90 256 256)"/>
+            <rect x="216" y="66" width="80" height="66" rx="22" transform="rotate(135 256 256)"/>
+            <rect x="216" y="66" width="80" height="66" rx="22" transform="rotate(180 256 256)"/>
+            <rect x="216" y="66" width="80" height="66" rx="22" transform="rotate(225 256 256)"/>
+            <rect x="216" y="66" width="80" height="66" rx="22" transform="rotate(270 256 256)"/>
+            <rect x="216" y="66" width="80" height="66" rx="22" transform="rotate(315 256 256)"/>
+            <circle cx="256" cy="256" r="146"/>
+          </g>
+          <circle cx="256" cy="256" r="116" fill="#3a342d"/>
+          <circle cx="256" cy="256" r="106" fill="url(#sp-cream)"/>
+          <circle cx="256" cy="256" r="82"  fill="#3a342d"/>
+          <circle cx="256" cy="256" r="74"  fill="url(#sp-orange)"/>
+          <circle cx="256" cy="256" r="14"  fill="#3a342d"/>
+          <g fill="url(#sp-cream)" stroke="#3a342d" stroke-width="7">
+            <rect x="240" y="146" width="32" height="50" rx="12"/>
+            <rect x="240" y="146" width="32" height="50" rx="12" transform="rotate(90 256 256)"/>
+            <rect x="240" y="146" width="32" height="50" rx="12" transform="rotate(180 256 256)"/>
+            <rect x="240" y="146" width="32" height="50" rx="12" transform="rotate(270 256 256)"/>
+          </g>
+        </svg>
+      </div>
+      <div class="co-splash-word">Central Optimus</div>
+      <div class="co-splash-track"><span class="co-splash-bar"></span></div>
+    </div>
+
     <a class="skip-link" href="#launcher-grid">Skip to apps</a>
     <!--
       Launcher home screen. The page is a 3D flip-card:
@@ -330,6 +490,58 @@
         <button type="submit" class="btn-primary">Unlock</button>
       </form>
     </dialog>
+
+    <!-- Dismiss the first-launch splash the moment the real UI is ready.
+         Decoupled from app.js: triggers on the earliest of — the sign-in
+         dialog opening, the shell un-hiding, window load, or a 6s safety
+         cap — with a small minimum on-screen time so it never just flashes. -->
+    <script>
+      (function () {
+        var splash = document.getElementById("co-splash");
+        if (!splash) return;
+        var shownAt = Date.now();
+        var MIN_MS = 450;
+        var done = false;
+        function dismiss() {
+          if (done) return;
+          done = true;
+          var wait = Math.max(0, MIN_MS - (Date.now() - shownAt));
+          setTimeout(function () {
+            splash.classList.add("is-hidden");
+            var remove = function () {
+              if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
+            };
+            splash.addEventListener("transitionend", remove, { once: true });
+            setTimeout(remove, 700); // fallback if transitionend doesn't fire
+          }, wait);
+        }
+        // Authed path: the shell un-hides when boot reveals it.
+        var app = document.getElementById("app");
+        if (app && "MutationObserver" in window) {
+          var appObs = new MutationObserver(function () {
+            if (!app.hasAttribute("hidden")) {
+              appObs.disconnect();
+              dismiss();
+            }
+          });
+          appObs.observe(app, { attributes: true, attributeFilter: ["hidden"] });
+        }
+        // First-run path: get out of the way as the sign-in dialog appears.
+        var gate = document.getElementById("gate");
+        if (gate && "MutationObserver" in window) {
+          var gateObs = new MutationObserver(function () {
+            if (gate.open) {
+              gateObs.disconnect();
+              dismiss();
+            }
+          });
+          gateObs.observe(gate, { attributes: true, attributeFilter: ["open"] });
+        }
+        document.addEventListener("co:ready", dismiss);
+        window.addEventListener("load", dismiss);
+        setTimeout(dismiss, 6000); // hard safety cap — never get stuck
+      })();
+    </script>
 
     <script type="module" src="./app.js"></script>
   </body>
