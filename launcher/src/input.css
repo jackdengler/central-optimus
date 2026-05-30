@@ -84,20 +84,6 @@
        the safe-area fill deterministic. */
     background-color: var(--color-optimus-bg);
     background-image:
-      /* Hard-stop band that pre-darkens the bottom safe-area inset
-         (and a 12px feather above it) so the home-indicator zone reads
-         the same as the noise-darkened body area above. Without this,
-         that strip looks visibly lighter because .bg-noise is
-         fixed-positioned and iOS clips it to the layout viewport, so
-         the noise multiply never reaches the safe area. On devices
-         with no bottom inset env() resolves to 0 and the band
-         collapses to a no-op. */
-      linear-gradient(
-        to top,
-        rgba(31, 27, 22, 0.085) 0,
-        rgba(31, 27, 22, 0.085) env(safe-area-inset-bottom),
-        rgba(31, 27, 22, 0)     calc(env(safe-area-inset-bottom) + 12px)
-      ),
       radial-gradient(28rem 22rem at 8% 6%,   rgba(201, 106, 71, 0.28), transparent 62%),
       radial-gradient(26rem 22rem at 96% 10%, rgba(138, 160, 120, 0.22), transparent 62%),
       radial-gradient(34rem 28rem at 50% 108%, rgba(70, 74, 120, 0.26), transparent 62%);
@@ -181,6 +167,16 @@
   .flip-scene {
     position: fixed;
     inset: 0;
+    /* Drop the bottom edge past the layout viewport into the iOS
+       home-indicator safe area. In a standalone PWA with
+       viewport-fit=cover, fixed inset:0 stops at the layout viewport, so
+       the watch movement (and .bg-noise) never reached the home-indicator
+       strip — it read as a blank cream bar against the gears above. Pulling
+       the bottom down by the inset lets both bleed to the physical screen
+       edge. The shell's own bottom padding still reserves the inset, so the
+       footer/tiles settle just above the home indicator. env() resolves to
+       0 (no-op) on devices without a bottom inset. */
+    bottom: calc(-1 * env(safe-area-inset-bottom));
     z-index: 5;
     /* Tight perspective makes the mid-flip lift read as a real Z move
        (edge clearly closer to camera than centre) rather than a flat
@@ -274,9 +270,12 @@
 
   .bg-noise {
     position: fixed;
+    /* inset:0 pins all four edges; the bottom override then drops past the
+       layout viewport into the home-indicator safe area so the paper grain
+       tracks the gears to the screen edge. (Don't add width/height:100% —
+       that over-constrains the box and the browser ignores `bottom`.) */
     inset: 0;
-    width: 100%;
-    height: 100%;
+    bottom: calc(-1 * env(safe-area-inset-bottom));
     z-index: 1;
     pointer-events: none;
     opacity: 0.55;
