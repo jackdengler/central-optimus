@@ -556,7 +556,8 @@
   .shell .icon svg .ico-coin-front,
   .shell .icon svg .ico-glove,
   .shell .icon svg .ico-broom,
-  .shell .icon svg .ico-env-top {
+  .shell .icon svg .ico-env-top,
+  .shell .icon svg .ico-proj-trend {
     transform-box: view-box;
   }
 
@@ -570,6 +571,8 @@
   .shell .icon svg .ico-env-top    { transform-origin: 15px 13.75px; animation: ico-lift 3s ease-in-out infinite; }
   .shell .icon svg .ico-env-spark  { animation: ico-spark 3s ease-in-out infinite; }
   .shell .icon svg .ico-script-cursor { animation: ico-cursor 1.6s ease-in-out infinite; }
+  .shell .icon svg .ico-proj-trend { transform-origin: 14px 14px; animation: ico-lift 3.4s ease-in-out infinite; }
+  .shell .icon svg .ico-proj-spark { animation: ico-spark 3.4s ease-in-out infinite; }
 
   /* Pause every icon animation while the embed is open — the grid is
      fading out anyway and this avoids needless paint work behind it. */
