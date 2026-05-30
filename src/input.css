@@ -89,6 +89,23 @@
        nothing moves. */
     background-color: var(--color-optimus-bg);
     background-image:
+      /* Bottom band that darkens the home-indicator safe area to roughly
+         the tone of the gear field above it. The watch canvas and paper
+         noise are position:fixed and iOS clips them at the layout-viewport
+         edge, so they can't paint the home-indicator strip — only this
+         root background reaches it. Without the band that strip shows pure
+         background-color and reads ~8% lighter than the multiplied gear
+         field beside it (the blank bar). The band adds that missing
+         darkening, feathered over 14px above the inset so there's no hard
+         seam. Relies on background-attachment NOT being fixed (above);
+         env() resolves to 0 on devices without a bottom inset, collapsing
+         the band to a no-op. */
+      linear-gradient(
+        to top,
+        rgba(31, 27, 22, 0.10) 0,
+        rgba(31, 27, 22, 0.10) env(safe-area-inset-bottom),
+        rgba(31, 27, 22, 0)    calc(env(safe-area-inset-bottom) + 14px)
+      ),
       radial-gradient(28rem 22rem at 8% 6%,   rgba(201, 106, 71, 0.28), transparent 62%),
       radial-gradient(26rem 22rem at 96% 10%, rgba(138, 160, 120, 0.22), transparent 62%),
       radial-gradient(34rem 28rem at 50% 108%, rgba(70, 74, 120, 0.26), transparent 62%);
