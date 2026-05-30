@@ -77,17 +77,21 @@
   }
   html {
     /* Cream + radial washes painted on html (the root element). The root
-       element's background paints the viewport canvas including the iOS
-       PWA home-indicator safe area, which fixed-positioned elements and
-       even body's background (via propagation) can fail to reach in
-       standalone mode with viewport-fit=cover. Painting on html makes
-       the safe-area fill deterministic. */
+       element's background is propagated to the whole viewport canvas —
+       including the iOS PWA home-indicator safe area that fixed-positioned
+       elements and body's background can't reliably reach in standalone
+       mode with viewport-fit=cover. Crucially this must NOT use
+       background-attachment: fixed — iOS clips a fixed-attached background
+       image to the layout viewport, so the washes would stop above the
+       home indicator and leave only the flat background-color there (the
+       blank bottom bar). Default (scroll) attachment lets the washes fill
+       the safe area too; there's no scroll here (overflow is hidden) so
+       nothing moves. */
     background-color: var(--color-optimus-bg);
     background-image:
       radial-gradient(28rem 22rem at 8% 6%,   rgba(201, 106, 71, 0.28), transparent 62%),
       radial-gradient(26rem 22rem at 96% 10%, rgba(138, 160, 120, 0.22), transparent 62%),
       radial-gradient(34rem 28rem at 50% 108%, rgba(70, 74, 120, 0.26), transparent 62%);
-    background-attachment: fixed;
   }
   body {
     background: transparent;
