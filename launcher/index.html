@@ -280,6 +280,31 @@
           </div>
         </button>
 
+        <!-- 7. SAVINGS PROJECTOR — growth bars rising left-to-right with a
+             trend arrow that gently lifts, projecting past the tallest bar
+             toward a sparkle (future growth). Amber. -->
+        <button type="button" class="icon" aria-label="Savings Projector" data-slot="savings" data-app="savings-projector"
+           style="--tile-accent: #b7791f;">
+          <div class="tile">
+            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
+                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+              <!-- baseline -->
+              <line x1="4" y1="22.5" x2="24" y2="22.5" stroke-width="1.0"/>
+              <!-- growth bars, increasing height -->
+              <rect x="5"  y="15" width="3.5" height="7.5" rx="0.6" fill="var(--tile-accent)" fill-opacity="0.55"/>
+              <rect x="11" y="11" width="3.5" height="11.5" rx="0.6" fill="var(--tile-accent)" fill-opacity="0.75"/>
+              <rect x="17" y="7"  width="3.5" height="15.5" rx="0.6" fill="var(--tile-accent)" fill-opacity="0.92"/>
+              <!-- rising trend arrow, projecting beyond the tallest bar -->
+              <g class="ico-proj-trend">
+                <path d="M 6 15 L 12.75 11 L 19 6.5"/>
+                <path d="M 19 6.5 L 15.8 7 M 19 6.5 L 18.6 9.6" stroke-width="1.0"/>
+              </g>
+              <!-- projected-growth sparkle -->
+              <path class="ico-proj-spark" d="M 23 5 L 25 5 M 24 4 L 24 6" stroke-width="1.0"/>
+            </svg>
+          </div>
+        </button>
+
       </div>
 
       <!-- Flexible spacer — lets the mechanism breathe between icons and footer -->
