@@ -13,8 +13,8 @@
       "id": "budget-together",
       "name": "Budget Together",
       "subtitle": "Shared finances",
-      "blurb": "Joint ledger, pulled live from the Sheet.",
-      "url": "https://script.google.com/macros/s/AKfycbz00_wJSijk4uL7KHMHpIi3u4OlWxmJmouGlHX2X106jwh_yDZFTVC9NyW9tFq0N1KpEg/exec?v=mobile",
+      "blurb": "Joint ledger, end-to-end encrypted.",
+      "url": "https://jackdengler.github.io/budget-together/mobile.html",
       "color": "#4a7c59",
       "shade": "#1f4a2d",
       "auth": "pat"
