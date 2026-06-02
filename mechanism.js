@@ -3004,12 +3004,51 @@ export function startMovement(canvas) {
       }
     }
     drawShimmers(yaw);
-    requestAnimationFrame(frame);
+    rafId = running ? requestAnimationFrame(frame) : 0;
   }
   // Pre-warm the cache synchronously so the first frame of the boot
   // tween doesn't pay the full static-layer render cost and stutter.
   renderStatic();
-  requestAnimationFrame(frame);
+
+  /* ===== Render-loop lifecycle =====================================
+     The movement is purely decorative, so we stop the rAF loop whenever
+     nothing can see it — the tab/PWA is backgrounded (visibilitychange)
+     or the launcher has flipped an app over the watch (_setOccluded).
+     On the mobile target this saves battery that would otherwise go to
+     compositing fully-occluded frames. Gear/balance phase is derived
+     from wall-clock time, so they self-correct on resume; only an
+     in-flight camera tween needs its start time rebased.            */
+  let pageHidden = typeof document !== "undefined" && document.hidden;
+  let appOccluded = false;
+  let running = false;
+  let rafId = 0;
+
+  function syncRunning() {
+    const want = !pageHidden && !appOccluded;
+    if (want === running) return;
+    running = want;
+    if (running) {
+      if (cam.to) cam.startTime = performance.now() - (cam.eased || 0) * cam.duration;
+      rafId = requestAnimationFrame(frame);
+    } else if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = 0;
+    }
+  }
+
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", () => {
+      pageHidden = document.hidden;
+      syncRunning();
+    });
+  }
+  // The launcher idles the movement while an app is open over the card.
+  canvas._setOccluded = (v) => {
+    appOccluded = !!v;
+    syncRunning();
+  };
+
+  syncRunning();
 
   /* ===== Pinch + drag — the background camera responds directly to
      touch:
