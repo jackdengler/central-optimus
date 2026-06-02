@@ -67,6 +67,12 @@ jobs:
             rsvg-convert -w 512 -h 512 launcher/icons/icon.svg -o launcher/icons/icon-512.png
             rsvg-convert -w 512 -h 512 launcher/icons/icon.svg -o /tmp/icon-splash.png
           fi
+          # Maskable icon: Android masks (circle/squircle) crop to roughly an
+          # 80% safe zone, so pad the detailed watch glyph inside a cream
+          # field rather than letting the platform clip the edges.
+          convert -size 512x512 xc:'#f6f1e7' \
+            \( /tmp/icon-splash.png -resize 410x410 \) -gravity center -composite \
+            launcher/icons/icon-maskable-512.png
           # iPhone 13 Pro portrait splash: 1170x2532, background + centered icon.
           convert -size 1170x2532 xc:'#faf9f5' \
             \( /tmp/icon-splash.png \) -gravity center -composite \

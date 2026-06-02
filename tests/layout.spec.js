@@ -33,24 +33,36 @@ test.describe("launcher layout", () => {
     expect(box.height).toBeGreaterThan(40);
   });
 
-  test("launcher grid renders 6 tiles in two rows", async ({ page }) => {
+  test("launcher grid renders every app across a 4-column two-row grid", async ({
+    page,
+  }) => {
     await page.goto("/");
     const tiles = page.locator("#launcher-grid .icon[data-app]");
-    await expect(tiles).toHaveCount(6);
 
-    // Tiles should split into rows — first 4 share a baseline, the
-    // remaining 2 share a baseline below it.
+    // Tile count should track apps.json rather than a hard-coded number,
+    // so adding an app doesn't silently leave this assertion stale.
+    const expected = await page.evaluate(async () => {
+      const r = await fetch("./apps.json");
+      const j = await r.json();
+      return j.apps.length;
+    });
+    await expect(tiles).toHaveCount(expected);
+
+    // Tiles split into rows on a 4-column grid — the first 4 share a
+    // baseline, the remainder share a baseline below it.
     const ys = await tiles.evaluateAll((els) =>
       els.map((el) => Math.round(el.getBoundingClientRect().top))
     );
-    expect(ys).toHaveLength(6);
+    expect(ys).toHaveLength(expected);
     const firstRow = ys.slice(0, 4);
     const secondRow = ys.slice(4);
     // Within a row, baselines align (tolerate a few px of subpixel).
     expect(Math.max(...firstRow) - Math.min(...firstRow)).toBeLessThan(4);
-    expect(Math.max(...secondRow) - Math.min(...secondRow)).toBeLessThan(4);
-    // Second row sits below the first.
-    expect(Math.min(...secondRow)).toBeGreaterThan(Math.max(...firstRow));
+    if (secondRow.length) {
+      expect(Math.max(...secondRow) - Math.min(...secondRow)).toBeLessThan(4);
+      // Second row sits below the first.
+      expect(Math.min(...secondRow)).toBeGreaterThan(Math.max(...firstRow));
+    }
   });
 
   test("tiles share a square aspect and matching size", async ({ page }) => {
