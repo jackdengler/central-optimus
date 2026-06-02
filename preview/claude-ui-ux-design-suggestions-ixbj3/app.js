@@ -276,6 +276,22 @@ async function setPublishStamp() {
   el.textContent = `published ${ptDateFmt.format(when)} · ${ptFmt.format(when)} PT`;
 }
 
+// Location label in the hero meta row. Seeded from config.location and
+// later overwritten by weather.js with the reverse-geocoded city.
+function setHeroLocation(place) {
+  const el = document.getElementById("hero-location");
+  if (!el || !place) return;
+  el.textContent = place;
+}
+
+// Footer version stamp — sourced from config.json so there's no literal
+// baked into the markup to fall out of date.
+function setAppVersion(version) {
+  const el = document.getElementById("app-version");
+  if (!el || !version) return;
+  el.textContent = version.startsWith("v") ? version : `v${version}`;
+}
+
 /* ---------- App launch orchestration ----------
    Tile tap reverses the boot zoom and then flips the card:
      ambient → wide → flip 180° (app on back face)
@@ -317,6 +333,9 @@ async function launchApp(appId, opts = {}) {
     if (front) front.setAttribute("aria-hidden", "true");
     if (back) back.removeAttribute("aria-hidden");
     if (card) card.classList.remove("is-flipping");
+    // The app now fully covers the flipped card, so idle the watch
+    // mechanism's render loop — no point compositing pixels nobody sees.
+    if (watchCanvas && watchCanvas._setOccluded) watchCanvas._setOccluded(true);
     // Move focus into the iframe so keyboard users land inside the app.
     const frame = document.getElementById("embed-frame");
     if (frame) {
@@ -369,6 +388,9 @@ async function closeActiveApp() {
   if (flipState !== "open" && flipState !== "opening") return;
 
   flipState = "closing";
+  // Wake the mechanism back up before we tween the camera home so the
+  // zoom-in actually animates instead of jumping on the next idle frame.
+  if (watchCanvas && watchCanvas._setOccluded) watchCanvas._setOccluded(false);
   const front = document.querySelector(".flip-front");
   const back = document.getElementById("flip-back");
   if (front) front.removeAttribute("aria-hidden");
@@ -421,8 +443,18 @@ function wireLauncherGrid() {
   const grid = document.getElementById("launcher-grid");
   if (!grid) return;
   grid.querySelectorAll(".icon[data-app]").forEach((el) => {
+    const appId = el.dataset.app;
+    // apps.json is the single source of truth for each tile's name and
+    // accent hue. Driving them from the registry here means the
+    // accessible label can't drift from the embed-bar title (it used to)
+    // and the color lives in one place instead of being duplicated as an
+    // inline style on the button.
+    const app = APPS.find((a) => a.id === appId);
+    if (app) {
+      el.setAttribute("aria-label", app.name);
+      if (app.color) el.style.setProperty("--tile-accent", app.color);
+    }
     el.addEventListener("click", () => {
-      const appId = el.dataset.app;
       launchApp(appId, { trigger: el });
     });
   });
@@ -447,6 +479,10 @@ function wireGlobalShortcuts() {
       !e.ctrlKey &&
       !e.altKey
     ) {
+      // Keys 1-9 map to the tiles in visual order, which is the DOM order
+      // of #launcher-grid (the grid is statically authored in index.html).
+      // If the grid ever becomes registry-driven, keep emitting the tiles
+      // in apps.json order so the numbering stays stable.
       const idx = parseInt(e.key, 10) - 1;
       const tile = document.querySelectorAll(
         "#launcher-grid .icon[data-app]",
@@ -702,6 +738,8 @@ async function unlock(config, registry) {
     APPS = registry.apps || [];
     startClock(config);
     setPublishStamp();
+    setHeroLocation(config.location);
+    setAppVersion(config.version);
     wireLauncherGrid();
     startWatchCanvas();
     wireGestureLock();
@@ -712,8 +750,12 @@ async function unlock(config, registry) {
       if (weatherController) weatherController.destroy();
       weatherController = initWeather({
         mountEl: weatherEl,
-        onUpdate: () => {
+        onUpdate: (payload) => {
           weatherEl.hidden = false;
+          // Weather resolves real coordinates, so prefer the city it
+          // reverse-geocoded over the config default — keeps the label
+          // honest when the user is away from home.
+          if (payload && payload.place) setHeroLocation(payload.place);
         },
         onError: () => {},
       });
@@ -836,6 +878,9 @@ function bootSequence() {
     flipState = "open";
     activeAppId = hashApp.id;
     openEmbed(hashApp);
+    // Reloaded straight into an app — the watch is hidden behind it, so
+    // start the mechanism idled.
+    if (watchCanvas && watchCanvas._setOccluded) watchCanvas._setOccluded(true);
     if (card) card.classList.add("is-flipped");
     const front = document.querySelector(".flip-front");
     const back = document.getElementById("flip-back");
