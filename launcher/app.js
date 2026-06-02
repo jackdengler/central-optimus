@@ -681,8 +681,12 @@ function hideEmbed() {
     back.classList.remove("is-loading");
     back.classList.remove("is-failed");
   }
-  const frame = document.getElementById("embed-frame");
-  if (frame) frame.src = "about:blank";
+  // Deliberately DON'T blank the iframe here. The embed shell is hidden
+  // (display:none) so the app stops painting, but its document stays
+  // resident — reopening the SAME app is then instant (openEmbed sees the
+  // src already matches and skips the reload + loading curtain) and the
+  // user lands back where they left off. Opening a DIFFERENT app still
+  // navigates the frame and shows the spinner as before.
 }
 
 /* Back/forward navigation: sync the flip state without pushing more
@@ -725,7 +729,10 @@ async function unlock(config, registry) {
     return;
   }
 
+  let revealed = false;
   const finish = () => {
+    if (revealed) return;
+    revealed = true;
     if (dialog.open) dialog.close();
     revealApp(config.title);
     APPS = registry.apps || [];
@@ -755,21 +762,17 @@ async function unlock(config, registry) {
     }
   };
 
-  const existing = localStorage.getItem(TOKEN_KEY);
-  if (existing) {
-    const result = await verifyToken(existing, config.githubUser);
-    if (result.ok) {
-      finish();
-      return;
+  const showGate = (message) => {
+    if (message) {
+      error.textContent = message;
+      error.hidden = false;
     }
-    // Keep the cached token across transient/network errors so the user
-    // doesn't have to paste it again every time GitHub hiccups.
-    if (result.reason !== "network" && result.reason !== "rate-limit") {
-      localStorage.removeItem(TOKEN_KEY);
-    }
-  }
+    if (!dialog.open) dialog.showModal();
+    input.focus();
+  };
 
-  dialog.showModal();
+  // Wired once and reused whether the gate shows on first run or after a
+  // background re-check invalidates a cached token.
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     error.hidden = true;
@@ -787,6 +790,26 @@ async function unlock(config, registry) {
     }
     input.focus();
   });
+
+  const existing = localStorage.getItem(TOKEN_KEY);
+  if (existing) {
+    // Optimistic reveal: a cached token was already verified once, so show
+    // the launcher IMMEDIATELY instead of blocking the first paint on a
+    // GitHub round-trip every single launch. Re-verify in the background
+    // and only fall back to the gate if the token is genuinely bad
+    // (revoked / wrong account). Transient failures (offline, rate-limit)
+    // leave the user unlocked so a GitHub hiccup doesn't lock them out.
+    finish();
+    verifyToken(existing, config.githubUser).then((result) => {
+      if (result.ok) return;
+      if (result.reason === "network" || result.reason === "rate-limit") return;
+      localStorage.removeItem(TOKEN_KEY);
+      showGate(gateErrorMessage(result, config.githubUser));
+    });
+    return;
+  }
+
+  showGate();
 }
 
 /* Background gesture lock — the corner button toggles whether the

@@ -20,6 +20,18 @@
     <title>Central Optimus</title>
 
     <link rel="manifest" href="./manifest.webmanifest" />
+
+    <!-- Warm DNS + TLS to the app origin at boot so tapping a tile starts
+         fetching the embedded app over an already-open connection instead
+         of paying a cold handshake mid-launch. Every app in apps.json lives
+         on this origin, so one preconnect covers all of them. No crossorigin
+         here: the iframe loads a document (a non-CORS navigation). -->
+    <link rel="preconnect" href="https://jackdengler.github.io" />
+    <link rel="dns-prefetch" href="https://jackdengler.github.io" />
+    <!-- Sign-in / background token re-check is a CORS fetch, so this one
+         needs crossorigin to reuse the warmed connection. -->
+    <link rel="preconnect" href="https://api.github.com" crossorigin />
+
     <link rel="icon" type="image/svg+xml" href="./icons/icon.svg" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
