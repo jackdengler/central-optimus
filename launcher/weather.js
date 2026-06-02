@@ -146,6 +146,26 @@ async function fetchWeather(lat, lon) {
   return { temp, code, label: meta.label, icon: meta.icon, kind };
 }
 
+// Reverse-geocode coordinates to a human place name (city/town) using
+// BigDataCloud's keyless, CORS-enabled client endpoint. Best-effort: any
+// failure just leaves the caller's existing label in place.
+async function fetchPlace(lat, lon) {
+  try {
+    const url = new URL(
+      "https://api.bigdatacloud.net/data/reverse-geocode-client",
+    );
+    url.searchParams.set("latitude", String(lat));
+    url.searchParams.set("longitude", String(lon));
+    url.searchParams.set("localityLanguage", "en");
+    const res = await fetch(url.toString(), { cache: "no-store" });
+    if (!res.ok) return null;
+    const d = await res.json();
+    return d.city || d.locality || d.principalSubdivision || null;
+  } catch {
+    return null;
+  }
+}
+
 function renderChip(mountEl, payload) {
   if (!mountEl) return;
   mountEl.hidden = false;
@@ -204,8 +224,12 @@ export function initWeather({ mountEl, onUpdate, onError } = {}) {
       return;
     }
     try {
-      const payload = await fetchWeather(coords.lat, coords.lon);
+      const [payload, place] = await Promise.all([
+        fetchWeather(coords.lat, coords.lon),
+        fetchPlace(coords.lat, coords.lon),
+      ]);
       if (cancelled) return;
+      if (place) payload.place = place;
       saveCache(payload);
       renderChip(mountEl, payload);
       onUpdate?.(payload);
