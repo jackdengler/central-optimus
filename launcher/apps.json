@@ -63,6 +63,15 @@
       "url": "https://jackdengler.github.io/savings-projector/",
       "color": "#b7791f",
       "shade": "#744210"
+    },
+    {
+      "id": "family-tree",
+      "name": "Family Tree",
+      "subtitle": "Ancestry",
+      "blurb": "The Dengler ancestor tree, unlocked by passcode.",
+      "url": "https://jackdengler.github.io/family-tree/",
+      "color": "#7c5233",
+      "shade": "#432c18"
     }
   ]
 }
