@@ -72,6 +72,16 @@
       "url": "https://jackdengler.github.io/family-tree/",
       "color": "#7c5233",
       "shade": "#432c18"
+    },
+    {
+      "id": "recipe-book",
+      "name": "Recipe Book",
+      "subtitle": "Kitchen",
+      "blurb": "Your private recipe collection, synced and searchable.",
+      "url": "https://jackdengler.github.io/Recipe-Book/",
+      "color": "#c2410c",
+      "shade": "#7c2d12",
+      "auth": "pat"
     }
   ]
 }

@@ -33,7 +33,7 @@ test.describe("launcher layout", () => {
     expect(box.height).toBeGreaterThan(40);
   });
 
-  test("launcher grid renders every app across a 4-column two-row grid", async ({
+  test("launcher grid renders every app across a 4-column grid", async ({
     page,
   }) => {
     await page.goto("/");
@@ -48,20 +48,22 @@ test.describe("launcher layout", () => {
     });
     await expect(tiles).toHaveCount(expected);
 
-    // Tiles split into rows on a 4-column grid — the first 4 share a
-    // baseline, the remainder share a baseline below it.
+    // Tiles split into rows of 4: within a row baselines align, and each
+    // row sits below the one before it. Row-count-agnostic so adding an
+    // app (spilling into a new row) doesn't make this assertion stale.
     const ys = await tiles.evaluateAll((els) =>
       els.map((el) => Math.round(el.getBoundingClientRect().top))
     );
     expect(ys).toHaveLength(expected);
-    const firstRow = ys.slice(0, 4);
-    const secondRow = ys.slice(4);
+    const rows = [];
+    for (let i = 0; i < ys.length; i += 4) rows.push(ys.slice(i, i + 4));
     // Within a row, baselines align (tolerate a few px of subpixel).
-    expect(Math.max(...firstRow) - Math.min(...firstRow)).toBeLessThan(4);
-    if (secondRow.length) {
-      expect(Math.max(...secondRow) - Math.min(...secondRow)).toBeLessThan(4);
-      // Second row sits below the first.
-      expect(Math.min(...secondRow)).toBeGreaterThan(Math.max(...firstRow));
+    for (const row of rows) {
+      expect(Math.max(...row) - Math.min(...row)).toBeLessThan(4);
+    }
+    // Each row sits strictly below the previous one.
+    for (let i = 1; i < rows.length; i++) {
+      expect(Math.min(...rows[i])).toBeGreaterThan(Math.max(...rows[i - 1]));
     }
   });
 
