@@ -82,6 +82,16 @@
       "color": "#c2410c",
       "shade": "#7c2d12",
       "auth": "pat"
+    },
+    {
+      "id": "fitness-tracker",
+      "name": "Fitness Tracker",
+      "subtitle": "Training + food log",
+      "blurb": "Workouts, meals, and body metrics, synced to private data storage.",
+      "url": "https://jackdengler.github.io/fitness-tracker/",
+      "color": "#e11d48",
+      "shade": "#881337",
+      "auth": "pat"
     }
   ]
 }
