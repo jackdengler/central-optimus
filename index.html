@@ -36,10 +36,12 @@
       href="./icons/splash-1170x2532.png"
       media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
     />
-    <!-- Pre-paint the ground so the PWA safe areas are black before CSS lands. -->
+    <!-- Pre-paint the ground so the PWA safe areas are dark before CSS lands;
+         once styles.css loads, --ground (theme-aware) takes over. -->
     <style>
-      html, body { margin: 0; background: #0b0b0b; }
+      html, body { margin: 0; background-color: var(--ground, #0b0b0b); }
     </style>
+    <script src="./theme.js"></script>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -49,9 +51,15 @@
           <time id="clock" class="clock">--<span class="colon">:</span>--</time>
           <span id="ampm" class="ampm"></span>
         </div>
-        <button id="lock" type="button" class="square-btn" aria-label="Lock launcher" title="Lock launcher">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9.5" rx="2.5" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
-        </button>
+        <div class="top-actions">
+          <button id="theme" type="button" class="square-btn theme-btn" aria-label="Switch to light mode" title="Light / dark">
+            <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" /></svg>
+            <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" /></svg>
+          </button>
+          <button id="lock" type="button" class="square-btn" aria-label="Lock launcher" title="Lock launcher">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9.5" rx="2.5" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+          </button>
+        </div>
         <p class="meta">
           <span id="today-date" class="meta-hi"></span>
           <span id="weather-line"></span>

@@ -32,7 +32,20 @@
   --ink-2: #cfcac0;
   --ink-3: #a8a49b;
   --line: #3a3a3a;
-  --accent: #ffe500;
+  --accent: #ffe500; /* fills: tape, buttons, loading bar */
+  --accent-ink: #ffe500; /* accent as text / outline on the page */
+  --surface: #141414;
+  --field: #111;
+  --hairline: #242424;
+  --strip-gap: #1a1a1a;
+  --strip-bg: #000;
+  --strip-ink: #ece9e2;
+  --live: #ff5a4f;
+  --danger-ink: #ff8a7a;
+  /* Print black / paper: things that sit on the coloured bands, the tape
+     and app bars keep these in both themes. */
+  --k: #0b0b0b;
+  --paper: #f5f2ea;
   --display:
     "Anton", Impact, "Haettenschweiler", "Arial Narrow Bold", sans-serif;
   --mono: "DM Mono", ui-monospace, "SF Mono", Menlo, monospace;
@@ -41,6 +54,26 @@
   --launch-ms: 420ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   color-scheme: dark;
+}
+
+/* Light mode (co.theme = "light", set by theme.js before first paint).
+   Bands, tape and app bars keep their colours; the page flips to paper. */
+:root[data-theme="light"] {
+  --ground: #f5f2ea;
+  --ink: #0b0b0b;
+  --ink-2: #3a3731;
+  --ink-3: #6b665d;
+  --line: #cfc8ba;
+  --accent-ink: #7a6300;
+  --surface: #fffdf8;
+  --field: #fffdf8;
+  --hairline: #ddd6c8;
+  --strip-gap: #d9d2c4;
+  --strip-bg: #fffdf8;
+  --strip-ink: #1a1916;
+  --live: #c8322a;
+  --danger-ink: #b3261e;
+  color-scheme: light;
 }
 
 @layer base {
@@ -130,7 +163,7 @@
   white-space: nowrap;
 }
 .clock .colon {
-  color: var(--accent);
+  color: var(--accent-ink);
   animation: blink 2s linear infinite;
 }
 .ampm {
@@ -139,8 +172,25 @@
   color: var(--ink-3);
   margin-top: -2px;
 }
-.top .square-btn {
+.top-actions {
   flex: none;
+  display: flex;
+  gap: 8px;
+}
+.theme-btn .i-moon,
+:root[data-theme="light"] .theme-btn .i-sun {
+  display: none;
+}
+:root[data-theme="light"] .theme-btn .i-moon {
+  display: block;
+}
+/* iOS draws the translucent status bar's text in white; in light mode keep
+   a print-black strip behind it so the time and battery stay readable. */
+:root[data-theme="light"] body {
+  background-image: linear-gradient(
+    var(--k) env(safe-area-inset-top, 0px),
+    transparent env(safe-area-inset-top, 0px)
+  );
 }
 .meta {
   position: absolute;
@@ -173,7 +223,7 @@
   width: 9px;
   height: 9px;
   stroke-width: 3;
-  color: var(--accent);
+  color: var(--accent-ink);
   margin: 0 3px;
 }
 
@@ -201,7 +251,7 @@
 .square-btn.is-accent {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--ground);
+  color: var(--k);
 }
 .square-btn:focus-visible {
   outline: 2px solid var(--ink);
@@ -223,12 +273,12 @@
   background-image: linear-gradient(
     to bottom,
     transparent 3px,
-    var(--ground) 3px,
-    var(--ground) 4px,
+    var(--k) 3px,
+    var(--k) 4px,
     transparent 4px,
     transparent 22px,
-    var(--ground) 22px,
-    var(--ground) 23px,
+    var(--k) 22px,
+    var(--k) 23px,
     transparent 23px
   );
 }
@@ -242,7 +292,7 @@
   line-height: 26px;
   letter-spacing: 0.06em;
   word-spacing: 0.12em;
-  color: var(--ground);
+  color: var(--k);
   white-space: pre;
   animation: marquee var(--tape-s, 30s) linear infinite;
   will-change: transform;
@@ -258,7 +308,7 @@
 }
 .band {
   --band-bg: #333;
-  --band-fg: var(--ground);
+  --band-fg: var(--k);
   --band-hi: #fff;
   position: relative;
   flex: 1 1 0;
@@ -412,8 +462,8 @@
   flex: none;
   min-width: 30px;
   padding: 0 4px;
-  background: var(--ground);
-  color: var(--ink);
+  background: var(--k);
+  color: var(--paper);
   font-weight: 500;
   text-align: center;
 }
@@ -468,8 +518,8 @@
   display: none;
   margin-top: 2px;
   padding: 2px 5px;
-  background: var(--ground);
-  color: var(--ink);
+  background: var(--k);
+  color: var(--paper);
   font-size: 10px;
   line-height: 12px;
   letter-spacing: 0.04em;
@@ -537,7 +587,7 @@
   background: repeating-linear-gradient(
     -45deg,
     #1c1c1c 0 3px,
-    var(--ground) 3px 7px
+    var(--k) 3px 7px
   );
   clip-path: inset(0 0 0 0);
   transition: clip-path 360ms var(--ease-out);
@@ -551,7 +601,7 @@
   gap: 5px;
   margin-top: 4px;
   padding: 3px 6px;
-  background: var(--ground);
+  background: var(--k);
   color: var(--accent);
   font-size: 11px;
   line-height: 13px;
@@ -590,7 +640,7 @@
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 1px;
   margin-top: 6px;
-  background: #1a1a1a;
+  background: var(--strip-gap);
 }
 .strip-item {
   grid-column: span 3;
@@ -602,8 +652,8 @@
   gap: 6px;
   padding: 0 4px;
   border: 0;
-  background: #000;
-  color: #ece9e2;
+  background: var(--strip-bg);
+  color: var(--strip-ink);
   font-size: 11px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -618,7 +668,7 @@
   font-family: var(--display);
   font-weight: 400;
   font-size: 17px;
-  color: var(--accent);
+  color: var(--accent-ink);
   letter-spacing: 0;
 }
 .strip-item.is-filtered {
@@ -650,7 +700,7 @@
   gap: 10px;
   padding: 0 12px;
   border: 1px solid var(--line);
-  background: #111;
+  background: var(--field);
   box-sizing: border-box;
 }
 .search svg {
@@ -674,7 +724,7 @@
   font-size: 11px;
 }
 .search:focus-within {
-  border-color: var(--accent);
+  border-color: var(--accent-ink);
 }
 .status {
   margin: 0;
@@ -718,7 +768,7 @@
   padding: max(env(safe-area-inset-top), 10px) var(--gutter) 10px;
   min-height: 56px;
   background: var(--app-color, #333);
-  color: var(--app-fg, var(--ground));
+  color: var(--app-fg, var(--k));
 }
 .embed-home {
   flex: none;
@@ -728,8 +778,8 @@
   gap: 4px;
   padding: 0 12px 0 6px;
   border: 0;
-  background: var(--ground);
-  color: var(--ink);
+  background: var(--k);
+  color: var(--paper);
   font-size: 12px;
   letter-spacing: 0.08em;
 }
@@ -821,7 +871,7 @@
 }
 .score-row {
   padding: 14px 0;
-  border-bottom: 1px solid #242424;
+  border-bottom: 1px solid var(--hairline);
 }
 .score-team {
   margin: 0 0 8px;
@@ -852,11 +902,11 @@
   flex: none;
   width: 44px;
   font-weight: 500;
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 .score-line.is-live b,
 .score-line.is-live span {
-  color: #ff5a4f;
+  color: var(--live);
 }
 .scores-empty,
 .scores-foot {
@@ -873,7 +923,7 @@
   padding: 22px 20px;
   border: 0;
   border-top: 6px solid var(--accent);
-  background: #141414;
+  background: var(--surface);
   color: var(--ink);
 }
 .gate::backdrop {
@@ -898,23 +948,23 @@
   color: var(--ink-2);
 }
 .gate-copy a {
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 .gate input {
   height: 48px;
   padding: 0 12px;
   border: 1px solid var(--line);
-  background: #0b0b0b;
+  background: var(--field);
   font-size: 16px;
   outline: none;
 }
 .gate input:focus {
-  border-color: var(--accent);
+  border-color: var(--accent-ink);
 }
 .gate-error {
   margin: 0;
   font-size: 12px;
-  color: #ff8a7a;
+  color: var(--danger-ink);
 }
 .boot-error {
   position: fixed;
