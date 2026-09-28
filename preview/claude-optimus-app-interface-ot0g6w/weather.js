@@ -131,6 +131,8 @@ async function fetchWeather(lat, lon) {
   url.searchParams.set("longitude", String(lon));
   url.searchParams.set("current", "temperature_2m,weather_code");
   url.searchParams.set("temperature_unit", "fahrenheit");
+  url.searchParams.set("daily", "sunrise,sunset");
+  url.searchParams.set("forecast_days", "1");
   url.searchParams.set("timezone", "auto");
   const res = await fetch(url.toString(), { cache: "no-store" });
   if (!res.ok) throw new Error(`weather ${res.status}`);
@@ -143,7 +145,11 @@ async function fetchWeather(lat, lon) {
     if (temp >= 85) kind = "hot";
     else if (temp <= 32) kind = "cold";
   }
-  return { temp, code, label: meta.label, icon: meta.icon, kind };
+  // Local wall-clock "HH:MM" (timezone=auto returns local ISO strings).
+  const hhmm = (v) => (typeof v === "string" && v.includes("T") ? v.slice(11, 16) : null);
+  const sunrise = hhmm(data?.daily?.sunrise?.[0]);
+  const sunset = hhmm(data?.daily?.sunset?.[0]);
+  return { temp, code, label: meta.label, icon: meta.icon, kind, sunrise, sunset };
 }
 
 // Reverse-geocode coordinates to a human place name (city/town) using

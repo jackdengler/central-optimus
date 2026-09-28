@@ -63,15 +63,32 @@ export const summarize = {
     const last = lifts[lifts.length - 1] || null;
 
     // Current week, Sunday → Saturday.
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+    const start = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate() - now.getDay(),
+    );
     const week = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+      const d = new Date(
+        start.getFullYear(),
+        start.getMonth(),
+        start.getDate() + i,
+      );
       const key = localDayKey(d);
-      return { day: key, lifted: liftDays.has(key), isToday: key === today, future: key > today };
+      return {
+        day: key,
+        lifted: liftDays.has(key),
+        isToday: key === today,
+        future: key > today,
+      };
     });
 
-    const since30 = localDayKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29));
-    const month = [...liftDays].filter((k) => k >= since30 && k <= today).sort();
+    const since30 = localDayKey(
+      new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29),
+    );
+    const month = [...liftDays]
+      .filter((k) => k >= since30 && k <= today)
+      .sort();
 
     const weights = (Array.isArray(json?.weightLogs) ? json.weightLogs : [])
       .map((w) => ({ day: toDayKey(w.date), weight: Number(w.weight) }))
@@ -79,7 +96,18 @@ export const summarize = {
       .sort((a, b) => (a.day < b.day ? -1 : 1));
     const latestWeight = weights[weights.length - 1] || null;
 
+    // Usual rhythm: the median gap in days between consecutive lift days.
+    const days = [...liftDays].sort();
+    const gaps = days
+      .slice(1)
+      .map((d, i) => daysBetween(days[i], d))
+      .sort((a, b) => a - b);
+    const medianGap = gaps.length
+      ? gaps[Math.floor((gaps.length - 1) / 2)]
+      : null;
+
     return {
+      medianGap,
       lastLift: last
         ? {
             day: last.day,
@@ -93,13 +121,21 @@ export const summarize = {
       liftsThisWeek: week.filter((d) => d.lifted).length,
       last30: month,
       // Sensitive: rendered behind the privacy veil.
-      weight: latestWeight ? { day: latestWeight.day, value: latestWeight.weight } : null,
+      weight: latestWeight
+        ? { day: latestWeight.day, value: latestWeight.weight }
+        : null,
     };
   },
 
   parlay(json) {
-    const results = json?.betResults && typeof json.betResults === "object" ? json.betResults : {};
-    const at = json?.betResultsAt && typeof json.betResultsAt === "object" ? json.betResultsAt : {};
+    const results =
+      json?.betResults && typeof json.betResults === "object"
+        ? json.betResults
+        : {};
+    const at =
+      json?.betResultsAt && typeof json.betResultsAt === "object"
+        ? json.betResultsAt
+        : {};
     const graded = Object.entries(results)
       .filter(([, r]) => r === "win" || r === "loss")
       .sort(([a], [b]) => (at[a] ?? 0) - (at[b] ?? 0))
@@ -110,7 +146,8 @@ export const summarize = {
     return {
       event: typeof json?.eventName === "string" ? json.eventName : null,
       parlays: parlays.length,
-      open: parlays.filter((p) => p && p.placed && !isParlaySettled(p, results)).length,
+      open: parlays.filter((p) => p && p.placed && !isParlaySettled(p, results))
+        .length,
       wins,
       losses,
       hitRate: graded.length ? wins / graded.length : null,
@@ -120,7 +157,10 @@ export const summarize = {
 
   movies(json, now = new Date()) {
     const today = localDayKey(now);
-    const marks = json?.marks && typeof json.marks === "object" ? Object.values(json.marks) : [];
+    const marks =
+      json?.marks && typeof json.marks === "object"
+        ? Object.values(json.marks)
+        : [];
     const upcoming = marks
       .filter(
         (m) =>
@@ -130,18 +170,30 @@ export const summarize = {
           typeof m.date === "string" &&
           toDayKey(m.date) >= today,
       )
-      .map((m) => ({ title: String(m.title || "Untitled"), day: toDayKey(m.date), level: m.level }))
-      .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.title.localeCompare(b.title)));
+      .map((m) => ({
+        title: String(m.title || "Untitled"),
+        day: toDayKey(m.date),
+        level: m.level,
+      }))
+      .sort((a, b) =>
+        a.day < b.day ? -1 : a.day > b.day ? 1 : a.title.localeCompare(b.title),
+      );
     const next = upcoming[0] || null;
     // Everything opening on the next release day, booked tickets first.
     const nextGroup = next
       ? upcoming
           .filter((m) => m.day === next.day)
-          .sort((a, b) => (a.level === b.level ? 0 : a.level === "booked" ? -1 : 1))
+          .sort((a, b) =>
+            a.level === b.level ? 0 : a.level === "booked" ? -1 : 1,
+          )
       : [];
     return {
       next: next
-        ? { day: next.day, daysUntil: daysBetween(today, next.day), titles: nextGroup.map((m) => m.title) }
+        ? {
+            day: next.day,
+            daysUntil: daysBetween(today, next.day),
+            titles: nextGroup.map((m) => m.title),
+          }
         : null,
       booked: marks.filter((m) => m && m.level === "booked").length,
       mustSee: marks.filter((m) => m && m.level === "must").length,
@@ -158,17 +210,28 @@ export const summarize = {
      fixed-dollar split applies once per month). */
   budget(json, now = new Date()) {
     const txns = Array.isArray(json?.transactions) ? json.transactions : [];
-    const custom = Array.isArray(json?.customCategories) ? json.customCategories : [];
-    const ignored = new Set(["insurance", "transfer", "investing", "gambling", "cash"]);
+    const custom = Array.isArray(json?.customCategories)
+      ? json.customCategories
+      : [];
+    const ignored = new Set([
+      "insurance",
+      "transfer",
+      "investing",
+      "gambling",
+      "cash",
+    ]);
     for (const c of custom) if (c && c.ignored) ignored.add(c.id);
-    const excludedMonths = new Set(Array.isArray(json?.excludedFromAvg) ? json.excludedFromAvg : []);
+    const excludedMonths = new Set(
+      Array.isArray(json?.excludedFromAvg) ? json.excludedFromAvg : [],
+    );
     const thisMonth = localDayKey(now).slice(0, 7);
 
     const byMonth = new Map(); // month → p1 spend
     const liveShared = new Map(); // "month|category" → unsettled shared total
     const add = (m, v) => byMonth.set(m, (byMonth.get(m) || 0) + v);
     for (const t of txns) {
-      if (!t || t.excluded || typeof t.date !== "string" || !(t.amount > 0)) continue;
+      if (!t || t.excluded || typeof t.date !== "string" || !(t.amount > 0))
+        continue;
       if (ignored.has(t.category)) continue;
       const month = t.date.slice(0, 7);
       if (!byMonth.has(month)) byMonth.set(month, 0);
@@ -195,7 +258,9 @@ export const summarize = {
       : null;
     // Sensitive: rendered behind the privacy veil.
     return {
-      lastMonth: lastMonth ? { month: lastMonth, spend: Math.round(byMonth.get(lastMonth)) } : null,
+      lastMonth: lastMonth
+        ? { month: lastMonth, spend: Math.round(byMonth.get(lastMonth)) }
+        : null,
       avgPerMonth: avg == null ? null : Math.round(avg),
       avgMonths: avgMonths.length,
     };
@@ -206,14 +271,18 @@ export const summarize = {
     const latest = [...list].sort((a, b) =>
       String(a.createdAt || "") < String(b.createdAt || "") ? 1 : -1,
     )[0];
-    return { count: list.length, latest: latest ? String(latest.title || "") : null };
+    return {
+      count: list.length,
+      latest: latest ? String(latest.title || "") : null,
+    };
   },
 };
 
 // p1's share of an unsettled shared category total for one month —
 // budget-together's getCatSplitAmts. Legacy data stores a bare ratio.
 function p1CatShare(split, total) {
-  if (typeof split === "number") return total * (Number.isNaN(split) ? 0.5 : split);
+  if (typeof split === "number")
+    return total * (Number.isNaN(split) ? 0.5 : split);
   const s = split || {};
   if (s.mode === "dollar") return Math.min(Math.max(s.p1Amt || 0, 0), total);
   const pct = (s.mode || "pct") === "pct" && s.p1Pct != null ? s.p1Pct : 50;
@@ -234,7 +303,10 @@ function isParlaySettled(parlay, results) {
 export const SOURCES = {
   "fitness-tracker": { path: "fitness.json", summarize: summarize.fitness },
   parlay: { path: "data.json", summarize: summarize.parlay },
-  "upcoming-movies": { path: "data/interests.json", summarize: summarize.movies },
+  "upcoming-movies": {
+    path: "data/interests.json",
+    summarize: summarize.movies,
+  },
   "recipe-book": { path: "recipes.json", summarize: summarize.recipes },
   "budget-together": { path: "budget.json", summarize: summarize.budget },
 };
@@ -294,7 +366,12 @@ async function fetchSource({ token, repo, path, etag }) {
 /* Loads every source. onUpdate(appId, {summary, stale, error}) fires
    once from cache (if present) and again after revalidation. Resolves
    when all sources have settled. */
-export async function loadLiveData({ token, repo, onUpdate, now = () => new Date() }) {
+export async function loadLiveData({
+  token,
+  repo,
+  onUpdate,
+  now = () => new Date(),
+}) {
   if (!token || !repo) return;
   const db = await openDb();
   await Promise.all(
@@ -303,7 +380,12 @@ export async function loadLiveData({ token, repo, onUpdate, now = () => new Date
       const today = localDayKey(now());
       const cached = await idb(db, "readonly", (s) => s.get(key));
       const usable = cached && cached.v === SUMMARY_VERSION ? cached : null;
-      if (usable) onUpdate(appId, { summary: usable.summary, stale: true, at: usable.at });
+      if (usable)
+        onUpdate(appId, {
+          summary: usable.summary,
+          stale: true,
+          at: usable.at,
+        });
       // Summaries hold day-relative fields ("3 days ago", this week's
       // strip), so a cached one is only reusable on the day it was
       // computed. Revalidate with the ETag then; otherwise fetch in full
@@ -312,17 +394,40 @@ export async function loadLiveData({ token, repo, onUpdate, now = () => new Date
       try {
         const res = await fetchSource({ token, repo, path: src.path, etag });
         if (res.notModified) {
-          onUpdate(appId, { summary: usable.summary, stale: false, at: Date.now() });
-          await idb(db, "readwrite", (s) => s.put({ ...usable, at: Date.now() }, key));
+          onUpdate(appId, {
+            summary: usable.summary,
+            stale: false,
+            at: Date.now(),
+          });
+          await idb(db, "readwrite", (s) =>
+            s.put({ ...usable, at: Date.now() }, key),
+          );
           return;
         }
         const summary = src.summarize(res.json, now());
-        const record = { v: SUMMARY_VERSION, day: today, etag: res.etag, summary, at: Date.now() };
+        const record = {
+          v: SUMMARY_VERSION,
+          day: today,
+          etag: res.etag,
+          summary,
+          at: Date.now(),
+        };
         await idb(db, "readwrite", (s) => s.put(record, key));
         onUpdate(appId, { summary, stale: false, at: record.at });
       } catch (error) {
-        onUpdate(appId, { summary: usable ? usable.summary : null, stale: true, error });
+        onUpdate(appId, {
+          summary: usable ? usable.summary : null,
+          stale: true,
+          error,
+        });
       }
     }),
   );
+}
+
+/* Wipe every cached summary (used on lock, so veiled figures don't
+   outlive the session that was allowed to see them). */
+export async function clearLiveData() {
+  const db = await openDb();
+  await idb(db, "readwrite", (s) => s.clear());
 }

@@ -3,5 +3,6 @@
   "firstName": "Jack",
   "githubUser": "jackdengler",
   "location": "Los Angeles",
-  "version": "1.0"
+  "version": "2.0",
+  "dataRepo": "jackdengler/private-data-storage"
 }
