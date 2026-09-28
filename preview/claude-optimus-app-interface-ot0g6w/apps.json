@@ -26,6 +26,15 @@
       "keywords": "movies film cinema release watchlist"
     },
     {
+      "id": "scores",
+      "name": "Scores",
+      "label": "Scores",
+      "home": "band",
+      "panel": true,
+      "color": "#ffb612",
+      "keywords": "scores games sports steelers penn state psu football ufc fights"
+    },
+    {
       "id": "budget-together",
       "name": "Budget Together",
       "subtitle": "Shared finances",

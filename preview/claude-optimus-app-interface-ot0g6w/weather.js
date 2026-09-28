@@ -95,14 +95,17 @@ function loadCoords() {
 function saveCoords(lat, lon) {
   localStorage.setItem(COORDS_KEY, JSON.stringify({ lat, lon }));
 }
-function loadCache() {
+// maxAge: the fresh-cache window by default; Infinity for an offline
+// fallback that still shows the last reading (flagged stale).
+function loadCache(maxAge = CACHE_TTL_MS) {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const v = JSON.parse(raw);
     if (!v || typeof v.ts !== "number") return null;
-    if (Date.now() - v.ts > CACHE_TTL_MS) return null;
-    return v;
+    const age = Date.now() - v.ts;
+    if (age > maxAge) return null;
+    return { ...v, stale: age > CACHE_TTL_MS };
   } catch {
     return null;
   }
@@ -208,7 +211,9 @@ function renderUnavailable(mountEl, reason) {
 export function initWeather({ mountEl, onUpdate, onError } = {}) {
   ensureStyles();
 
-  const cached = loadCache();
+  // Paint the last reading immediately, however old; a fresh fetch
+  // replaces it (and marks it no longer stale) when the network allows.
+  const cached = loadCache(Infinity);
   if (cached) {
     renderChip(mountEl, cached);
     onUpdate?.(cached);
@@ -250,6 +255,7 @@ export function initWeather({ mountEl, onUpdate, onError } = {}) {
   refreshTimer = setInterval(run, REFRESH_MS);
 
   return {
+    refresh: run,
     destroy() {
       cancelled = true;
       clearInterval(refreshTimer);
