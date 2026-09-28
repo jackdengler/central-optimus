@@ -1,451 +1,148 @@
 <!doctype html>
-<html lang="en" class="ios">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
-    <meta name="theme-color" content="#f6f1e7" />
+    <meta name="theme-color" content="#0b0b0b" />
     <!-- Content Security Policy. The launcher only ever talks to a small,
-         fixed set of origins: GitHub (identity gate), Open-Meteo (weather),
-         BigDataCloud (reverse-geocode for the location label), and its own
-         origin for config/apps/build JSON + the embedded apps (which live
-         under jackdengler.github.io alongside the launcher). Scripts are
-         self-only (no inline) so an injected <script> can't execute. -->
+         fixed set of origins: GitHub (identity gate + the private data repo
+         via the Contents API), Open-Meteo (weather), BigDataCloud (reverse-
+         geocode for the location label), and its own origin for config/apps/
+         build JSON, fonts, and the embedded apps (under jackdengler.github.io).
+         Scripts are self-only (no inline) so an injected <script> can't run. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.github.com https://api.open-meteo.com https://api.bigdatacloud.net; frame-src 'self' https://jackdengler.github.io; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.github.com https://site.api.espn.com https://api.open-meteo.com https://api.bigdatacloud.net; frame-src 'self' https://jackdengler.github.io; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'"
     />
     <title>Central Optimus</title>
 
     <link rel="manifest" href="./manifest.webmanifest" />
-
-    <!-- Warm DNS + TLS to the app origin at boot so tapping a tile starts
-         fetching the embedded app over an already-open connection instead
-         of paying a cold handshake mid-launch. Every app in apps.json lives
-         on this origin, so one preconnect covers all of them. No crossorigin
-         here: the iframe loads a document (a non-CORS navigation). -->
+    <!-- Every app lives on this origin; warm the connection at boot. -->
     <link rel="preconnect" href="https://jackdengler.github.io" />
-    <link rel="dns-prefetch" href="https://jackdengler.github.io" />
-    <!-- Sign-in / background token re-check is a CORS fetch, so this one
-         needs crossorigin to reuse the warmed connection. -->
     <link rel="preconnect" href="https://api.github.com" crossorigin />
+    <link rel="preload" href="./fonts/Anton-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="./fonts/DMMono-500.woff2" as="font" type="font/woff2" crossorigin />
 
     <link rel="icon" type="image/svg+xml" href="./icons/icon.svg" />
-    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
-
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Optimus" />
-    <!-- Pre-paint the cream on html so the iOS PWA home-indicator safe
-         area is filled before the linked stylesheet lands. -->
-    <style>
-      html, body { margin: 0; }
-      html { background-color: #f6f1e7; }
-    </style>
-
     <link
       rel="apple-touch-startup-image"
       href="./icons/splash-1170x2532.png"
       media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
     />
-
+    <!-- Pre-paint the ground so the PWA safe areas are black before CSS lands. -->
+    <style>
+      html, body { margin: 0; background: #0b0b0b; }
+    </style>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <a class="skip-link" href="#launcher-grid">Skip to apps</a>
-    <!--
-      Launcher home screen. The page is a 3D flip-card:
-        • front — watch movement (<canvas.watch-canvas>) + shell (#app)
-        • back  — the embedded app (#embed, injected by app.js)
-      Boot sequence zooms the watch camera from 'wide' (full watch framed)
-      in to 'ambient' (plate fills viewport). Tapping a tile reverses
-      that — pull back to 'wide' — then flips the card 180° so the back
-      face (app) swings into view. Closing flips back and zooms in.
-    -->
-    <svg class="bg-noise" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-      <filter id="paperGrain">
-        <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" stitchTiles="stitch"/>
-        <feColorMatrix type="matrix"
-          values="0 0 0 0 0.12
-                  0 0 0 0 0.10
-                  0 0 0 0 0.08
-                  0 0 0 0.55 0"/>
-      </filter>
-      <rect width="100%" height="100%" filter="url(#paperGrain)"/>
-    </svg>
-
-    <div class="flip-scene">
-      <div class="flip-card" id="flip-card">
-        <div class="flip-face flip-front">
-          <canvas class="watch-canvas" aria-hidden="true"></canvas>
-          <main id="app" class="shell is-booting" hidden>
-      <!-- Greeting + meta row -->
-      <div class="greeting">
-        <p class="hello">
-          <span id="greet-time">Good morning,</span>
-          <span class="name" id="greet-name">Jack</span>
+    <main id="app" class="home" hidden>
+      <header class="top">
+        <div class="clock-wrap">
+          <time id="clock" class="clock">--<span class="colon">:</span>--</time>
+          <span id="ampm" class="ampm"></span>
+        </div>
+        <button id="lock" type="button" class="square-btn" aria-label="Lock launcher" title="Lock launcher">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9.5" rx="2.5" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+        </button>
+        <p class="meta">
+          <span id="today-date" class="meta-hi"></span>
+          <span id="weather-line"></span>
+          <span id="sun-line" hidden></span>
         </p>
-        <div class="meta">
-          <span id="today-date">—</span>
-          <span class="sep"></span>
-          <span class="time" id="live-time">—</span>
-          <span class="sep"></span>
-          <!-- Seeded from config.location, then refined to the actual
-               reverse-geocoded city once weather.js resolves coordinates,
-               so the label stays honest when traveling. -->
-          <span id="hero-location"></span>
-          <span class="sep"></span>
-          <span class="weather" id="hero-weather" hidden></span>
-        </div>
-        <button
-          id="lock"
-          type="button"
-          aria-label="Lock background"
-          title="Lock background"
-          aria-pressed="false"
-          class="lock-btn"
-          data-state="unlocked"
-        >
-          <svg class="lock-glyph lock-glyph-unlocked" viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="4" y="11" width="16" height="10" rx="2.5" />
-            <path d="M8 11V7a4 4 0 0 1 7.5-2" />
-          </svg>
-          <svg class="lock-glyph lock-glyph-locked" viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="4" y="11" width="16" height="10" rx="2.5" />
-            <path d="M8 11V8a4 4 0 0 1 8 0v3" />
-          </svg>
-        </button>
+      </header>
+
+      <div class="tape" aria-hidden="true">
+        <p id="tape-track" class="tape-track"></p>
       </div>
+      <p id="tape-live" class="sr-only" aria-live="polite"></p>
 
-      <!--
-        APP ICON GRID (7 icons) — two-tone object system:
-          - 28×28 viewBox, glyph content on a ~24×24 optical grid
-          - outer stroke 1.3, interior stroke 1.0, ink (currentColor)
-          - each tile carries an inline `--tile-accent` matching its
-            app's color in apps.json; SVG fills reference that var so
-            the glyph reads as a small object in the app's hue rather
-            than a generic monoline symbol
-          - cream wells (apertures, edge notches) use --surface-hi
-          - 4×2 grid, 7 apps = partial 2nd row LEFT-ANCHORED
-            (matches iOS home-screen behavior — do NOT center the 7th)
+      <section id="bands" class="bands" aria-label="Live apps"></section>
 
-        Tile taps are wired in app.js via data-app → apps.json id.
-      -->
-      <div class="grid" id="launcher-grid" tabindex="-1">
+      <nav id="strip" class="strip" aria-label="More apps"></nav>
 
-        <!-- 1. MOVIES — film camera with spinning reels (wine red).
-             Reels are drawn first so the body covers their bottom 0.5
-             units, reading as "housed in the camera." Reels rotate
-             continuously at slightly mismatched speeds (4s vs 5.2s)
-             for a mechanical feel. -->
-        <button type="button" class="icon" data-slot="movies" data-app="upcoming-movies">
-          <div class="tile">
-            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
-                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-              <g class="ico-cam-reel-l">
-                <circle cx="9" cy="8" r="3.5" fill="var(--tile-accent)" fill-opacity="0.78"/>
-                <circle cx="9" cy="8" r="0.9" fill="currentColor" stroke="none"/>
-                <line x1="9"   y1="5"   x2="9"   y2="11"  stroke-width="0.7"/>
-                <line x1="6"   y1="8"   x2="12"  y2="8"   stroke-width="0.7"/>
-                <line x1="6.9" y1="5.9" x2="11.1" y2="10.1" stroke-width="0.7"/>
-                <line x1="11.1" y1="5.9" x2="6.9" y2="10.1" stroke-width="0.7"/>
-              </g>
-              <g class="ico-cam-reel-r">
-                <circle cx="18" cy="8" r="3.5" fill="var(--tile-accent)" fill-opacity="0.78"/>
-                <circle cx="18" cy="8" r="0.9" fill="currentColor" stroke="none"/>
-                <line x1="18"   y1="5"   x2="18"   y2="11"  stroke-width="0.7"/>
-                <line x1="15"   y1="8"   x2="21"   y2="8"   stroke-width="0.7"/>
-                <line x1="15.9" y1="5.9" x2="20.1" y2="10.1" stroke-width="0.7"/>
-                <line x1="20.1" y1="5.9" x2="15.9" y2="10.1" stroke-width="0.7"/>
-              </g>
-              <!-- camera body (covers reel bottoms) -->
-              <rect x="3" y="11" width="19" height="11" rx="1.6"
-                    fill="var(--tile-accent)" fill-opacity="0.85"/>
-              <!-- lens barrel -->
-              <rect x="22" y="14" width="4" height="5" rx="0.6"
-                    fill="var(--tile-accent)" fill-opacity="0.85"/>
-              <!-- lens glass -->
-              <circle cx="24" cy="16.5" r="1.1" fill="var(--surface-hi)" stroke-width="0.8"/>
-              <!-- record indicator -->
-              <circle cx="6.2" cy="19.2" r="0.8" fill="var(--surface-hi)" stroke="none"/>
-            </svg>
-          </div>
-        </button>
-
-        <!-- 2. BETTING — poker chip face-on (terracotta) -->
-        <button type="button" class="icon" data-slot="betting" data-app="parlay">
-          <div class="tile">
-            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
-                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="14" cy="14" r="10" fill="var(--tile-accent)" fill-opacity="0.82"/>
-              <rect x="13.1" y="3.5"  width="1.8" height="3"   fill="var(--surface-hi)" stroke="none"/>
-              <rect x="13.1" y="21.5" width="1.8" height="3"   fill="var(--surface-hi)" stroke="none"/>
-              <rect x="3.5"  y="13.1" width="3"   height="1.8" fill="var(--surface-hi)" stroke="none"/>
-              <rect x="21.5" y="13.1" width="3"   height="1.8" fill="var(--surface-hi)" stroke="none"/>
-              <circle cx="14" cy="14" r="6.2" stroke-width="1.0"/>
-              <path class="ico-chip-diamond"
-                    d="M 14 10.8 L 16.6 14 L 14 17.2 L 11.4 14 Z"
-                    fill="currentColor" stroke="none"/>
-            </svg>
-          </div>
-        </button>
-
-        <!-- 3. MONEY — twin overlapping coins (green) -->
-        <button type="button" class="icon" data-slot="money" data-app="budget-together">
-          <div class="tile">
-            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
-                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="10.5" cy="10.5" r="6.8" fill="var(--tile-accent)" fill-opacity="0.55"/>
-              <g class="ico-coin-front">
-                <circle cx="17" cy="17" r="7.5" fill="var(--tile-accent)" fill-opacity="0.92"/>
-                <circle cx="17" cy="17" r="5.6" stroke-width="1.0"/>
-                <text x="17" y="20.1" text-anchor="middle"
-                      fill="currentColor" stroke="none"
-                      font-family="-apple-system, 'SF Pro Text', sans-serif"
-                      font-size="9" font-weight="700"
-                      style="letter-spacing: -0.04em;">$</text>
-              </g>
-            </svg>
-          </div>
-        </button>
-
-        <!-- 4. UFC — boxing glove (blue) -->
-        <button type="button" class="icon" data-slot="ufc" data-app="cornerman">
-          <div class="tile">
-            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
-                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-              <g class="ico-glove">
-                <!-- thumb fill (closed, no stroke so the seam back to the body
-                     doesn't draw a visible line through the cuff) -->
-                <path d="M 21 12.5
-                         C 22.6 12.5 23.2 13.5 23.2 14.5
-                         C 23.2 15.5 22.6 16.5 21 16.5
-                         L 21 12.5 Z"
-                      fill="var(--tile-accent)" fill-opacity="0.82" stroke="none"/>
-                <!-- thumb outline (open curve only) -->
-                <path d="M 21 12.5
-                         C 22.6 12.5 23.2 13.5 23.2 14.5
-                         C 23.2 15.5 22.6 16.5 21 16.5"/>
-                <!-- glove body: fill + inherited stroke in one path -->
-                <path d="M 6.5 11
-                         C 6.5 7.5 9 5.5 13 5.5
-                         C 18 5.5 21 8 21 12.5
-                         C 21 14.5 20 15.5 19 16
-                         L 19 19.5
-                         C 19 21 18 22.5 16 22.5
-                         L 9.5 22.5
-                         C 7.5 22.5 6.5 21 6.5 19.5
-                         Z"
-                      fill="var(--tile-accent)" fill-opacity="0.82"/>
-                <line x1="6.5" y1="19.5" x2="19" y2="19.5" stroke-width="1.0"/>
-                <path d="M 9 9.5 C 11.5 11 16 11 18.5 9.5" stroke-width="1.0"/>
-                <path d="M 11 13.5 L 13 14.5 M 13 12.8 L 15.2 14
-                         M 11 16   L 13 17   M 13 15.3 L 15.2 16.5"
-                      stroke-width="1.0"/>
-              </g>
-            </svg>
-          </div>
-        </button>
-
-        <!-- 5. CHORES — broom that gently sweeps; cleaned-side sparkle
-             pulses when the broom finishes its leftward swing (indigo) -->
-        <button type="button" class="icon" data-slot="chores" data-app="polished-space">
-          <div class="tile">
-            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
-                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-              <g class="ico-broom">
-                <!-- handle -->
-                <line x1="14" y1="4" x2="14" y2="16" stroke-width="1.7"/>
-                <!-- bristle joint band -->
-                <rect x="9.5" y="15" width="9" height="2.5" rx="0.5"
-                      fill="var(--tile-accent)" fill-opacity="0.9"/>
-                <!-- bristle fan -->
-                <path d="M 10 17.5 L 7 24 L 21 24 L 18 17.5 Z"
-                      fill="var(--tile-accent)" fill-opacity="0.78"/>
-                <!-- bristle striations -->
-                <line x1="11"   y1="18.2" x2="9.5"  y2="23.5" stroke-width="0.7"/>
-                <line x1="13"   y1="18.2" x2="12.5" y2="23.5" stroke-width="0.7"/>
-                <line x1="15"   y1="18.2" x2="15.5" y2="23.5" stroke-width="0.7"/>
-                <line x1="17"   y1="18.2" x2="18.5" y2="23.5" stroke-width="0.7"/>
-              </g>
-              <!-- "swept clean" sparkle, opposite the swing -->
-              <path class="ico-broom-spark"
-                    d="M 24 20 L 26 20 M 25 19 L 25 21" stroke-width="1.0"/>
-            </svg>
-          </div>
-        </button>
-
-        <!-- 6. CLEAN SCRIPT — bound screenplay pages (teal) -->
-        <button type="button" class="icon" data-slot="script" data-app="clean-script">
-          <div class="tile">
-            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
-                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M 9 5 L 22 5 L 22 22 L 9 22 Z"
-                    fill="var(--tile-accent)" fill-opacity="0.32" stroke="currentColor" stroke-width="1.0"/>
-              <path d="M 6 4 L 19 4 L 19 24 L 6 24 Z"
-                    fill="var(--tile-accent)" fill-opacity="0.85"/>
-              <circle cx="6" cy="9"  r="1.1" fill="currentColor" stroke="none"/>
-              <circle cx="6" cy="15" r="1.1" fill="currentColor" stroke="none"/>
-              <line x1="9" y1="9"  x2="16.5" y2="9"  stroke-width="1.0"/>
-              <line x1="9" y1="12" x2="16"   y2="12" stroke-width="1.0"/>
-              <line x1="9" y1="15" x2="14"   y2="15" stroke-width="1.0"/>
-              <line x1="9" y1="18" x2="16.5" y2="18" stroke-width="1.0"/>
-              <line class="ico-script-cursor"
-                    x1="9" y1="21" x2="13" y2="21" stroke-width="1.0"/>
-            </svg>
-          </div>
-        </button>
-
-        <!-- 7. SAVINGS PROJECTOR — growth bars rising left-to-right with a
-             trend arrow that gently lifts, projecting past the tallest bar
-             toward a sparkle (future growth). Amber. -->
-        <button type="button" class="icon" data-slot="savings" data-app="savings-projector">
-          <div class="tile">
-            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
-                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-              <!-- baseline -->
-              <line x1="4" y1="22.5" x2="24" y2="22.5" stroke-width="1.0"/>
-              <!-- growth bars, increasing height -->
-              <rect x="5"  y="15" width="3.5" height="7.5" rx="0.6" fill="var(--tile-accent)" fill-opacity="0.55"/>
-              <rect x="11" y="11" width="3.5" height="11.5" rx="0.6" fill="var(--tile-accent)" fill-opacity="0.75"/>
-              <rect x="17" y="7"  width="3.5" height="15.5" rx="0.6" fill="var(--tile-accent)" fill-opacity="0.92"/>
-              <!-- rising trend arrow, projecting beyond the tallest bar -->
-              <g class="ico-proj-trend">
-                <path d="M 6 15 L 12.75 11 L 19 6.5"/>
-                <path d="M 19 6.5 L 15.8 7 M 19 6.5 L 18.6 9.6" stroke-width="1.0"/>
-              </g>
-              <!-- projected-growth sparkle -->
-              <path class="ico-proj-spark" d="M 23 5 L 25 5 M 24 4 L 24 6" stroke-width="1.0"/>
-            </svg>
-          </div>
-        </button>
-
-        <!-- 8. FAMILY TREE — an ancestor tree: one root person at the bottom
-             branching up to two parents and four grandparents, each a filled
-             node fading lighter as the generations recede. Walnut brown. -->
-        <button type="button" class="icon" data-slot="family" data-app="family-tree">
-          <div class="tile">
-            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
-                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-              <!-- connectors: root -> parents -->
-              <path d="M 14 20.6 L 14 18 M 8 18 L 20 18 M 8 18 L 8 17.1 M 20 18 L 20 17.1"
-                    stroke-width="1.0"/>
-              <!-- connectors: each parent -> its two grandparents -->
-              <path d="M 8 12.9 L 8 10 M 5 10 L 11 10 M 5 10 L 5 7.8 M 11 10 L 11 7.8"
-                    stroke-width="1.0"/>
-              <path d="M 20 12.9 L 20 10 M 17 10 L 23 10 M 17 10 L 17 7.8 M 23 10 L 23 7.8"
-                    stroke-width="1.0"/>
-              <!-- grandparents (top generation, lightest) -->
-              <circle cx="5"  cy="6" r="1.8" fill="var(--tile-accent)" fill-opacity="0.55"/>
-              <circle cx="11" cy="6" r="1.8" fill="var(--tile-accent)" fill-opacity="0.55"/>
-              <circle cx="17" cy="6" r="1.8" fill="var(--tile-accent)" fill-opacity="0.55"/>
-              <circle cx="23" cy="6" r="1.8" fill="var(--tile-accent)" fill-opacity="0.55"/>
-              <!-- parents -->
-              <circle cx="8"  cy="15" r="2.1" fill="var(--tile-accent)" fill-opacity="0.8"/>
-              <circle cx="20" cy="15" r="2.1" fill="var(--tile-accent)" fill-opacity="0.8"/>
-              <!-- root person (base generation, boldest) -->
-              <circle cx="14" cy="23" r="2.4" fill="var(--tile-accent)" fill-opacity="0.95"/>
-            </svg>
-          </div>
-        </button>
-
-        <!-- 9. RECIPE BOOK — lidded cooking pot with rising steam (paprika).
-             Body sits in the app accent; lid + knob read as a small object.
-             Steam wisps use the thin interior stroke. -->
-        <button type="button" class="icon" data-slot="recipes" data-app="recipe-book">
-          <div class="tile">
-            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
-                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-              <!-- steam -->
-              <path d="M 11 7.6 q 1.3 -1.5 0 -3 M 14 7.6 q 1.3 -1.5 0 -3 M 17 7.6 q 1.3 -1.5 0 -3"
-                    stroke-width="1.0"/>
-              <!-- pot body -->
-              <path d="M 6.6 14 L 6.6 20.4 Q 6.6 23.4 9.6 23.4 L 18.4 23.4 Q 21.4 23.4 21.4 20.4 L 21.4 14 Z"
-                    fill="var(--tile-accent)" fill-opacity="0.8"/>
-              <!-- side handles -->
-              <path d="M 6.6 15.6 L 4.4 15.6 Q 3.4 15.6 3.4 16.7 L 3.4 17.3" stroke-width="1.0"/>
-              <path d="M 21.4 15.6 L 23.6 15.6 Q 24.6 15.6 24.6 16.7 L 24.6 17.3" stroke-width="1.0"/>
-              <!-- lid + knob -->
-              <ellipse cx="14" cy="13" rx="8.4" ry="1.8" fill="var(--tile-accent)" fill-opacity="0.55"/>
-              <path d="M 14 11.1 L 14 10.4" stroke-width="1.0"/>
-              <circle cx="14" cy="9.9" r="1.05" fill="var(--tile-accent)" fill-opacity="0.95"/>
-            </svg>
-          </div>
-        </button>
-
-        <!-- 10. FITNESS TRACKER — a dumbbell, bar horizontal with two
-             loaded plates (rose). Plates fill the accent; the small
-             cream well on each echoes the sleeve collar. -->
-        <button type="button" class="icon" data-slot="fitness" data-app="fitness-tracker">
-          <div class="tile">
-            <svg viewBox="0 0 28 28" fill="none" stroke="currentColor"
-                 stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
-              <!-- bar -->
-              <line x1="8.2" y1="14" x2="19.8" y2="14" stroke-width="2.2"/>
-              <!-- collars -->
-              <rect x="7"   y="11.5" width="2.2" height="5" rx="0.6" fill="var(--tile-accent)" fill-opacity="0.9"/>
-              <rect x="18.8" y="11.5" width="2.2" height="5" rx="0.6" fill="var(--tile-accent)" fill-opacity="0.9"/>
-              <!-- plates -->
-              <rect x="3.2" y="8.5" width="3" height="11" rx="1" fill="var(--tile-accent)" fill-opacity="0.82"/>
-              <rect x="21.8" y="8.5" width="3" height="11" rx="1" fill="var(--tile-accent)" fill-opacity="0.82"/>
-              <!-- plate wells -->
-              <circle cx="4.7" cy="14" r="0.75" fill="var(--surface-hi)" stroke="none"/>
-              <circle cx="23.3" cy="14" r="0.75" fill="var(--surface-hi)" stroke="none"/>
-            </svg>
-          </div>
-        </button>
-
-      </div>
-
-      <!-- Flexible spacer — lets the mechanism breathe between icons and footer -->
-      <div class="spacer" aria-hidden="true"></div>
-
-      <!-- Version / publish stamp -->
-      <div class="base">
-        <div class="version">
-          <span id="app-version">v1.0</span> &nbsp;·&nbsp;
-          <span id="publish-time">published —</span>
-        </div>
+      <div class="bottom">
+        <label class="search" for="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4 4" /></svg>
+          <span class="sr-only">Search apps</span>
+          <input
+            id="search"
+            type="search"
+            placeholder="SEARCH APPS"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            enterkeyhint="go"
+          />
+        </label>
+        <p class="status">
+          <span id="sync-line">V— · SYNCING</span>
+          <span id="publish-time">PUBLISHED —</span>
+        </p>
       </div>
     </main>
-        </div><!-- /.flip-front -->
-        <div class="flip-face flip-back" id="flip-back" aria-hidden="true"></div>
-      </div><!-- /.flip-card -->
-    </div><!-- /.flip-scene -->
+
+    <!-- The open app. Launch grows this layer out of the tapped band. -->
+    <div id="embed" class="embed" hidden>
+      <header id="embed-bar" class="embed-bar">
+        <button id="embed-home" type="button" class="embed-home" aria-label="Home">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+          <span>HOME</span>
+        </button>
+        <h1 id="embed-title" class="embed-title"></h1>
+      </header>
+      <div class="embed-body">
+        <iframe
+          id="embed-frame"
+          class="embed-frame"
+          title="App"
+          referrerpolicy="no-referrer"
+          allow="clipboard-read; clipboard-write; fullscreen"
+        ></iframe>
+        <div class="embed-loading" aria-hidden="true"><span class="embed-loading-bar"></span></div>
+        <div class="embed-failure" role="alert">
+          <p class="embed-failure-title">COULDN'T LOAD</p>
+          <p id="embed-failure-msg" class="embed-failure-msg">The app didn't respond in time.</p>
+          <div class="embed-failure-actions">
+            <button type="button" id="embed-failure-close" class="square-btn wide">CLOSE</button>
+            <button type="button" id="embed-failure-retry" class="square-btn wide is-accent">RETRY</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scores: an in-launcher panel (not an app), opened from its band. -->
+    <div id="scores-panel" class="embed scores" hidden>
+      <header class="embed-bar">
+        <button id="scores-home" type="button" class="embed-home" aria-label="Home">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+          <span>HOME</span>
+        </button>
+        <h1 class="embed-title">Scores</h1>
+      </header>
+      <div id="scores-list" class="scores-list"></div>
+    </div>
 
     <!-- PAT auth gate -->
-    <dialog
-      id="gate"
-      class="co-dialog w-[min(calc(100%-2rem),20rem)] rounded-2xl p-6"
-    >
+    <dialog id="gate" class="gate">
       <form method="dialog" id="gate-form">
-        <h2 class="mb-3 text-lg font-semibold tracking-tight">Sign in</h2>
-        <p class="mb-3 text-sm leading-snug text-optimus-muted">
+        <h2 class="gate-title">SIGN IN</h2>
+        <p class="gate-copy">
           Paste a GitHub personal access token for your account.
-          <a
-            class="text-optimus-accent font-medium underline-offset-2 hover:underline"
-            href="https://github.com/settings/personal-access-tokens/new"
-            target="_blank"
-            rel="noopener"
-            >Create one</a
-          >
-          (fine-grained, no permissions required).
+          <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create one</a>.
+          It needs read access to your private data repo for the live numbers.
         </p>
-        <input
-          id="token"
-          type="password"
-          autocomplete="off"
-          spellcheck="false"
-          autofocus
-          required
-          placeholder="github_pat_..."
-          class="mb-3 w-full rounded-xl border border-optimus-border bg-optimus-surface px-4 py-3 text-base text-optimus-text placeholder-optimus-muted focus:outline-none focus:ring-2 focus:ring-optimus-accent/60"
-        />
-        <p id="gate-error" class="mb-3 text-sm text-red-600" hidden>Sign-in failed.</p>
-        <button type="submit" class="btn-primary">Unlock</button>
+        <label class="sr-only" for="token">GitHub token</label>
+        <input id="token" type="password" autocomplete="off" spellcheck="false" autofocus required placeholder="github_pat_..." />
+        <p id="gate-error" class="gate-error" hidden>Sign-in failed.</p>
+        <button type="submit" class="square-btn wide is-accent">UNLOCK</button>
       </form>
     </dialog>
 

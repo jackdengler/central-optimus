@@ -1,149 +1,156 @@
 import { initWeather } from "./weather.js";
-import { startMovement } from "./mechanism.js";
+import { loadLiveData, clearLiveData } from "./data.js";
+import { feel, soundOn, setSound } from "./feel.js";
+import { loadScores, headline } from "./scores.js";
 
-function haptic(pattern) {
-  if (typeof navigator === "undefined" || !navigator.vibrate) return;
-  try {
-    navigator.vibrate(pattern);
-  } catch (_) {}
-}
+/* =====================================================================
+   Central Optimus — Big Type launcher.
 
-/* Block the page itself from pinch-zooming. The viewport meta has
-   user-scalable=no but iOS Safari ignores it in standalone PWA mode.
-   We stop the WebKit gesture* events (two-finger zoom on iOS) and
-   ctrl+wheel (desktop trackpad pinch) at the document level so the
-   shell stays put — the watch canvas owns its own pinch handler and
-   consumes the pointer events directly. */
-(function lockPagePinchZoom() {
-  const swallow = (e) => { e.preventDefault(); };
-  ["gesturestart", "gesturechange", "gestureend"].forEach((evt) => {
-    document.addEventListener(evt, swallow, { passive: false });
-  });
-  document.addEventListener("touchmove", (e) => {
-    if (e.touches && e.touches.length > 1) e.preventDefault();
-  }, { passive: false });
-  document.addEventListener("wheel", (e) => {
-    if (e.ctrlKey) e.preventDefault();
-  }, { passive: false });
-})();
+   Home = header (clock/date/weather) · accent ticker tape · three live
+   bands (urgency-ordered) · strip of the other apps · search.
+   Tapping a band grows the app layer out of it (clip-path from the
+   band's rect to full screen); closing collapses it back.
+   ===================================================================== */
 
 const TOKEN_KEY = "co.gh.token";
-const GESTURE_LOCK_KEY = "co.bg.locked";
+const EMBED_LOAD_TIMEOUT_MS = 10_000;
+const REVEAL_MS = 5_000;
 
-/* -------------------------------------------------------------------
-   Motion choreography
-   -------------------------------------------------------------------
-   Three camera states drive the whole experience:
-     wide     — entire watch framed on screen (boot + pre-launch + pre-close)
-     ambient  — plate fills viewport, mechanism is the UI backdrop
-     (closeup — legacy dive into the 4th wheel; used only by reduced motion)
+let CONFIG = {};
+let APPS = [];
+const DATA = {}; // appId → { summary, stale, at, error }
+let weatherController = null;
+let openAppId = null;
+let embedTimer = 0;
+let lastDataLoad = 0;
+let SCORES = null; // { teams, at, stale }
+let scoresTimer = 0;
 
-   Boot:        wide → ambient              (--boot-zoom-ms)
-                shell fades in during the last stretch (--boot-shell-delay-ms)
-   Launch tap:  ambient → wide              (--pull-out-ms)
-                then flip card 180° (--flip-ms) — app is on the back face
-   Close:       flip back (--flip-ms)
-                then wide → ambient         (--close-zoom-ms)
+const $ = (sel) => document.querySelector(sel);
+const reducedMotion = () =>
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-   Durations live in input.css as CSS custom properties on :root and are
-   read here via getComputedStyle so the CSS transition and JS timeouts
-   share a single source of truth.
-   ------------------------------------------------------------------- */
-function readMs(name, fallback) {
-  const raw = getComputedStyle(document.documentElement)
-    .getPropertyValue(name)
-    .trim();
-  if (!raw) return fallback;
-  if (raw.endsWith("ms")) return parseFloat(raw);
-  if (raw.endsWith("s"))  return parseFloat(raw) * 1000;
-  const n = parseFloat(raw);
-  return Number.isNaN(n) ? fallback : n;
+/* Block page pinch-zoom (iOS ignores user-scalable=no in standalone). */
+["gesturestart", "gesturechange", "gestureend"].forEach((evt) =>
+  document.addEventListener(evt, (e) => e.preventDefault(), { passive: false }),
+);
+
+/* ---------- formatting ---------- */
+
+const DAYS = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+const MONTHS = [
+  "JAN",
+  "FEB",
+  "MAR",
+  "APR",
+  "MAY",
+  "JUN",
+  "JUL",
+  "AUG",
+  "SEP",
+  "OCT",
+  "NOV",
+  "DEC",
+];
+const pad = (n) => String(n).padStart(2, "0");
+
+function localDayKey(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
-const TIMING = {
-  bootZoom:       readMs("--boot-zoom-ms",       500),
-  bootShellDelay: readMs("--boot-shell-delay-ms", 280),
-  pullOut:        readMs("--pull-out-ms",        280),
-  flip:           readMs("--flip-ms",            500),
-  closeZoom:      readMs("--close-zoom-ms",      420),
-  closeShellLead: readMs("--close-shell-lead-ms", 150),
+function dayKeyDate(key) {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+function fmtClock(d) {
+  const h = d.getHours() % 12 || 12;
+  return {
+    hm: [String(h), pad(d.getMinutes())],
+    ampm: d.getHours() < 12 ? "AM" : "PM",
+  };
+}
+function fmtTime(d) {
+  const { hm, ampm } = fmtClock(d);
+  return `${hm[0]}:${hm[1]} ${ampm}`;
+}
+function hhmmTo12(hhmm) {
+  if (!hhmm) return null;
+  const [h, m] = hhmm.split(":").map(Number);
+  return `${h % 12 || 12}:${pad(m)}`;
+}
+function greeting(d, name) {
+  const h = d.getHours();
+  const part =
+    h < 5
+      ? "STILL UP"
+      : h < 12
+        ? "GOOD MORNING"
+        : h < 17
+          ? "GOOD AFTERNOON"
+          : h < 21
+            ? "GOOD EVENING"
+            : "GOOD NIGHT";
+  return `${part}, ${name.toUpperCase()}`;
+}
+function fmtGameTime(iso, now = new Date()) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.valueOf())) return "";
+  const t = fmtTime(d);
+  if (d.toDateString() === now.toDateString()) return `TODAY ${t}`;
+  const days = Math.round(
+    (new Date(d.toDateString()) - new Date(now.toDateString())) / 86_400_000,
+  );
+  return days > 0 && days < 7
+    ? `${DAYS[d.getDay()]} ${t}`
+    : `${DAYS[d.getDay()]} ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+}
+function money(n) {
+  return Math.round(n).toLocaleString("en-US");
+}
+// Readable text colour on a band: near-black on light fills, white on dark.
+function luminance(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return 0;
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const c = parseInt(m[1].slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function inkFor(hex) {
+  return luminance(hex) > 0.12 ? "#0b0b0b" : "#ffffff";
+}
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text != null) n.textContent = text;
+  return n;
+}
+const SVG = {
+  down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v16"/><path d="M5.5 13l6.5 6.5 6.5-6.5"/></svg>',
+  eye: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>',
 };
 
-let APPS = [];
-let weatherController = null;
-let clockTimer = null;
-let watchCanvas = null;
-let reducedMotion = false;
-
-/* Flip state machine — guards launch/close against re-entry from
-   double-taps, popstate during animation, and ESC mid-flip. */
-let flipState = "idle"; // 'idle' | 'opening' | 'open' | 'closing'
-let activeAppId = null;
-let lastLaunchTrigger = null; // tile element to restore focus to on close
-// Snapshot of the watch camera at the moment of launch so close can
-// tween back to the exact view the user was looking at — including
-// any pinch/pan/rotation they had applied. Null until the first launch.
-let preLaunchCamera = null;
-
-const REDUCED_MOTION_MQL = window.matchMedia("(prefers-reduced-motion: reduce)");
-reducedMotion = REDUCED_MOTION_MQL.matches;
-REDUCED_MOTION_MQL.addEventListener("change", (e) => {
-  reducedMotion = e.matches;
-});
-
-/* Promise that resolves when the flip card finishes its page-flop
-   animation. Listens for both animationend (the keyframe path) and
-   transitionend (fallback if anything reverts to a plain transition),
-   with a timer ~60ms past the declared duration as a last resort. */
-function awaitFlip(card) {
-  return new Promise((resolve) => {
-    if (!card) return resolve();
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      card.removeEventListener("animationend", onAnimEnd);
-      card.removeEventListener("transitionend", onTransEnd);
-      clearTimeout(timer);
-      resolve();
-    };
-    const onAnimEnd = (e) => {
-      if (e.target === card) finish();
-    };
-    const onTransEnd = (e) => {
-      if (e.target === card && e.propertyName === "transform") finish();
-    };
-    card.addEventListener("animationend", onAnimEnd);
-    card.addEventListener("transitionend", onTransEnd);
-    const timer = setTimeout(finish, TIMING.flip + 60);
-  });
-}
+/* ---------- JSON + auth ---------- */
 
 async function loadJSON(path) {
-  // Retry transient failures (offline, 5xx) with exponential backoff;
-  // 4xx fails fast since retrying won't change the answer.
   const delays = [250, 1000];
   let lastErr;
   for (let attempt = 0; attempt <= delays.length; attempt++) {
     try {
       const res = await fetch(path, { cache: "no-cache" });
       if (res.ok) return res.json();
-      if (res.status >= 400 && res.status < 500) {
-        throw new Error(`Failed to load ${path}: ${res.status}`);
-      }
       lastErr = new Error(`Failed to load ${path}: ${res.status}`);
+      if (res.status >= 400 && res.status < 500) throw lastErr;
     } catch (err) {
       lastErr = err;
     }
-    if (attempt < delays.length) {
+    if (attempt < delays.length)
       await new Promise((r) => setTimeout(r, delays[attempt]));
-    }
   }
   throw lastErr;
 }
 
-/* Returns a discriminated result so the caller can render the right
-   copy. Network errors, 401, rate-limit, and wrong-account each have
-   distinct meanings to the user. */
+/* Discriminated result so the gate can show the right copy. */
 async function verifyToken(token, expectedLogin) {
   let res;
   try {
@@ -158,10 +165,7 @@ async function verifyToken(token, expectedLogin) {
     return { ok: false, reason: "network" };
   }
   if (res.status === 401) return { ok: false, reason: "unauthorized" };
-  if (
-    res.status === 403 &&
-    res.headers.get("x-ratelimit-remaining") === "0"
-  ) {
+  if (res.status === 403 && res.headers.get("x-ratelimit-remaining") === "0") {
     return { ok: false, reason: "rate-limit" };
   }
   if (!res.ok) return { ok: false, reason: "api", status: res.status };
@@ -193,67 +197,60 @@ function gateErrorMessage(result, expectedLogin) {
   }
 }
 
-/* ---------- Live data (greeting, date, time, publish stamp) ---------- */
+/* ---------- header: clock, date, weather ---------- */
 
-const pad = (n) => String(n).padStart(2, "0");
-
-function fmtTime12(d) {
-  let h = d.getHours();
-  const m = d.getMinutes();
-  const ampm = h >= 12 ? "PM" : "AM";
-  h = h % 12;
-  if (h === 0) h = 12;
-  return `${h}:${pad(m)} ${ampm}`;
-}
-
-function fmtDate(d) {
-  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const months = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-  ];
-  return `${days[d.getDay()]}, ${months[d.getMonth()]} ${d.getDate()}`;
-}
-
-function greetingFor(d) {
-  const h = d.getHours();
-  if (h < 5) return "Still up,";
-  if (h < 12) return "Good morning,";
-  if (h < 17) return "Good afternoon,";
-  if (h < 21) return "Good evening,";
-  return "Good night,";
-}
-
-function titleCaseFirstName(config) {
-  const first = (config.firstName || config.githubUser || "")
-    .toString()
-    .split(/[\s.]/)[0];
-  if (!first) return "";
-  return first.charAt(0).toUpperCase() + first.slice(1);
-}
-
-function tickClock(config) {
+function tickClock() {
   const now = new Date();
-  const greet = document.getElementById("greet-time");
-  const name = document.getElementById("greet-name");
-  const date = document.getElementById("today-date");
-  const live = document.getElementById("live-time");
-  if (greet) greet.textContent = greetingFor(now);
-  if (name) name.textContent = titleCaseFirstName(config);
-  if (date) date.textContent = fmtDate(now);
-  if (live) live.textContent = fmtTime12(now);
+  const { hm, ampm } = fmtClock(now);
+  const clock = $("#clock");
+  clock.innerHTML = "";
+  clock.append(hm[0], el("span", "colon", ":"), hm[1]);
+  clock.setAttribute("datetime", now.toISOString());
+  $("#ampm").textContent = ampm;
+  $("#today-date").textContent =
+    `${DAYS[now.getDay()]} ${now.getDate()} ${MONTHS[now.getMonth()]}`;
 }
 
-function startClock(config) {
-  tickClock(config);
-  if (clockTimer) clearInterval(clockTimer);
-  clockTimer = setInterval(() => tickClock(config), 10_000);
+function startClock() {
+  tickClock();
+  // Re-sync on the minute boundary, then every minute.
+  setTimeout(
+    () => {
+      tickClock();
+      renderTape();
+      setInterval(() => {
+        tickClock();
+        renderTape();
+      }, 60_000);
+    },
+    60_000 - (Date.now() % 60_000),
+  );
+}
+
+function setWeatherLine(payload) {
+  $("#weather-line").classList.toggle("is-stale", !!payload?.stale);
+  // Geocoders return civil names ("Township of Wayne"); keep the place.
+  const place = (payload?.place || CONFIG.location || "")
+    .toUpperCase()
+    .replace(/^(TOWNSHIP|CITY|TOWN|VILLAGE|BOROUGH) OF /, "");
+  const short = place === "LOS ANGELES" ? "LA" : place;
+  const temp = Number.isFinite(payload?.temp) ? `${payload.temp}°` : "";
+  const label =
+    payload?.label && payload.label !== "—" ? payload.label.toUpperCase() : "";
+  $("#weather-line").textContent = [short, temp, label]
+    .filter(Boolean)
+    .join(" ");
+  const sunset = hhmmTo12(payload?.sunset);
+  const sun = $("#sun-line");
+  if (sunset) {
+    sun.innerHTML = `SUN${SVG.down}${sunset}`;
+    sun.setAttribute("aria-label", `Sunset ${sunset}`);
+    sun.hidden = false;
+  }
 }
 
 async function setPublishStamp() {
-  const el = document.getElementById("publish-time");
-  if (!el) return;
-  let when = new Date();
+  let when = null;
   try {
     const res = await fetch("./build.json", { cache: "no-cache" });
     if (res.ok) {
@@ -262,690 +259,1055 @@ async function setPublishStamp() {
       if (d && !Number.isNaN(d.valueOf())) when = d;
     }
   } catch {}
-  const ptFmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-  const ptDateFmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/Los_Angeles",
-    month: "short",
-    day: "numeric",
-  });
-  el.textContent = `published ${ptDateFmt.format(when)} · ${ptFmt.format(when)} PT`;
+  $("#publish-time").textContent = when
+    ? `PUBLISHED ${MONTHS[when.getMonth()]} ${when.getDate()}`
+    : "PREVIEW";
 }
 
-// Location label in the hero meta row. Seeded from config.location and
-// later overwritten by weather.js with the reverse-geocoded city.
-function setHeroLocation(place) {
-  const el = document.getElementById("hero-location");
-  if (!el || !place) return;
-  el.textContent = place;
-}
+/* ---------- bands ---------- */
 
-// Footer version stamp — sourced from config.json so there's no literal
-// baked into the markup to fall out of date.
-function setAppVersion(version) {
-  const el = document.getElementById("app-version");
-  if (!el || !version) return;
-  el.textContent = version.startsWith("v") ? version : `v${version}`;
-}
+const bandApps = () => APPS.filter((a) => a.home === "band");
+const stripApps = () => APPS.filter((a) => a.home === "strip");
 
-/* ---------- App launch orchestration ----------
-   Tile tap reverses the boot zoom and then flips the card:
-     ambient → wide → flip 180° (app on back face)
-   The shell fades out during the pull-out; the iframe mounts before
-   the flip so it has loading time to cover, and a cream curtain
-   (`.flip-back.is-loading`) hides any pre-paint flash until the
-   iframe's load event fires. Close is the exact reverse: unflip,
-   then zoom back in.
-
-   The flipState machine guards every entry point — double-taps, ESC
-   mid-flip, popstate during animation, and a tile tap during a close
-   are all coalesced. */
-
-async function launchApp(appId, opts = {}) {
-  if (flipState !== "idle") return;
-  const app = APPS.find((a) => a.id === appId);
-  if (!app) {
-    haptic(8);
-    return;
+function buildBands() {
+  const wrap = $("#bands");
+  wrap.innerHTML = "";
+  for (const app of bandApps()) {
+    const band = el("div", "band");
+    band.dataset.app = app.id;
+    band.style.setProperty("--band-bg", app.color);
+    band.style.setProperty("--band-fg", inkFor(app.color));
+    // Light bands (e.g. Scores gold) carry dark readings; white fails there.
+    if (luminance(app.color) > 0.35)
+      band.style.setProperty("--band-hi", "#0b0b0b");
+    const hit = el("button", "band-hit");
+    hit.type = "button";
+    hit.addEventListener("pointerdown", () => feel("tick"));
+    hit.addEventListener("click", () => launchApp(app.id, band));
+    band.append(
+      hit,
+      el("p", "band-name", (app.label || app.name).toUpperCase()),
+      el("div", "band-read"),
+    );
+    if (app.id === "budget-together") band.append(buildHold(band));
+    wrap.append(band);
   }
-  haptic(8);
+}
 
-  flipState = "opening";
-  activeAppId = appId;
-  lastLaunchTrigger =
-    opts.trigger ||
-    document.querySelector(`#launcher-grid a.icon[data-app="${CSS.escape(appId)}"]`) ||
-    null;
-
-  const shell = document.getElementById("app");
-  const card = document.getElementById("flip-card");
-
-  // a11y: hide the front face from screen readers while the back is in view.
-  const front = document.querySelector(".flip-front");
-  const back = document.getElementById("flip-back");
-
-  const finishOpen = () => {
-    flipState = "open";
-    if (front) front.setAttribute("aria-hidden", "true");
-    if (back) back.removeAttribute("aria-hidden");
-    if (card) card.classList.remove("is-flipping");
-    // The app now fully covers the flipped card, so idle the watch
-    // mechanism's render loop — no point compositing pixels nobody sees.
-    if (watchCanvas && watchCanvas._setOccluded) watchCanvas._setOccluded(true);
-    // Move focus into the iframe so keyboard users land inside the app.
-    const frame = document.getElementById("embed-frame");
-    if (frame) {
-      try { frame.focus({ preventScroll: true }); } catch (_) {}
-    }
+function buildHold(band) {
+  const btn = el("button", "hold");
+  btn.type = "button";
+  btn.setAttribute("aria-label", "Hold to reveal spend");
+  let timer = 0;
+  const reveal = (e) => {
+    e?.preventDefault?.();
+    clearTimeout(timer);
+    if (!band.classList.contains("is-revealed")) feel("tear");
+    fillVeils(band, true);
+    band.classList.add("is-revealed");
   };
-
-  if (reducedMotion || !watchCanvas || !watchCanvas._setCamera) {
-    if (shell) shell.classList.add("app-open");
-    openEmbed(app);
-    if (card) card.classList.add("is-flipped");
-    finishOpen();
-    return;
-  }
-
-  if (shell) shell.classList.add("app-open");
-  // Snapshot the live camera (cx/cy/R + name) BEFORE we tween away so
-  // closeActiveApp can restore the user back to the exact view they
-  // had — including any pinch/pan they applied — instead of always
-  // landing on the ambient preset.
-  if (watchCanvas._getCameraState) {
-    preLaunchCamera = watchCanvas._getCameraState();
-  }
-  // Camera pull-out (ambient → wide) and the page-flop animation run
-  // CONCURRENTLY so the watch is visibly receding while the card lifts
-  // toward the viewer — one integrated motion rather than "zoom, pause,
-  // flip". Pull-out duration is shorter than the flip so the watch
-  // settles in time for the back face to dominate.
-  watchCanvas._setCamera("wide", TIMING.pullOut);
-  openEmbed(app);
-
-  // Add .is-flipping in the SAME task as .is-flipped so the matched
-  // animation selector resolves directly to .is-flipping.is-flipped
-  // (flip-page-forward) and starts at the current rotation rather than
-  // briefly matching .is-flipping:not(.is-flipped) and snapping back.
-  if (card) {
-    card.classList.add("is-flipping");
-    card.classList.add("is-flipped");
-  }
-  await awaitFlip(card);
-  if (flipState !== "opening") return;
-  finishOpen();
-}
-
-async function closeActiveApp() {
-  const wrap = document.getElementById("embed");
-  const shell = document.getElementById("app");
-  const card = document.getElementById("flip-card");
-  if (!wrap || wrap.hidden) return;
-  if (flipState !== "open" && flipState !== "opening") return;
-
-  flipState = "closing";
-  // Wake the mechanism back up before we tween the camera home so the
-  // zoom-in actually animates instead of jumping on the next idle frame.
-  if (watchCanvas && watchCanvas._setOccluded) watchCanvas._setOccluded(false);
-  const front = document.querySelector(".flip-front");
-  const back = document.getElementById("flip-back");
-  if (front) front.removeAttribute("aria-hidden");
-  if (back) back.setAttribute("aria-hidden", "true");
-
-  const finishClose = () => {
-    flipState = "idle";
-    activeAppId = null;
-    if (card) card.classList.remove("is-flipping");
-    hideEmbed();
-    if (lastLaunchTrigger) {
-      try { lastLaunchTrigger.focus({ preventScroll: true }); } catch (_) {}
-    }
-    lastLaunchTrigger = null;
+  const release = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      band.classList.remove("is-revealed");
+      // Wait for the redaction to slide back before dropping the figures.
+      setTimeout(() => {
+        if (!band.classList.contains("is-revealed")) fillVeils(band, false);
+      }, 400);
+    }, REVEAL_MS);
   };
-
-  if (reducedMotion || !watchCanvas || !watchCanvas._setCamera) {
-    if (card) card.classList.remove("is-flipped");
-    if (shell) shell.classList.remove("app-open");
-    finishClose();
-    return;
-  }
-
-  // Page-flop and camera zoom-in run CONCURRENTLY — the front face
-  // settles into the plane just as the watch arrives at ambient, so
-  // close reads as one integrated motion mirroring the launch. Both
-  // classes toggle in the same task so the matched animation is
-  // .is-flipping:not(.is-flipped) (flip-page-back) from frame one,
-  // never briefly the forward direction.
-  if (card) {
-    card.classList.add("is-flipping");
-    card.classList.remove("is-flipped");
-  }
-  if (watchCanvas && watchCanvas._setCamera) {
-    // Restore the exact pre-launch view (cx/cy/R) — preserves any
-    // pinch/pan the user had applied. Falls back to the ambient
-    // preset for direct deep-links where we never captured a state.
-    watchCanvas._setCamera(preLaunchCamera || "ambient", TIMING.closeZoom);
-  }
-  setTimeout(() => {
-    if (shell) shell.classList.remove("app-open");
-  }, Math.max(0, TIMING.flip - TIMING.closeShellLead));
-
-  await awaitFlip(card);
-  if (flipState !== "closing") return;
-  finishClose();
+  btn.addEventListener("pointerdown", reveal);
+  ["pointerup", "pointercancel", "pointerleave"].forEach((t) =>
+    btn.addEventListener(t, release),
+  );
+  btn.addEventListener("keydown", (e) => {
+    if (e.key === " " || e.key === "Enter") reveal(e);
+  });
+  btn.addEventListener("keyup", release);
+  btn.addEventListener("contextmenu", (e) => e.preventDefault());
+  return btn;
 }
 
-function wireLauncherGrid() {
-  const grid = document.getElementById("launcher-grid");
-  if (!grid) return;
-  grid.querySelectorAll(".icon[data-app]").forEach((el) => {
-    const appId = el.dataset.app;
-    // apps.json is the single source of truth for each tile's name and
-    // accent hue. Driving them from the registry here means the
-    // accessible label can't drift from the embed-bar title (it used to)
-    // and the color lives in one place instead of being duplicated as an
-    // inline style on the button.
-    const app = APPS.find((a) => a.id === appId);
-    if (app) {
-      el.setAttribute("aria-label", app.name);
-      if (app.color) el.style.setProperty("--tile-accent", app.color);
-    }
-    el.addEventListener("click", () => {
-      launchApp(appId, { trigger: el });
-    });
+// Figures are only in the DOM while revealed, so the veil is real privacy
+// on screen (and nothing sensitive sits in the accessibility tree).
+function fillVeils(band, show) {
+  const s = DATA["budget-together"]?.summary;
+  band.querySelectorAll(".veil").forEach((v) => {
+    const key = v.dataset.key;
+    const val = key === "last" ? s?.lastMonth?.spend : s?.avgPerMonth;
+    v.textContent = show && Number.isFinite(val) ? money(val) : "";
   });
 }
 
-function wireGlobalShortcuts() {
+function readingFor(app) {
+  const entry = DATA[app.id];
+  const s = entry?.summary;
+  const read = el("div", "band-read");
+  const num = el("span", "band-num");
+  const sub = el("span", "band-sub");
+  let label = "";
+
+  if (app.id === "scores") return scoresReading(read);
+  if (!s) {
+    num.textContent = "—";
+    sub.append(el("span", null, entry?.error ? "OFFLINE" : "SYNCING"));
+    label = entry?.error ? "no data" : "loading";
+  } else if (app.id === "fitness-tracker") {
+    num.textContent = String(s.last30.length);
+    sub.append(el("span", null, "LIFTS / 30 DAYS"));
+    if (s.lastLift) {
+      const ago =
+        s.lastLift.daysAgo === 0 ? "TODAY" : `${s.lastLift.daysAgo}D AGO`;
+      sub.append(
+        el(
+          "span",
+          null,
+          `LAST ${ago} · ${String(s.lastLift.name).toUpperCase()}`,
+        ),
+      );
+    }
+    read.append(num, sub, ticks(s.last30));
+    label = `${s.last30.length} lifts in the last 30 days${s.lastLift ? `, last lift ${s.lastLift.daysAgo} days ago` : ""}`;
+  } else if (app.id === "upcoming-movies") {
+    num.style.color = "var(--accent)";
+    if (s.next) {
+      const d = s.next.daysUntil;
+      num.textContent = d <= 0 ? "TODAY" : `T–${d}`;
+      const titles =
+        s.next.titles.slice(0, 2).join(" + ") +
+        (s.next.titles.length > 2 ? ` +${s.next.titles.length - 2}` : "");
+      const date = dayKeyDate(s.next.day);
+      sub.append(
+        el("span", null, titles.toUpperCase()),
+        el(
+          "span",
+          null,
+          `${DAYS[date.getDay()]} ${MONTHS[date.getMonth()]} ${date.getDate()}`,
+        ),
+      );
+      label = `next release in ${d} days: ${s.next.titles.join(" and ")}`;
+    } else {
+      num.textContent = "—";
+      sub.append(el("span", null, "NOTHING BOOKED"));
+      label = "nothing booked";
+    }
+  } else if (app.id === "budget-together") {
+    const month = s.lastMonth
+      ? MONTHS[Number(s.lastMonth.month.slice(5, 7)) - 1]
+      : "LAST MO";
+    const veils = el("span", "veils");
+    for (const [key, text] of [
+      ["last", `${month} SPEND`],
+      ["avg", "AVG / MO"],
+    ]) {
+      const row = el("span", "veil-row");
+      const v = el("span", "veil");
+      v.dataset.key = key;
+      const lab = el("span", "veil-label", text);
+      if (key === "last") lab.insertAdjacentHTML("beforeend", SVG.eye);
+      row.append(lab, el("span", "veil-dollar", "$"), v);
+      veils.append(row);
+    }
+    const hint = el("span", "hold-hint");
+    hint.innerHTML = `${SVG.eye}<span>HOLD TO SEE</span>`;
+    read.append(veils, hint);
+    label = "spend hidden, press and hold the figures to reveal";
+  }
+  if (!read.childElementCount) read.append(num, sub);
+  const asof = el(
+    "span",
+    "band-asof",
+    entry?.at ? `AS OF ${fmtTime(new Date(entry.at))}` : "AS OF —",
+  );
+  read.append(asof);
+  return { read, label };
+}
+
+/* One row per team: live score, else the next game (or UFC main event),
+   else the last result. Surnames only for fighters so a row fits. */
+const surname = (n) =>
+  String(n || "")
+    .replace(/^(?:[A-Z]\.\s*)+/i, "")
+    .toUpperCase();
+
+function shortWhen(iso, dateOnly = false, now = new Date()) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.valueOf())) return "";
+  const days = Math.round(
+    (new Date(d.toDateString()) - new Date(now.toDateString())) / 86_400_000,
+  );
+  const day =
+    days === 0
+      ? "TODAY"
+      : days > 0 && days < 7
+        ? DAYS[d.getDay()]
+        : `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  if (dateOnly) return day;
+  const h = d.getHours() % 12 || 12;
+  const m = d.getMinutes() ? `:${String(d.getMinutes()).padStart(2, "0")}` : "";
+  return `${day} ${h}${m}${d.getHours() < 12 ? "A" : "P"}`;
+}
+
+function scoreRow(t) {
+  const tag = t.abbr || t.label.toUpperCase();
+  if (t.live) {
+    const g = t.live;
+    return {
+      tag,
+      text: `${g.us ?? 0}–${g.them ?? 0} ${g.home ? "VS" : "@"} ${g.opp} · ${String(g.detail).toUpperCase()}`,
+      live: true,
+      say: `${t.label} live, ${g.us} to ${g.them}`,
+    };
+  }
+  if (t.next) {
+    const g = t.next;
+    return {
+      tag,
+      text: `${g.home ? "VS" : "@"} ${g.opp} · ${shortWhen(g.date)}`,
+      say: `${t.label} ${g.home ? "vs" : "at"} ${g.oppName || g.opp}, ${fmtGameTime(g.date)}`,
+    };
+  }
+  if (t.card) {
+    const c = t.card;
+    const fight = c.main
+      ? `${surname(c.main[0].name)} VS ${surname(c.main[1].name)}`
+      : String(c.name).toUpperCase();
+    if (c.state === "in")
+      return {
+        tag,
+        text: `${fight} · LIVE`,
+        live: true,
+        say: `${c.name} live`,
+      };
+    if (c.state === "post")
+      return {
+        tag,
+        text: c.winner ? `${surname(c.winner)} WON` : `${fight} · FINAL`,
+        say: `${c.name} final`,
+      };
+    return {
+      tag,
+      text: `${fight} · ${shortWhen(c.date, c.dateOnly)}`,
+      say: `${c.name}, ${fight.toLowerCase()}, ${shortWhen(c.date, c.dateOnly).toLowerCase()}`,
+    };
+  }
+  if (t.last) {
+    const g = t.last;
+    return {
+      tag,
+      text: `${g.result} ${g.us}–${g.them} ${g.home ? "VS" : "@"} ${g.opp}`,
+      say: `${t.label} last ${g.result === "W" ? "won" : "lost"} ${g.us} to ${g.them}`,
+    };
+  }
+  return {
+    tag,
+    text: t.error ? "OFFLINE" : "NO GAMES",
+    say: `${t.label} no games`,
+  };
+}
+
+function scoresReading(read) {
+  const teams = SCORES?.teams || [];
+  if (!teams.length) {
+    read.append(
+      el("span", "band-num", "—"),
+      el("span", "band-sub", SCORES ? "NO GAMES" : "SYNCING"),
+    );
+    return { read, label: "loading" };
+  }
+  const list = el("span", "score-rows");
+  const says = [];
+  for (const t of teams) {
+    const r = scoreRow(t);
+    const row = el("span", `score-row-mini${r.live ? " is-live" : ""}`);
+    row.append(el("b", null, r.tag), el("span", null, r.text));
+    list.append(row);
+    says.push(r.say);
+  }
+  read.classList.add("is-scores");
+  read.append(
+    list,
+    el(
+      "span",
+      "band-asof",
+      SCORES?.at ? `AS OF ${fmtTime(new Date(SCORES.at))}` : "AS OF —",
+    ),
+  );
+  return { read, label: says.join("; ") };
+}
+
+function ticks(last30) {
+  const set = new Set(last30);
+  const wrap = el("span", "ticks");
+  wrap.setAttribute("aria-hidden", "true");
+  const today = new Date();
+  for (let i = 29; i >= 0; i--) {
+    const key = localDayKey(
+      new Date(today.getFullYear(), today.getMonth(), today.getDate() - i),
+    );
+    const t = el("i", set.has(key) ? "on" : i === 0 ? "today" : "");
+    wrap.append(t);
+  }
+  return wrap;
+}
+
+/* Most urgent first: a release ≤2 days out, then a lift gap past the
+   usual rhythm, otherwise registry order (Fitness first). */
+function urgency() {
+  const fit = DATA["fitness-tracker"]?.summary;
+  const mov = DATA["upcoming-movies"]?.summary;
+  const game = SCORES ? headline(SCORES.teams) : null;
+  if (game?.kind === "live") return "scores";
+  if (mov?.next && mov.next.daysUntil <= 2) return "upcoming-movies";
+  if (game?.kind === "today") return "scores";
+  if (
+    fit?.lastLift &&
+    fit.medianGap != null &&
+    fit.lastLift.daysAgo > fit.medianGap
+  )
+    return "fitness-tracker";
+  return null;
+}
+
+function renderBands() {
+  const wrap = $("#bands");
+  const lead = urgency();
+  const order = bandApps().map((a) => a.id);
+  if (lead) order.sort((a, b) => (a === lead ? -1 : b === lead ? 1 : 0));
+  order.forEach((id, i) => {
+    const app = APPS.find((a) => a.id === id);
+    const band = wrap.querySelector(`.band[data-app="${id}"]`);
+    if (!app || !band) return;
+    wrap.append(band); // re-append in urgency order
+    band.classList.toggle("is-flip", i % 2 === 1);
+    const { read, label } = readingFor(app);
+    band.querySelector(".band-read").replaceWith(read);
+    band.classList.toggle(
+      "is-stale",
+      id === "scores"
+        ? !!SCORES?.stale && !!SCORES?.at && navigator.onLine === false
+        : !!DATA[id]?.error,
+    );
+    if (band.classList.contains("is-revealed")) fillVeils(band, true);
+    band
+      .querySelector(".band-hit")
+      .setAttribute("aria-label", `${app.name}. ${label}.`);
+  });
+  fitBandNames();
+}
+
+/* Keeps every band's text inside its diagonal. The clip runs from
+   (0, slant)→(W, 0) on top and (W, H − slant)→(0, H) underneath, so the
+   usable height depends on where the reading sits: a right-hand reading
+   loses the most at the bottom, a left-hand one at the top. The reading
+   goes compact (drops secondary lines) when it can't fit, then the app
+   name fills the column beside it. Also sizes the budget hold target. */
+function fitBandNames() {
+  const slant = 18;
+  const pad = 4;
+  document.querySelectorAll(".band").forEach((band) => {
+    const name = band.querySelector(".band-name");
+    const read = band.querySelector(".band-read");
+    const W = band.clientWidth;
+    const H = band.clientHeight;
+    if (!name || !read || !W) return;
+    const flip = band.classList.contains("is-flip");
+    const limits = () => {
+      const xl = flip ? 16 : W - 16 - read.offsetWidth;
+      const xr = xl + read.offsetWidth;
+      const top = slant * (1 - xl / W) + pad;
+      return { top, bottom: H - (slant * xr) / W - pad };
+    };
+    band.classList.remove("is-compact");
+    let lim = limits();
+    if (read.offsetHeight > lim.bottom - lim.top) {
+      band.classList.add("is-compact");
+      lim = limits();
+    }
+    // Scores rows sit at the top; its name goes underneath when the band is
+    // tall enough, else beside them (whichever lets it be bigger). Other
+    // bands put the name beside the reading, centred in the room left.
+    const rows = read.classList.contains("is-scores");
+    const spare = Math.max(0, lim.bottom - lim.top - read.offsetHeight);
+    const top = lim.top + (rows ? 0 : Math.min(spare / 2, 10));
+    read.style.top = `${top.toFixed(1)}px`;
+
+    name.style.setProperty("--name-size", "100px");
+    const perPx = name.scrollWidth / 100;
+    const fit = (col, floor) =>
+      Math.min(col / perPx, (H - slant - 6 - floor) / 0.86);
+    const MIN = 30;
+    read.style.maxWidth = "";
+    let under = rows ? fit(W - 28, top + read.offsetHeight + 6) : 0;
+    if (rows && under < MIN) {
+      // Too short to stack: keep a column for the name; long rows ellipsize.
+      read.style.maxWidth = `${W - 14 - 16 - 12 - MIN * perPx}px`;
+      under = 0;
+    }
+    const beside = fit(W - 14 - 16 - read.offsetWidth - 12, slant);
+    const size = Math.max(24, Math.min(Math.max(beside, under), 120));
+    name.style.setProperty("--name-size", `${size.toFixed(1)}px`);
+
+    const hold = band.querySelector(".hold");
+    if (hold) {
+      Object.assign(hold.style, {
+        left: `${read.offsetLeft - 6}px`,
+        top: `${read.offsetTop - 4}px`,
+        width: `${read.offsetWidth + 12}px`,
+        height: `${Math.max(44, read.offsetHeight + 8)}px`,
+      });
+    }
+  });
+}
+
+/* ---------- strip ---------- */
+
+function buildStrip() {
+  const nav = $("#strip");
+  nav.innerHTML = "";
+  for (const app of stripApps()) {
+    const btn = el("button", "strip-item");
+    btn.type = "button";
+    btn.dataset.app = app.id;
+    btn.style.setProperty("--app-color", app.color);
+    btn.addEventListener("pointerdown", () => feel("tick"));
+    btn.addEventListener("click", () => launchApp(app.id, btn));
+    nav.append(btn);
+  }
+  renderStrip();
+}
+
+function renderStrip() {
+  document.querySelectorAll(".strip-item").forEach((btn) => {
+    const app = APPS.find((a) => a.id === btn.dataset.app);
+    const s = DATA[app.id]?.summary;
+    let reading = null;
+    if (app.id === "parlay" && s?.hitRate != null)
+      reading = `${Math.round(s.hitRate * 100)}%`;
+    if (app.id === "recipe-book" && s) reading = String(s.count);
+    btn.innerHTML = "";
+    btn.append(el("span", null, app.label || app.name));
+    if (reading) btn.append(el("b", null, reading));
+    btn.setAttribute(
+      "aria-label",
+      reading ? `${app.name}, ${reading}` : app.name,
+    );
+  });
+}
+
+/* ---------- ticker tape ---------- */
+
+function headlines() {
+  const out = [
+    greeting(new Date(), CONFIG.firstName || CONFIG.githubUser || ""),
+  ];
+  const fit = DATA["fitness-tracker"]?.summary;
+  const mov = DATA["upcoming-movies"]?.summary;
+  const par = DATA.parlay?.summary;
+  const rec = DATA["recipe-book"]?.summary;
+  if (fit) out.push(`${fit.last30.length} LIFTS IN 30 DAYS`);
+  if (fit?.lastLift)
+    out.push(
+      fit.lastLift.daysAgo === 0
+        ? "LIFTED TODAY"
+        : `${fit.lastLift.daysAgo}D SINCE LAST LIFT`,
+    );
+  if (mov?.next) {
+    const t = mov.next.titles.slice(0, 2).join(" + ").toUpperCase();
+    out.push(
+      mov.next.daysUntil <= 0
+        ? `${t} OUT TODAY`
+        : `${t} IN ${mov.next.daysUntil} DAYS`,
+    );
+  }
+  if (par?.hitRate != null)
+    out.push(
+      `PARLAY ${Math.round(par.hitRate * 100)}%${par.open ? ` · ${par.open} OPEN` : ""}`,
+    );
+  if (rec) out.push(`${rec.count} RECIPES`);
+  for (const t of SCORES?.teams || []) {
+    const name = t.label.toUpperCase();
+    if (t.live)
+      out.push(
+        `${name} ${t.live.us}–${t.live.them} ${String(t.live.detail).toUpperCase()}`,
+      );
+    else if (t.last)
+      out.push(
+        `${name} ${t.last.result} ${t.last.us}–${t.last.them} ${t.last.home ? "VS" : "@"} ${t.last.opp}`,
+      );
+    if (!t.live && t.next)
+      out.push(
+        `${name} ${t.next.home ? "VS" : "@"} ${t.next.opp} ${fmtGameTime(t.next.date)}`,
+      );
+    if (t.card) {
+      if (t.card.state === "post" && t.card.winner)
+        out.push(
+          `${String(t.card.name).toUpperCase()}: ${t.card.winner.toUpperCase()} WINS MAIN EVENT`,
+        );
+      else if (t.card.state !== "post") {
+        const main = t.card.main
+          ? `: ${surname(t.card.main[0].name)} VS ${surname(t.card.main[1].name)}`
+          : "";
+        const when = t.card.dateOnly
+          ? shortWhen(t.card.date, true)
+          : fmtGameTime(t.card.date);
+        out.push(`${String(t.card.name).toUpperCase()}${main} ${when}`);
+      }
+    }
+  }
+  return out;
+}
+
+let lastTape = "";
+function renderTape() {
+  const lines = headlines();
+  const text = lines.join(" — ") + " — ";
+  if (text === lastTape) return;
+  lastTape = text;
+  const track = $("#tape-track");
+  track.innerHTML = "";
+  // Two copies side by side; the track slides by exactly one copy (-50%).
+  const reps = Math.max(1, Math.ceil(60 / text.length));
+  const copy = text.repeat(reps);
+  track.append(el("span", null, copy), el("span", null, copy));
+  track.style.setProperty("--tape-s", `${Math.round(copy.length * 0.28)}s`);
+  const live = $("#tape-live");
+  if (!live.textContent) live.textContent = lines[0];
+}
+
+/* ---------- live data ---------- */
+
+const SYNC_KEY = "co.synced.at";
+let syncing = false;
+
+/* Status line: SYNCING while a refresh runs, SYNCED h:mm when everything
+   came back, otherwise OFFLINE with the time of the last good sync so an
+   old number is never mistaken for a fresh one. */
+function renderSyncLine() {
+  const v = `V${CONFIG.version || "2.0"}`;
+  let last = null;
+  try {
+    last = Number(localStorage.getItem(SYNC_KEY)) || null;
+  } catch (_) {}
+  const at = last ? fmtTime(new Date(last)) : "—";
+  const failed = Object.values(DATA).some((e) => e?.error);
+  const offline = navigator.onLine === false;
+  document.body.classList.toggle("is-offline", offline || failed);
+  $("#sync-line").textContent =
+    syncing && !offline
+      ? `${v} · SYNCING`
+      : offline || failed
+        ? `${v} · OFFLINE · AS OF ${at}`
+        : `${v} · SYNCED ${at}`;
+}
+
+async function refreshData() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token || !CONFIG.dataRepo || syncing) return;
+  lastDataLoad = Date.now();
+  syncing = true;
+  renderSyncLine();
+  await loadLiveData({
+    token,
+    repo: CONFIG.dataRepo,
+    onUpdate(appId, entry) {
+      DATA[appId] = entry;
+      renderBands();
+      renderStrip();
+      renderTape();
+    },
+  });
+  syncing = false;
+  if (!Object.values(DATA).some((e) => e?.error)) {
+    try {
+      localStorage.setItem(SYNC_KEY, String(Date.now()));
+    } catch (_) {}
+  }
+  renderSyncLine();
+}
+
+/* ---------- scores ---------- */
+
+function renderScoresPanel() {
+  const list = $("#scores-list");
+  list.innerHTML = "";
+  if (!SCORES?.teams?.length) {
+    list.append(el("p", "scores-empty", "SYNCING SCORES…"));
+    return;
+  }
+  for (const t of SCORES.teams) {
+    const row = el("section", "score-row");
+    row.append(el("h2", "score-team", t.label.toUpperCase()));
+    const lines = el("div", "score-lines");
+    const line = (tag, text, cls) => {
+      const p = el("p", `score-line${cls ? ` ${cls}` : ""}`);
+      p.append(el("b", null, tag), el("span", null, text));
+      lines.append(p);
+    };
+    if (t.live)
+      line(
+        "LIVE",
+        `${t.live.us}–${t.live.them} ${t.live.home ? "VS" : "@"} ${t.live.opp} · ${String(t.live.detail).toUpperCase()}`,
+        "is-live",
+      );
+    if (t.last)
+      line(
+        "LAST",
+        `${t.last.result} ${t.last.us}–${t.last.them} ${t.last.home ? "VS" : "@"} ${t.last.opp}`,
+      );
+    if (t.next)
+      line(
+        "NEXT",
+        `${t.next.home ? "VS" : "@"} ${t.next.opp} · ${fmtGameTime(t.next.date)}`,
+      );
+    if (t.card) {
+      line(
+        t.card.state === "post" ? "LAST" : "NEXT",
+        `${String(t.card.name).toUpperCase()} · ${t.card.dateOnly ? shortWhen(t.card.date, true) : fmtGameTime(t.card.date)}`,
+      );
+      if (t.card.main)
+        line(
+          "MAIN",
+          `${t.card.main[0].name} VS ${t.card.main[1].name}${t.card.winner ? ` · ${t.card.winner} WINS` : ""}`.toUpperCase(),
+        );
+    }
+    if (t.error && !t.last && !t.next && !t.card) line("—", "COULDN'T LOAD");
+    if (!lines.childElementCount) line("—", "NO GAMES SCHEDULED");
+    row.append(lines);
+    list.append(row);
+  }
+  const at = SCORES.at ? fmtTime(new Date(SCORES.at)) : "—";
+  list.append(
+    el(
+      "p",
+      "scores-foot",
+      `${SCORES.stale ? "OFFLINE · " : ""}AS OF ${at} · ESPN`,
+    ),
+  );
+}
+
+async function refreshScores() {
+  clearTimeout(scoresTimer);
+  await loadScores(CONFIG.teams, (payload) => {
+    SCORES = payload;
+    renderBands();
+    renderTape();
+    if (openAppId === "scores") renderScoresPanel();
+  });
+  // Poll every minute while a game is live, otherwise every 30 minutes.
+  const live = SCORES?.teams?.some((t) => t.live);
+  scoresTimer = setTimeout(refreshScores, live ? 60_000 : 30 * 60_000);
+}
+
+/* ---------- search ---------- */
+
+const ACTIONS = [
+  { label: "Lock", keywords: "lock sign out logout", run: () => lock() },
+  {
+    label: "Refresh",
+    keywords: "refresh sync reload update",
+    run: () => refreshData(),
+  },
+  {
+    label: "Sound",
+    keywords: "sound audio mute unmute volume",
+    run: () => {
+      setSound(!soundOn());
+      if (soundOn()) feel("tick");
+      $("#tape-live").textContent = soundOn() ? "Sound on" : "Sound off";
+    },
+  },
+];
+
+function matches(q, ...fields) {
+  return fields.some((f) =>
+    String(f || "")
+      .toLowerCase()
+      .includes(q),
+  );
+}
+
+function applySearch() {
+  const q = $("#search").value.trim().toLowerCase();
+  let first = null;
+  const visibleOrder = [
+    ...document.querySelectorAll(".band"),
+    ...document.querySelectorAll(".strip-item"),
+  ];
+  for (const node of visibleOrder) {
+    const app = APPS.find((a) => a.id === node.dataset.app);
+    const hit =
+      !q || matches(q, app.name, app.label, app.subtitle, app.keywords);
+    node.classList.toggle("is-filtered", !hit);
+    if (hit && q && !first) first = app;
+  }
+  requestAnimationFrame(fitBandNames);
+  const action =
+    q && !first ? ACTIONS.find((a) => matches(q, a.label, a.keywords)) : null;
+  return { first, action };
+}
+
+function wireSearch() {
+  const input = $("#search");
+  input.addEventListener("input", applySearch);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const { first, action } = applySearch();
+      if (first) {
+        const origin = document.querySelector(
+          `[data-app="${CSS.escape(first.id)}"]`,
+        );
+        input.blur();
+        launchApp(first.id, origin);
+      } else if (action) {
+        action.run();
+      }
+      input.value = "";
+      applySearch();
+    } else if (e.key === "Escape") {
+      input.value = "";
+      applySearch();
+      input.blur();
+    }
+  });
+}
+
+/* ---------- open / close an app ---------- */
+
+function rectInset(node) {
+  const r = node?.getBoundingClientRect?.();
+  if (!r || !r.width) return "inset(40% 0 40% 0)";
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  return `inset(${Math.max(0, r.top)}px ${Math.max(0, vw - r.right)}px ${Math.max(0, vh - r.bottom)}px ${Math.max(0, r.left)}px)`;
+}
+
+function originFor(appId) {
+  return (
+    document.querySelector(`.band[data-app="${CSS.escape(appId)}"]`) ||
+    document.querySelector(`.strip-item[data-app="${CSS.escape(appId)}"]`)
+  );
+}
+
+const layerFor = (appId) =>
+  APPS.find((a) => a.id === appId)?.panel ? $("#scores-panel") : $("#embed");
+
+function launchApp(appId, originEl, { animate = true } = {}) {
+  const app = APPS.find((a) => a.id === appId && (a.url || a.panel));
+  if (!app || openAppId === appId) return;
+  if (openAppId) closeApp({ fromHistory: true, quiet: true });
+  // Only an animated launch gets the whoosh; deep links open silently.
+  if (animate) feel("open");
+  openAppId = appId;
+  const embed = layerFor(appId);
+  embed.style.setProperty("--app-color", app.color);
+  embed.style.setProperty("--app-fg", inkFor(app.color));
+  if (app.panel) {
+    renderScoresPanel();
+  } else {
+    $("#embed-title").textContent = app.label || app.name;
+    const frame = $("#embed-frame");
+    frame.title = app.name;
+    embed.classList.remove("is-failed");
+    if (frame.getAttribute("src") !== app.url) {
+      embed.classList.add("is-loading");
+      frame.src = app.url;
+      armEmbedTimeout(app);
+    }
+  }
+  if (location.hash !== `#app/${app.id}`)
+    history.pushState({ app: app.id }, "", `#app/${app.id}`);
+
+  embed.hidden = false;
+  $("#app").setAttribute("aria-hidden", "true");
+  if (animate && !reducedMotion()) {
+    embed.classList.remove("is-animating");
+    embed.style.clipPath = rectInset(originEl || originFor(appId));
+    embed.getBoundingClientRect(); // commit the start frame
+    embed.classList.add("is-animating");
+    embed.style.clipPath = "inset(0 0 0 0)";
+  } else {
+    embed.style.clipPath = "inset(0 0 0 0)";
+  }
+  embed.querySelector(".embed-home").focus({ preventScroll: true });
+}
+
+function closeApp({ fromHistory = false, quiet = false } = {}) {
+  if (!openAppId) return;
+  const embed = layerFor(openAppId);
+  const appId = openAppId;
+  openAppId = null;
+  clearTimeout(embedTimer);
+  if (!quiet) feel("close");
+  $("#app").removeAttribute("aria-hidden");
+  if (!fromHistory && location.hash)
+    history.pushState(null, "", location.pathname + location.search);
+  const finish = () => {
+    embed.hidden = true;
+    embed.classList.remove("is-animating", "is-loading", "is-failed");
+    // Keep the iframe document resident: reopening the same app is instant.
+    originFor(appId)
+      ?.querySelector?.(".band-hit")
+      ?.focus({ preventScroll: true });
+  };
+  if (reducedMotion() || quiet) return finish();
+  embed.classList.add("is-animating");
+  embed.style.clipPath = rectInset(originFor(appId));
+  const ms =
+    parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue(
+        "--launch-ms",
+      ),
+    ) || 420;
+  setTimeout(finish, ms + 20);
+}
+
+function armEmbedTimeout(app) {
+  clearTimeout(embedTimer);
+  embedTimer = setTimeout(() => {
+    const embed = $("#embed");
+    embed.classList.remove("is-loading");
+    embed.classList.add("is-failed");
+    $("#embed-failure-msg").textContent =
+      navigator.onLine === false
+        ? `You're offline, and ${app.name} isn't saved on this phone yet.`
+        : `${app.name} didn't respond in time.`;
+  }, EMBED_LOAD_TIMEOUT_MS);
+}
+
+/* The PAT is delivered only by postMessage to the app's exact origin,
+   never in the iframe URL (history / session restore / referrer leaks). */
+function sendPatHandshake(frame) {
+  const app = APPS.find((a) => a.id === openAppId);
+  if (!app || app.auth !== "pat" || !frame.contentWindow) return;
+  const pat = localStorage.getItem(TOKEN_KEY);
+  if (!pat) return;
+  try {
+    frame.contentWindow.postMessage(
+      { type: "co.pat", pat },
+      new URL(app.url).origin,
+    );
+  } catch (_) {}
+}
+
+function wireEmbed() {
+  const frame = $("#embed-frame");
+  frame.addEventListener("load", () => {
+    if (!frame.getAttribute("src")) return;
+    clearTimeout(embedTimer);
+    $("#embed").classList.remove("is-loading", "is-failed");
+    sendPatHandshake(frame);
+  });
+  $("#embed-home").addEventListener("click", () => closeApp());
+  $("#scores-home").addEventListener("click", () => closeApp());
+  $("#embed-failure-close").addEventListener("click", () => closeApp());
+  $("#embed-failure-retry").addEventListener("click", () => {
+    const app = APPS.find((a) => a.id === openAppId);
+    if (!app) return;
+    $("#embed").classList.replace("is-failed", "is-loading");
+    frame.src = "about:blank";
+    setTimeout(() => {
+      frame.src = app.url;
+      armEmbedTimeout(app);
+    }, 0);
+  });
+}
+
+function handleHash() {
+  const m = location.hash.match(/^#app\/(.+)$/);
+  if (!m) return closeApp({ fromHistory: true });
+  if (m[1] !== openAppId) launchApp(m[1], null, { animate: openAppId == null });
+}
+
+/* ---------- keyboard ---------- */
+
+function wireKeys() {
   window.addEventListener("keydown", (e) => {
-    const active = document.activeElement;
-    const typing =
-      active &&
-      (active.tagName === "INPUT" ||
-        active.tagName === "TEXTAREA" ||
-        active.isContentEditable);
-    if (e.key === "Escape") {
-      closeActiveApp();
+    const typing = /^(INPUT|TEXTAREA)$/.test(
+      document.activeElement?.tagName || "",
+    );
+    if (e.key === "Escape" && openAppId) return closeApp();
+    if (
+      (e.key === "k" && (e.metaKey || e.ctrlKey)) ||
+      (e.key === "/" && !typing)
+    ) {
+      e.preventDefault();
+      if (openAppId) closeApp();
+      $("#search").focus();
       return;
     }
     if (
       !typing &&
+      !openAppId &&
       /^[1-9]$/.test(e.key) &&
       !e.metaKey &&
       !e.ctrlKey &&
       !e.altKey
     ) {
-      // Keys 1-9 map to the tiles in visual order, which is the DOM order
-      // of #launcher-grid (the grid is statically authored in index.html).
-      // If the grid ever becomes registry-driven, keep emitting the tiles
-      // in apps.json order so the numbering stays stable.
-      const idx = parseInt(e.key, 10) - 1;
-      const tile = document.querySelectorAll(
-        "#launcher-grid .icon[data-app]",
-      )[idx];
-      if (tile) {
+      const nodes = [
+        ...document.querySelectorAll(".band"),
+        ...document.querySelectorAll(".strip-item"),
+      ];
+      const node = nodes[Number(e.key) - 1];
+      if (node) {
         e.preventDefault();
-        tile.click();
+        launchApp(node.dataset.app, node);
       }
     }
   });
 }
 
-/* ---------- Embed iframe (how each app actually opens) ---------- */
+/* ---------- lock / unlock ---------- */
 
-function ensureEmbedShell() {
-  let wrap = document.getElementById("embed");
-  if (wrap) return wrap;
-  wrap = document.createElement("div");
-  wrap.id = "embed";
-  wrap.hidden = true;
-  wrap.className = "embed-shell";
-  wrap.innerHTML = `
-    <div class="embed-bar">
-      <button id="embed-home" type="button" aria-label="Home" class="embed-home">
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3.5 11.5L12 4l8.5 7.5"/>
-          <path d="M5.5 10.5V19a1.5 1.5 0 0 0 1.5 1.5h3.5V15h3v5.5H17a1.5 1.5 0 0 0 1.5-1.5v-8.5"/>
-        </svg>
-        <span>Home</span>
-      </button>
-      <div id="embed-title" class="embed-title"></div>
-    </div>
-    <iframe id="embed-frame" class="embed-frame" title="App" referrerpolicy="no-referrer" allow="clipboard-read; clipboard-write; fullscreen"></iframe>
-  `;
-  const back = document.getElementById("flip-back") || document.body;
-  back.appendChild(wrap);
-  document.getElementById("embed-home").addEventListener("click", () => {
-    if (location.hash) {
-      history.pushState(null, "", location.pathname + location.search);
-    }
-    closeActiveApp();
+async function lock() {
+  localStorage.removeItem(TOKEN_KEY);
+  closeApp();
+  await clearLiveData();
+  for (const k of Object.keys(DATA)) delete DATA[k];
+  location.reload();
+}
+
+let started = false;
+function startHome() {
+  if (started) return;
+  started = true;
+  $("#app").hidden = false;
+  document.title = CONFIG.title || "Central Optimus";
+  startClock();
+  setWeatherLine(null);
+  setPublishStamp();
+  buildBands();
+  buildStrip();
+  renderBands();
+  renderTape();
+  wireSearch();
+  $("#lock").addEventListener("click", lock);
+  document.fonts?.ready.then(fitBandNames);
+  window.addEventListener("resize", () => requestAnimationFrame(fitBandNames));
+  weatherController?.destroy();
+  weatherController = initWeather({
+    mountEl: null,
+    onUpdate: setWeatherLine,
+    onError: () => {},
   });
-
-  // Spinner + failure overlay sit on the .flip-back curtain so they
-  // appear above the iframe. CSS keys both off classes on .flip-back:
-  // .is-loading shows the spinner, .is-failed shows the failure card.
-  if (back && !back.querySelector(".embed-loading")) {
-    const loading = document.createElement("div");
-    loading.className = "embed-loading";
-    loading.setAttribute("aria-hidden", "true");
-    loading.innerHTML = `<div class="embed-spinner" aria-hidden="true"></div>`;
-    back.appendChild(loading);
-  }
-  if (back && !back.querySelector(".embed-failure")) {
-    const failure = document.createElement("div");
-    failure.className = "embed-failure";
-    failure.setAttribute("role", "alert");
-    failure.innerHTML = `
-      <div class="embed-failure-card">
-        <h3>Couldn't load app</h3>
-        <p id="embed-failure-msg">The app didn't respond in time.</p>
-        <div class="embed-failure-actions">
-          <button type="button" id="embed-failure-close">Close</button>
-          <button type="button" id="embed-failure-retry" class="is-primary">Retry</button>
-        </div>
-      </div>
-    `;
-    back.appendChild(failure);
-    failure.querySelector("#embed-failure-close").addEventListener("click", () => {
-      closeActiveApp();
-    });
-    failure.querySelector("#embed-failure-retry").addEventListener("click", () => {
-      const app = APPS.find((a) => a.id === activeAppId);
-      if (app) reloadEmbed(app);
-    });
-  }
-
-  // Cream curtain on .flip-back hides any pre-paint flash from the iframe
-  // until it fires its load event. Each openEmbed adds .is-loading; the
-  // load handler clears it. A 10s watchdog flips to .is-failed if the
-  // load event never arrives.
-  const frame = wrap.querySelector("#embed-frame");
-  frame.addEventListener("load", () => {
-    clearEmbedTimeout();
-    if (back && back.classList) {
-      back.classList.remove("is-loading");
-      back.classList.remove("is-failed");
-    }
-    sendPatHandshake(frame);
+  renderSyncLine();
+  refreshData();
+  refreshScores();
+  // Offline-first: everything above painted from cache; when the network
+  // comes back, re-sync data and weather without waiting for a relaunch.
+  window.addEventListener("online", () => {
+    refreshData();
+    refreshScores();
+    weatherController?.refresh?.();
   });
-
-  return wrap;
-}
-
-let embedLoadTimer = null;
-const EMBED_LOAD_TIMEOUT_MS = 10000;
-
-function clearEmbedTimeout() {
-  if (embedLoadTimer) {
-    clearTimeout(embedLoadTimer);
-    embedLoadTimer = null;
-  }
-}
-
-function armEmbedTimeout(appName) {
-  clearEmbedTimeout();
-  embedLoadTimer = setTimeout(() => {
-    const back = document.getElementById("flip-back");
-    if (!back) return;
-    back.classList.remove("is-loading");
-    back.classList.add("is-failed");
-    const msg = back.querySelector("#embed-failure-msg");
-    if (msg) {
-      msg.textContent = `${appName || "The app"} didn't respond in time.`;
-    }
-  }, EMBED_LOAD_TIMEOUT_MS);
-}
-
-function reloadEmbed(app) {
-  const frame = document.getElementById("embed-frame");
-  const back = document.getElementById("flip-back");
-  if (!frame) return;
-  if (back) {
-    back.classList.remove("is-failed");
-    back.classList.add("is-loading");
-  }
-  // Force a reload even if the URL is the same as last time.
-  frame.src = "about:blank";
-  // Yield a tick so the about:blank actually swaps before the real src.
-  setTimeout(() => {
-    frame.src = embedUrlFor(app);
-    armEmbedTimeout(app.name);
-  }, 0);
-}
-
-/* PostMessage handshake for PAT-gated apps. The PAT is delivered only
-   through this channel — never through the iframe URL — so it can't
-   leak via history, session restore, or any URL-aware logging the
-   embedded app does. The message targets the iframe's specific origin
-   and stays in memory. */
-function sendPatHandshake(frame) {
-  if (!frame || !frame.contentWindow) return;
-  const id = activeAppId;
-  if (!id) return;
-  const app = APPS.find((a) => a.id === id);
-  if (!app || app.auth !== "pat") return;
-  const pat = localStorage.getItem(TOKEN_KEY) || "";
-  if (!pat) return;
-  let origin;
-  try {
-    origin = new URL(app.url).origin;
-  } catch (_) {
-    return;
-  }
-  try {
-    frame.contentWindow.postMessage({ type: "co.pat", pat }, origin);
-  } catch (_) {}
-}
-
-function embedUrlFor(app) {
-  // PAT-gated apps receive the token via postMessage (see sendPatHandshake)
-  // rather than a URL query param, which would leak through history,
-  // session restore, and any URL-aware logging the embedded app does.
-  return app.url;
-}
-
-function openEmbed(app) {
-  const wrap = ensureEmbedShell();
-  document.getElementById("embed-title").textContent = app.name;
-  const frame = document.getElementById("embed-frame");
-  const back = document.getElementById("flip-back");
-  if (back) back.classList.remove("is-failed");
-  // Iframe title reflects the active app so screen readers announce it
-  // instead of a generic "App".
-  frame.title = app.name;
-  const src = embedUrlFor(app);
-  if (frame.src !== src) {
-    if (back) back.classList.add("is-loading");
-    frame.src = src;
-    armEmbedTimeout(app.name);
-  }
-  wrap.hidden = false;
-  const hash = `#app/${app.id}`;
-  if (location.hash !== hash) {
-    history.pushState({ embed: app.id }, "", hash);
-  }
-}
-
-function hideEmbed() {
-  const wrap = document.getElementById("embed");
-  if (!wrap) return;
-  wrap.hidden = true;
-  clearEmbedTimeout();
-  const back = document.getElementById("flip-back");
-  if (back) {
-    back.classList.remove("is-loading");
-    back.classList.remove("is-failed");
-  }
-  // Deliberately DON'T blank the iframe here. The embed shell is hidden
-  // (display:none) so the app stops painting, but its document stays
-  // resident — reopening the SAME app is then instant (openEmbed sees the
-  // src already matches and skips the reload + loading curtain) and the
-  // user lands back where they left off. Opening a DIFFERENT app still
-  // navigates the frame and shows the spinner as before.
-}
-
-/* Back/forward navigation: sync the flip state without pushing more
-   history entries (launchApp/openEmbed already pushState themselves
-   when invoked from a tile tap). The state-machine guard inside
-   launchApp/closeActiveApp coalesces popstate during an in-flight
-   flip — it's a no-op then and the next idle state catches up. */
-function handleHash() {
+  window.addEventListener("offline", renderSyncLine);
+  document.addEventListener("visibilitychange", () => {
+    if (
+      document.visibilityState === "visible" &&
+      Date.now() - lastDataLoad > 5 * 60_000
+    )
+      refreshData();
+  });
+  // Deep link (#app/<id>) at boot: open straight into the app, no animation.
   const m = location.hash.match(/^#app\/(.+)$/);
-  if (!m) {
-    if (flipState === "open" || flipState === "opening") closeActiveApp();
-    return;
-  }
-  const app = APPS.find((a) => a.id === m[1] && a.url);
-  if (!app) {
-    if (flipState === "open" || flipState === "opening") closeActiveApp();
-    return;
-  }
-  if (flipState === "idle") launchApp(app.id);
+  if (m) launchApp(m[1], null, { animate: false });
 }
 
-window.addEventListener("popstate", handleHash);
-
-/* ---------- Auth + bootstrap ---------- */
-
-function revealApp(title) {
-  document.getElementById("app").hidden = false;
-  document.title = title || "Central Optimus";
-}
-
-async function unlock(config, registry) {
-  const dialog = document.getElementById("gate");
-  const form = document.getElementById("gate-form");
-  const input = document.getElementById("token");
-  const error = document.getElementById("gate-error");
-
-  if (!config.githubUser) {
+async function unlock() {
+  const dialog = $("#gate");
+  const form = $("#gate-form");
+  const input = $("#token");
+  const error = $("#gate-error");
+  if (!CONFIG.githubUser) {
     document.body.textContent =
       "Set githubUser in config.json before the launcher will load.";
     return;
   }
-
-  let revealed = false;
-  const finish = () => {
-    if (revealed) return;
-    revealed = true;
-    if (dialog.open) dialog.close();
-    revealApp(config.title);
-    APPS = registry.apps || [];
-    startClock(config);
-    setPublishStamp();
-    setHeroLocation(config.location);
-    setAppVersion(config.version);
-    wireLauncherGrid();
-    startWatchCanvas();
-    wireGestureLock();
-    bootSequence();
-
-    const weatherEl = document.getElementById("hero-weather");
-    if (weatherEl) {
-      if (weatherController) weatherController.destroy();
-      weatherController = initWeather({
-        mountEl: weatherEl,
-        onUpdate: (payload) => {
-          weatherEl.hidden = false;
-          // Weather resolves real coordinates, so prefer the city it
-          // reverse-geocoded over the config default — keeps the label
-          // honest when the user is away from home.
-          if (payload && payload.place) setHeroLocation(payload.place);
-        },
-        onError: () => {},
-      });
-    }
-  };
-
   const showGate = (message) => {
-    if (message) {
-      error.textContent = message;
-      error.hidden = false;
-    }
+    error.hidden = !message;
+    if (message) error.textContent = message;
     if (!dialog.open) dialog.showModal();
     input.focus();
   };
-
-  // Wired once and reused whether the gate shows on first run or after a
-  // background re-check invalidates a cached token.
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     error.hidden = true;
     const token = input.value.trim();
-    const result = await verifyToken(token, config.githubUser);
+    const result = await verifyToken(token, CONFIG.githubUser);
     if (result.ok) {
       localStorage.setItem(TOKEN_KEY, token);
-      finish();
+      if (dialog.open) dialog.close();
+      startHome();
       return;
     }
-    error.textContent = gateErrorMessage(result, config.githubUser);
+    error.textContent = gateErrorMessage(result, CONFIG.githubUser);
     error.hidden = false;
-    if (result.reason === "wrong-account" || result.reason === "unauthorized") {
+    if (result.reason === "wrong-account" || result.reason === "unauthorized")
       input.value = "";
-    }
     input.focus();
   });
 
   const existing = localStorage.getItem(TOKEN_KEY);
   if (existing) {
-    // Optimistic reveal: a cached token was already verified once, so show
-    // the launcher IMMEDIATELY instead of blocking the first paint on a
-    // GitHub round-trip every single launch. Re-verify in the background
-    // and only fall back to the gate if the token is genuinely bad
-    // (revoked / wrong account). Transient failures (offline, rate-limit)
-    // leave the user unlocked so a GitHub hiccup doesn't lock them out.
-    finish();
-    verifyToken(existing, config.githubUser).then((result) => {
-      if (result.ok) return;
-      if (result.reason === "network" || result.reason === "rate-limit") return;
+    // Optimistic reveal; re-verify in the background and only fall back to
+    // the gate if the token is genuinely bad (not on network/rate limits).
+    startHome();
+    verifyToken(existing, CONFIG.githubUser).then((result) => {
+      if (
+        result.ok ||
+        result.reason === "network" ||
+        result.reason === "rate-limit"
+      )
+        return;
       localStorage.removeItem(TOKEN_KEY);
-      showGate(gateErrorMessage(result, config.githubUser));
+      showGate(gateErrorMessage(result, CONFIG.githubUser));
     });
     return;
   }
-
   showGate();
-}
-
-/* Background gesture lock — the corner button toggles whether the
-   watch canvas accepts pinch/drag. State persists across reloads so
-   the user's preference survives navigating away and back. */
-function applyGestureLock(locked) {
-  const btn = document.getElementById("lock");
-  if (btn) {
-    btn.dataset.state = locked ? "locked" : "unlocked";
-    const label = locked ? "Unlock background" : "Lock background";
-    btn.setAttribute("aria-label", label);
-    btn.setAttribute("aria-pressed", locked ? "true" : "false");
-    btn.title = label;
-  }
-  if (watchCanvas && watchCanvas._setGestureLock) {
-    watchCanvas._setGestureLock(locked);
-  }
-}
-
-function wireGestureLock() {
-  const initial = localStorage.getItem(GESTURE_LOCK_KEY) === "1";
-  applyGestureLock(initial);
-  const btn = document.getElementById("lock");
-  if (!btn || btn._wired) return;
-  btn._wired = true;
-  btn.addEventListener("click", () => {
-    const next = btn.dataset.state !== "locked";
-    localStorage.setItem(GESTURE_LOCK_KEY, next ? "1" : "0");
-    applyGestureLock(next);
-    haptic(6);
-  });
-}
-
-function startWatchCanvas() {
-  watchCanvas = document.querySelector(".watch-canvas");
-  if (!watchCanvas || watchCanvas._setCamera) return;
-  try {
-    startMovement(watchCanvas);
-  } catch (err) {
-    console.warn("mechanism failed to start:", err);
-  }
-}
-
-/* Boot choreography — decides between the "zoom from wide" opening and
-   the direct-to-app path (reload on an #app/<id> hash). */
-function bootSequence() {
-  const shell = document.getElementById("app");
-  const card = document.getElementById("flip-card");
-
-  const hashMatch = location.hash.match(/^#app\/(.+)$/);
-  const hashApp = hashMatch
-    ? APPS.find((a) => a.id === hashMatch[1] && a.url)
-    : null;
-
-  if (hashApp) {
-    // Reloaded directly into an app — skip the boot zoom, land the
-    // camera at wide (so the back of the flip card reads against a
-    // framed watch if the user closes), and flip immediately.
-    if (watchCanvas && watchCanvas._setCamera) {
-      watchCanvas._setCamera("wide", 0);
-    }
-    if (shell) {
-      shell.classList.remove("is-booting");
-      shell.classList.add("app-open");
-    }
-    flipState = "open";
-    activeAppId = hashApp.id;
-    openEmbed(hashApp);
-    // Reloaded straight into an app — the watch is hidden behind it, so
-    // start the mechanism idled.
-    if (watchCanvas && watchCanvas._setOccluded) watchCanvas._setOccluded(true);
-    if (card) card.classList.add("is-flipped");
-    const front = document.querySelector(".flip-front");
-    const back = document.getElementById("flip-back");
-    if (front) front.setAttribute("aria-hidden", "true");
-    if (back) back.removeAttribute("aria-hidden");
-    return;
-  }
-
-  if (reducedMotion || !watchCanvas || !watchCanvas._setCamera) {
-    if (watchCanvas && watchCanvas._setCamera) {
-      watchCanvas._setCamera("ambient", 0);
-    }
-    if (shell) shell.classList.remove("is-booting");
-    return;
-  }
-
-  // Fresh boot: camera starts at 'wide' (mechanism's default), tween
-  // in to 'ambient' over the boot-zoom duration. The shell's fade-in
-  // is held until the shell-delay so the greeting lands as the
-  // mechanism settles behind it rather than floating over a tiny watch.
-  watchCanvas._setCamera("ambient", TIMING.bootZoom);
-  setTimeout(() => {
-    if (shell) shell.classList.remove("is-booting");
-  }, TIMING.bootShellDelay);
-}
-
-wireGlobalShortcuts();
-
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
-  });
 }
 
 function showBootError(err, retry) {
   console.error(err);
-  let overlay = document.getElementById("boot-error");
-  if (overlay) overlay.remove();
-  overlay = document.createElement("div");
+  document.getElementById("boot-error")?.remove();
+  const overlay = el("div", "boot-error");
   overlay.id = "boot-error";
-  overlay.className = "boot-error";
-  overlay.innerHTML = `
-    <div class="boot-error-card">
-      <h2>Couldn't load launcher</h2>
-      <p>${(err && err.message) || "Something went wrong."}</p>
-      <button type="button" id="boot-error-retry">Retry</button>
-    </div>
-  `;
-  document.body.appendChild(overlay);
-  document
-    .getElementById("boot-error-retry")
-    .addEventListener("click", () => {
-      overlay.remove();
-      retry();
-    });
+  const btn = el("button", "square-btn wide is-accent", "RETRY");
+  btn.type = "button";
+  btn.addEventListener("click", () => {
+    overlay.remove();
+    retry();
+  });
+  overlay.append(
+    el("h2", null, "COULDN'T LOAD"),
+    el("p", null, err?.message || "Something went wrong."),
+    btn,
+  );
+  document.body.append(overlay);
 }
 
-(function bootLauncher() {
+/* ---------- boot ---------- */
+
+wireKeys();
+wireEmbed();
+window.addEventListener("popstate", handleHash);
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () =>
+    navigator.serviceWorker.register("./sw.js").catch(() => {}),
+  );
+}
+
+(function boot() {
   const start = async () => {
     try {
       const [config, registry] = await Promise.all([
         loadJSON("./config.json"),
         loadJSON("./apps.json"),
       ]);
-      await unlock(config, registry);
+      CONFIG = config;
+      APPS = registry.apps || [];
+      await unlock();
     } catch (err) {
       showBootError(err, start);
     }

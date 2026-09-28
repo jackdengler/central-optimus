@@ -1,15 +1,20 @@
-const CACHE = "launcher-v29";
+const CACHE = "launcher-v32";
 const SHELL = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
-  "./mechanism.js",
+  "./data.js",
+  "./feel.js",
+  "./scores.js",
   "./weather.js",
   "./config.json",
   "./apps.json",
   "./manifest.webmanifest",
   "./icons/icon.svg",
+  "./fonts/Anton-400.woff2",
+  "./fonts/DMMono-400.woff2",
+  "./fonts/DMMono-500.woff2",
 ];
 // build.json is only written by the deploy workflow, so it 404s in local
 // dev. Cache it best-effort so a missing file doesn't break SW install.

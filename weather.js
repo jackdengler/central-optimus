@@ -95,14 +95,17 @@ function loadCoords() {
 function saveCoords(lat, lon) {
   localStorage.setItem(COORDS_KEY, JSON.stringify({ lat, lon }));
 }
-function loadCache() {
+// maxAge: the fresh-cache window by default; Infinity for an offline
+// fallback that still shows the last reading (flagged stale).
+function loadCache(maxAge = CACHE_TTL_MS) {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     if (!raw) return null;
     const v = JSON.parse(raw);
     if (!v || typeof v.ts !== "number") return null;
-    if (Date.now() - v.ts > CACHE_TTL_MS) return null;
-    return v;
+    const age = Date.now() - v.ts;
+    if (age > maxAge) return null;
+    return { ...v, stale: age > CACHE_TTL_MS };
   } catch {
     return null;
   }
@@ -131,6 +134,8 @@ async function fetchWeather(lat, lon) {
   url.searchParams.set("longitude", String(lon));
   url.searchParams.set("current", "temperature_2m,weather_code");
   url.searchParams.set("temperature_unit", "fahrenheit");
+  url.searchParams.set("daily", "sunrise,sunset");
+  url.searchParams.set("forecast_days", "1");
   url.searchParams.set("timezone", "auto");
   const res = await fetch(url.toString(), { cache: "no-store" });
   if (!res.ok) throw new Error(`weather ${res.status}`);
@@ -143,7 +148,11 @@ async function fetchWeather(lat, lon) {
     if (temp >= 85) kind = "hot";
     else if (temp <= 32) kind = "cold";
   }
-  return { temp, code, label: meta.label, icon: meta.icon, kind };
+  // Local wall-clock "HH:MM" (timezone=auto returns local ISO strings).
+  const hhmm = (v) => (typeof v === "string" && v.includes("T") ? v.slice(11, 16) : null);
+  const sunrise = hhmm(data?.daily?.sunrise?.[0]);
+  const sunset = hhmm(data?.daily?.sunset?.[0]);
+  return { temp, code, label: meta.label, icon: meta.icon, kind, sunrise, sunset };
 }
 
 // Reverse-geocode coordinates to a human place name (city/town) using
@@ -202,7 +211,9 @@ function renderUnavailable(mountEl, reason) {
 export function initWeather({ mountEl, onUpdate, onError } = {}) {
   ensureStyles();
 
-  const cached = loadCache();
+  // Paint the last reading immediately, however old; a fresh fetch
+  // replaces it (and marks it no longer stale) when the network allows.
+  const cached = loadCache(Infinity);
   if (cached) {
     renderChip(mountEl, cached);
     onUpdate?.(cached);
@@ -244,6 +255,7 @@ export function initWeather({ mountEl, onUpdate, onError } = {}) {
   refreshTimer = setInterval(run, REFRESH_MS);
 
   return {
+    refresh: run,
     destroy() {
       cancelled = true;
       clearInterval(refreshTimer);
