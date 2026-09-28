@@ -1,6 +1,6 @@
 # Central Optimus — Big Type launcher (clean-slate redesign)
 
-Status: **Design locked 2026-09-28. Build next.**
+Status: **Built on the feature branch 2026-09-28. Awaiting approval to merge to `main`.**
 
 ## Decisions
 
@@ -44,11 +44,20 @@ Status: **Design locked 2026-09-28. Build next.**
 The PAT gate (optimistic reveal plus background re-verify), the postMessage PAT handshake for `auth: "pat"` apps, iframe hosting with the load watchdog, retry/close, `#app/<id>` deep links, back/forward, the CSP, the service worker (bump the cache), and the manifest.
 
 ## Build plan
-- [ ] P0 Foundations: remove `mechanism.js`, the flip-card and Konsta. Split `app.js` into modules (auth, embed, data, ui). Self-host Anton and DM Mono woff2 (the CSP's font-src is 'self'). Add `dataRepo` to config
-- [ ] P1 Data layer: `data.js` summarizers for fitness, movies, parlay, recipes and budget (tested against real files); IndexedDB cache plus ETag; stale flags
-- [ ] P2 Home UI: header/time/weather, ticker tape, 3 bands with auto-fit names, urgency ordering, strip, search
-- [ ] P3 Interactions: band-to-app launch/close, scratch-off reveal, search filtering, reduced-motion paths
-- [ ] P4 Proof: update the Playwright specs and snapshots, lint, format, a11y, iPhone-size renders; push to the preview branch
+- [x] P0 Foundations: remove `mechanism.js`, the flip-card and Konsta. Split `app.js` into modules (auth, embed, data, ui). Self-host Anton and DM Mono woff2 (the CSP's font-src is 'self'). Add `dataRepo` to config
+- [x] P1 Data layer: `data.js` summarizers for fitness, movies, parlay, recipes and budget (tested against real files); IndexedDB cache plus ETag; stale flags
+- [x] P2 Home UI: header/time/weather, ticker tape, 3 bands with auto-fit names, urgency ordering, strip, search
+- [x] P3 Interactions: band-to-app launch/close, scratch-off reveal, search filtering, reduced-motion paths
+- [x] P4 Proof: update the Playwright specs and snapshots, lint, format, a11y, iPhone-size renders; push to the preview branch
 
 ## Review
-_(filled in after build)_
+- **What was built:** the Big Type launcher (commit `f8b9e1a`), plus the data layer (`f8e3b86`).
+- **Verification:**
+  - Rendered at iPhone 14 size against the real data files: 10 lifts / 30d, T–4, Fitness on top because the gap was 5d against a usual 2d.
+  - Fixed what the render showed: header overlap, reason-tag collision, the HOLD button covering a figure, the search placeholder, and the tape clipping the sunset line.
+  - The budget summarizer matches budget-together's own `compute('p1')` on all 12 ledger months.
+  - Playwright: 29/29 pass on Chromium (smoke, home, launch, auth, data, visual). WebKit isn't installed in this container, so CI runs the mobile-safari project.
+- **Follow-ups (not done):**
+  - The app icon (`icons/icon.svg`) is still the old cream design.
+  - The splash colors in `deploy.yml` are still cream.
+  - `mobile-safari` specs are unverified locally.
