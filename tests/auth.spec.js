@@ -37,7 +37,7 @@ test.describe("PAT auth gate", () => {
     // Token persisted for the next launch.
     const stored = await page.evaluate(
       (key) => localStorage.getItem(key),
-      auth.TOKEN_KEY
+      auth.TOKEN_KEY,
     );
     expect(stored).toBe(auth.FAKE_TOKEN);
   });

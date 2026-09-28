@@ -197,6 +197,7 @@ export const summarize = {
         : null,
       booked: marks.filter((m) => m && m.level === "booked").length,
       mustSee: marks.filter((m) => m && m.level === "must").length,
+      rows: movieRows(marks, today),
     };
   },
 
@@ -227,9 +228,23 @@ export const summarize = {
     const thisMonth = localDayKey(now).slice(0, 7);
 
     const byMonth = new Map(); // month → p1 spend
+    const incByMonth = new Map(); // month → p1 income
     const liveShared = new Map(); // "month|category" → unsettled shared total
     const add = (m, v) => byMonth.set(m, (byMonth.get(m) || 0) + v);
     for (const t of txns) {
+      // Income: p1's negative-amount "income" rows (compute()'s `inc`).
+      // Gambling only nets into income in the app's opt-in betting mode.
+      if (
+        t &&
+        !t.excluded &&
+        typeof t.date === "string" &&
+        t.amount < 0 &&
+        t.category === "income" &&
+        t.person === "p1"
+      ) {
+        const m = t.date.slice(0, 7);
+        incByMonth.set(m, (incByMonth.get(m) || 0) - t.amount);
+      }
       if (!t || t.excluded || typeof t.date !== "string" || !(t.amount > 0))
         continue;
       if (ignored.has(t.category)) continue;
@@ -250,16 +265,32 @@ export const summarize = {
     }
 
     // Complete months only (the current month is still in progress).
-    const complete = [...byMonth.keys()].filter((m) => m < thisMonth).sort();
+    const complete = [...new Set([...byMonth.keys(), ...incByMonth.keys()])]
+      .filter((m) => m < thisMonth)
+      .sort();
     const lastMonth = complete[complete.length - 1] || null;
     const avgMonths = complete.filter((m) => !excludedMonths.has(m));
     const avg = avgMonths.length
-      ? avgMonths.reduce((s, m) => s + byMonth.get(m), 0) / avgMonths.length
+      ? avgMonths.reduce((s, m) => s + (byMonth.get(m) || 0), 0) /
+        avgMonths.length
       : null;
+    // Savings rate the way the app's ring card shows it: (income − spend) /
+    // income, rounded; null without income.
+    const spendLast = lastMonth ? byMonth.get(lastMonth) || 0 : 0;
+    const incLast = lastMonth ? incByMonth.get(lastMonth) || 0 : 0;
     // Sensitive: rendered behind the privacy veil.
     return {
       lastMonth: lastMonth
-        ? { month: lastMonth, spend: Math.round(byMonth.get(lastMonth)) }
+        ? {
+            month: lastMonth,
+            spend: Math.round(spendLast),
+            income: Math.round(incLast),
+            saved: Math.round(incLast - spendLast),
+            rate:
+              incLast > 0
+                ? Math.round(((incLast - spendLast) / incLast) * 100)
+                : null,
+          }
         : null,
       avgPerMonth: avg == null ? null : Math.round(avg),
       avgMonths: avgMonths.length,
@@ -277,6 +308,42 @@ export const summarize = {
     };
   },
 };
+
+/* Rows for the Movies band, like the Scores band: tickets first (up to
+   two, by ticket date), then upcoming must-sees, keeping at least one
+   likely when there is one; 4 rows at most. A row's day is the ticket
+   date for bookings, else the release date. Watched titles never show. */
+function movieRows(marks, today, max = 4) {
+  const pick = (level, dayOf) =>
+    marks
+      .filter(
+        (m) =>
+          m &&
+          m.level === level &&
+          !m.watched_date &&
+          typeof dayOf(m) === "string",
+      )
+      .map((m) => ({
+        kind: level,
+        title: String(m.title || "Untitled"),
+        day: toDayKey(dayOf(m)),
+      }))
+      .filter((r) => r.day >= today)
+      .sort((a, b) =>
+        a.day < b.day ? -1 : a.day > b.day ? 1 : a.title.localeCompare(b.title),
+      );
+  const booked = pick("booked", (m) => m.booked_date || m.date).slice(0, 2);
+  const likely = pick("likely", (m) => m.date);
+  const must = pick("must", (m) => m.date).slice(
+    0,
+    max - booked.length - (likely.length ? 1 : 0),
+  );
+  const rows = [...booked, ...must];
+  return [...rows, ...likely.slice(0, max - rows.length)].map((r) => ({
+    ...r,
+    daysUntil: daysBetween(today, r.day),
+  }));
+}
 
 // p1's share of an unsettled shared category total for one month —
 // budget-together's getCatSplitAmts. Legacy data stores a bare ratio.

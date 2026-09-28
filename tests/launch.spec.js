@@ -5,23 +5,35 @@ import { test, expect } from "./fixtures.js";
 // app URL from apps.json. The fixture intercepts every app URL.
 
 test.describe("launching an app", () => {
-  test("Movies band opens upcoming-movies in the app layer", async ({ page }) => {
+  test("Movies band opens upcoming-movies in the app layer", async ({
+    page,
+  }) => {
     await page.goto("/");
     await page.locator('.band[data-app="upcoming-movies"] .band-hit').click();
     await expect(page).toHaveURL(/#app\/upcoming-movies$/);
     const frame = page.locator("#embed-frame");
-    await expect(frame).toHaveAttribute("src", "https://jackdengler.github.io/upcoming-movies/");
+    await expect(frame).toHaveAttribute(
+      "src",
+      "https://jackdengler.github.io/upcoming-movies/",
+    );
     await expect(frame).toHaveAttribute("title", /Movies/i);
     await expect(page.locator("#embed")).toBeVisible();
     await expect(page.locator("#embed-title")).toHaveText("Movies");
-    await expect(page.frameLocator("#embed-frame").locator('[data-fake-app-id="upcoming-movies"]')).toBeVisible();
+    await expect(
+      page
+        .frameLocator("#embed-frame")
+        .locator('[data-fake-app-id="upcoming-movies"]'),
+    ).toBeVisible();
   });
 
   test("strip items launch too", async ({ page }) => {
     await page.goto("/");
     await page.locator('.strip-item[data-app="parlay"]').click();
     await expect(page).toHaveURL(/#app\/parlay$/);
-    await expect(page.locator("#embed-frame")).toHaveAttribute("src", "https://jackdengler.github.io/parlay/");
+    await expect(page.locator("#embed-frame")).toHaveAttribute(
+      "src",
+      "https://jackdengler.github.io/parlay/",
+    );
   });
 
   test("Home closes the app and restores the launcher", async ({ page }) => {
@@ -32,6 +44,31 @@ test.describe("launching an app", () => {
     await expect(page.locator("#embed")).toBeHidden();
     await expect(page).not.toHaveURL(/#app\//);
     await expect(page.locator("#bands")).toBeVisible();
+  });
+
+  test("launch and collapse leave nothing behind", async ({ page }) => {
+    await page.goto("/");
+    await page.locator('.band[data-app="upcoming-movies"] .band-hit').click();
+    // Mid-flight: the band's name is flying to the app bar under a cover.
+    await expect(page.locator(".launch-name")).toHaveCount(1);
+    await expect(page.locator(".launch-name")).toHaveCount(0);
+    await expect(page.locator("#embed-title")).toHaveCSS("opacity", "1");
+    await expect(page.locator("#embed .launch-cover")).toHaveCSS(
+      "opacity",
+      "0",
+    );
+    const clip = () =>
+      page.locator("#embed").evaluate((e) => e.getAnimations().length);
+    await expect.poll(clip).toBe(0);
+    await page.locator("#embed-home").click();
+    await expect(page.locator(".launch-name")).toHaveCount(1);
+    await expect(page.locator("#embed")).toBeHidden();
+    await expect(page.locator(".launch-name")).toHaveCount(0);
+    // Reopening starts clean (no fill-forwards collapse left on the layer).
+    await page.locator('.band[data-app="upcoming-movies"] .band-hit').click();
+    await expect(page.locator("#embed")).toBeVisible();
+    await expect.poll(clip).toBe(0);
+    await expect(page.locator("#embed")).toHaveCSS("clip-path", "inset(0px)");
   });
 
   test("Escape closes an open app", async ({ page }) => {
@@ -50,9 +87,14 @@ test.describe("launching an app", () => {
     await expect(page.locator("#embed")).toBeHidden();
   });
 
-  test("deep link #app/upcoming-movies opens straight into the app", async ({ page }) => {
+  test("deep link #app/upcoming-movies opens straight into the app", async ({
+    page,
+  }) => {
     await page.goto("/#app/upcoming-movies");
     await expect(page.locator("#embed")).toBeVisible();
-    await expect(page.locator("#embed-frame")).toHaveAttribute("src", "https://jackdengler.github.io/upcoming-movies/");
+    await expect(page.locator("#embed-frame")).toHaveAttribute(
+      "src",
+      "https://jackdengler.github.io/upcoming-movies/",
+    );
   });
 });

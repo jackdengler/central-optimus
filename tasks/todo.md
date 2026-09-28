@@ -91,6 +91,15 @@ User feedback came from an iPhone screenshot. The band text spilled past the str
 - [x] Clock digits drop in on the minute; a live game doubles the tape speed with a pulsing red lead
 - [x] Reduced motion switches all of it off. The geometry and visual tests wait for the motion to settle (`#app.is-entering`, `[data-counting]`)
 
+## Round 7 (2026-09-28): readings, strip, tape, launch/collapse
+- [x] Strip: names only (no numbers for Parlay or Recipes). Tiles are a wrapping row of Anton names, each with a slanted swatch in the app's colour
+- [x] Clock sits 10px lower (6px on short screens). Anton's digits rise above their line box and were touching the status bar
+- [x] Movies band: one row per film, like Scores. Up to 2 BOOKED (yellow tag, by booked date), then MUST, then LIKELY with their release dates. Watched and past films are dropped
+- [x] Budget band: last complete month's IN, OUT and SAVED %, veiled. Income and rate come from budget-together's own rules (p1 income rows; rate = (in − out) / in). Matches its ring card on all 12 ledger months
+- [x] Hold the tape to fast-forward it (6×); it eases back on release
+- [x] Launch: the app grows out of the band in the band's own diagonal shape under the band's colour, while the band's name flies up into the app bar title. Close plays the same moves in reverse, ending on the band. Uses Web Animations; a fast re-tap cancels cleanly
+- [x] Tests cover the movie rows, the budget figures, the tape speed-up, and launch/collapse leaving nothing behind. The SE geometry test caught the budget and movie readings overflowing short bands, so both were fixed
+
 ## Review
 - **What was built:** the Big Type launcher (commit `f8b9e1a`), plus the data layer (`f8e3b86`).
 - **Verification:**

@@ -61,7 +61,7 @@ export const test = base.extend({
           localStorage.setItem(tokenKey, token);
         } catch {}
       },
-      { tokenKey: TOKEN_KEY, token: FAKE_TOKEN }
+      { tokenKey: TOKEN_KEY, token: FAKE_TOKEN },
     );
 
     // GitHub auth check.
@@ -84,26 +84,35 @@ export const test = base.extend({
 
     // Every app is on jackdengler.github.io — return a tiny stand-in page
     // so launching never depends on the public internet.
-    await page.route(/^https:\/\/jackdengler\.github\.io\/.*/, async (route) => {
-      const id = new URL(route.request().url()).pathname.split("/")[1] || "app";
-      await route.fulfill({
-        status: 200,
-        contentType: "text/html; charset=utf-8",
-        body: fakeAppHtml(id),
-      });
-    });
+    await page.route(
+      /^https:\/\/jackdengler\.github\.io\/.*/,
+      async (route) => {
+        const id =
+          new URL(route.request().url()).pathname.split("/")[1] || "app";
+        await route.fulfill({
+          status: 200,
+          contentType: "text/html; charset=utf-8",
+          body: fakeAppHtml(id),
+        });
+      },
+    );
 
     // Private data repo (GitHub Contents API) → deterministic fixtures.
     await page.route(
       /^https:\/\/api\.github\.com\/repos\/[^/]+\/private-data-storage\/contents\/(.+)$/,
       async (route) => {
-        const path = decodeURIComponent(route.request().url().split("/contents/")[1]);
+        const path = decodeURIComponent(
+          route.request().url().split("/contents/")[1],
+        );
         const body = dataFixtures()[path];
         if (!body) return route.fulfill({ status: 404, body: "{}" });
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          headers: { ETag: `"${path}"`, "Access-Control-Expose-Headers": "ETag" },
+          headers: {
+            ETag: `"${path}"`,
+            "Access-Control-Expose-Headers": "ETag",
+          },
           body: JSON.stringify(body),
         });
       },
@@ -112,8 +121,16 @@ export const test = base.extend({
     // ESPN (scores): deterministic, ESPN-shaped payloads.
     await page.route(/^https:\/\/site\.api\.espn\.com\/.*/, async (route) => {
       const url = route.request().url();
-      const body = url.includes("/teams/pit/") ? espn().steelers : url.includes("/teams/213/") ? espn().psu : espn().ufc;
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+      const body = url.includes("/teams/pit/")
+        ? espn().steelers
+        : url.includes("/teams/213/")
+          ? espn().psu
+          : espn().ufc;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      });
     });
 
     // Weather + reverse geocode: fixed, offline.
@@ -121,7 +138,10 @@ export const test = base.extend({
       route.fulfill({
         json: {
           current: { temperature_2m: 68, weather_code: 0 },
-          daily: { sunrise: ["2026-09-26T06:49"], sunset: ["2026-09-26T18:44"] },
+          daily: {
+            sunrise: ["2026-09-26T06:49"],
+            sunset: ["2026-09-26T18:44"],
+          },
         },
       }),
     );
@@ -161,6 +181,13 @@ export function dataFixtures() {
         a: { level: "booked", title: "Digger", date: dayKey(-6) },
         b: { level: "booked", title: "Verity", date: dayKey(-6) },
         c: { level: "must", title: "Later Film", date: dayKey(-20) },
+        d: { level: "likely", title: "Maybe Film", date: dayKey(-25) },
+        e: {
+          level: "must",
+          title: "Seen Already",
+          date: dayKey(-9),
+          watched_date: dayKey(0),
+        },
       },
     },
     "data.json": {
@@ -169,12 +196,46 @@ export function dataFixtures() {
       betResults: { x: "win", y: "loss", z: "win" },
       betResultsAt: { x: 1, y: 2, z: 3 },
     },
-    "recipes.json": { recipes: [{ title: "Korean Beef Bowl", createdAt: "2026-09-01" }] },
+    "recipes.json": {
+      recipes: [{ title: "Korean Beef Bowl", createdAt: "2026-09-01" }],
+    },
     "budget.json": {
       transactions: [
-        { date: "2026-01-05", amount: 100, category: "dining", person: "p1", shared: false },
-        { date: "2026-01-06", amount: 200, category: "groceries", person: "p2", shared: true },
-        { date: "2026-02-05", amount: 300, category: "dining", person: "p1", shared: false },
+        {
+          date: "2026-01-05",
+          amount: 100,
+          category: "dining",
+          person: "p1",
+          shared: false,
+        },
+        {
+          date: "2026-01-06",
+          amount: 200,
+          category: "groceries",
+          person: "p2",
+          shared: true,
+        },
+        {
+          date: "2026-02-05",
+          amount: 300,
+          category: "dining",
+          person: "p1",
+          shared: false,
+        },
+        {
+          date: "2026-02-01",
+          amount: -1000,
+          category: "income",
+          person: "p1",
+          shared: false,
+        },
+        {
+          date: "2026-02-01",
+          amount: -900,
+          category: "income",
+          person: "p2",
+          shared: false,
+        },
       ],
       catSplits: { groceries: { mode: "pct", p1Pct: 75 } },
       excludedFromAvg: [],
@@ -189,23 +250,84 @@ function daysFromNow(n, h = 13) {
   d.setHours(h, 0, 0, 0);
   return d.toISOString();
 }
-function teamEvent({ date, state, us, them, home = true, abbr = "PIT", opp = "BAL", oppName = "Baltimore Ravens", win, detail }) {
-  const mine = { homeAway: home ? "home" : "away", team: { abbreviation: abbr }, ...(us != null ? { score: { value: us, displayValue: String(us) } } : {}), ...(win != null ? { winner: win } : {}) };
-  const other = { homeAway: home ? "away" : "home", team: { abbreviation: opp, displayName: oppName }, ...(them != null ? { score: String(them) } : {}), ...(win != null ? { winner: !win } : {}) };
-  return { date, competitions: [{ competitors: [mine, other], status: { type: { state, completed: state === "post", shortDetail: detail || (state === "post" ? "Final" : "Sun 1:00 PM") } } }] };
+function teamEvent({
+  date,
+  state,
+  us,
+  them,
+  home = true,
+  abbr = "PIT",
+  opp = "BAL",
+  oppName = "Baltimore Ravens",
+  win,
+  detail,
+}) {
+  const mine = {
+    homeAway: home ? "home" : "away",
+    team: { abbreviation: abbr },
+    ...(us != null ? { score: { value: us, displayValue: String(us) } } : {}),
+    ...(win != null ? { winner: win } : {}),
+  };
+  const other = {
+    homeAway: home ? "away" : "home",
+    team: { abbreviation: opp, displayName: oppName },
+    ...(them != null ? { score: String(them) } : {}),
+    ...(win != null ? { winner: !win } : {}),
+  };
+  return {
+    date,
+    competitions: [
+      {
+        competitors: [mine, other],
+        status: {
+          type: {
+            state,
+            completed: state === "post",
+            shortDetail: detail || (state === "post" ? "Final" : "Sun 1:00 PM"),
+          },
+        },
+      },
+    ],
+  };
 }
 export function espn(overrides = {}) {
   return {
     steelers: {
       events: [
-        teamEvent({ date: daysFromNow(-4), state: "post", us: 24, them: 17, win: true }),
-        teamEvent({ date: daysFromNow(3), state: "pre", home: false, opp: "CIN", oppName: "Cincinnati Bengals" }),
+        teamEvent({
+          date: daysFromNow(-4),
+          state: "post",
+          us: 24,
+          them: 17,
+          win: true,
+        }),
+        teamEvent({
+          date: daysFromNow(3),
+          state: "pre",
+          home: false,
+          opp: "CIN",
+          oppName: "Cincinnati Bengals",
+        }),
       ],
     },
     psu: {
       events: [
-        teamEvent({ date: daysFromNow(-2), state: "post", us: 31, them: 20, abbr: "PSU", opp: "UCLA", win: true }),
-        teamEvent({ date: daysFromNow(5, 15), state: "pre", abbr: "PSU", opp: "OSU", home: false }),
+        teamEvent({
+          date: daysFromNow(-2),
+          state: "post",
+          us: 31,
+          them: 20,
+          abbr: "PSU",
+          opp: "UCLA",
+          win: true,
+        }),
+        teamEvent({
+          date: daysFromNow(5, 15),
+          state: "pre",
+          abbr: "PSU",
+          opp: "OSU",
+          home: false,
+        }),
       ],
     },
     ufc: {
@@ -216,8 +338,18 @@ export function espn(overrides = {}) {
           date: daysFromNow(6, 19),
           status: { type: { state: "pre" } },
           competitions: [
-            { competitors: [{ athlete: { shortName: "C. Prelim" } }, { athlete: { shortName: "D. Prelim" } }] },
-            { competitors: [{ athlete: { shortName: "M. Ankalaev" } }, { athlete: { shortName: "A. Pereira" } }] },
+            {
+              competitors: [
+                { athlete: { shortName: "C. Prelim" } },
+                { athlete: { shortName: "D. Prelim" } },
+              ],
+            },
+            {
+              competitors: [
+                { athlete: { shortName: "M. Ankalaev" } },
+                { athlete: { shortName: "A. Pereira" } },
+              ],
+            },
           ],
         },
       ],

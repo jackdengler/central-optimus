@@ -10,7 +10,14 @@ const now = new Date(2026, 8, 26, 10, 8); // Sat 26 Sep 2026, local
 
 test.describe("budget summarizer", () => {
   const base = { catSplits: {}, excludedFromAvg: [], customCategories: [] };
-  const tx = (date, amount, extra = {}) => ({ date, amount, category: "dining", person: "p1", shared: false, ...extra });
+  const tx = (date, amount, extra = {}) => ({
+    date,
+    amount,
+    category: "dining",
+    person: "p1",
+    shared: false,
+    ...extra,
+  });
 
   test("counts only Jack's solo spend plus his share of shared spend", () => {
     const s = summarize.budget(
@@ -24,18 +31,29 @@ test.describe("budget summarizer", () => {
       },
       now,
     );
-    expect(s.lastMonth).toEqual({ month: "2026-08", spend: 200 });
+    expect(s.lastMonth).toMatchObject({ month: "2026-08", spend: 200 });
   });
 
   test("honours pct and fixed-dollar category splits, per month", () => {
     const s = summarize.budget(
       {
         ...base,
-        catSplits: { groceries: { mode: "pct", p1Pct: 75 }, housing: { mode: "dollar", p1Amt: 3075 } },
+        catSplits: {
+          groceries: { mode: "pct", p1Pct: 75 },
+          housing: { mode: "dollar", p1Amt: 3075 },
+        },
         transactions: [
           tx("2026-08-01", 400, { category: "groceries", shared: true }),
-          tx("2026-08-01", 2500, { category: "housing", shared: true, person: "p2" }),
-          tx("2026-08-15", 2500, { category: "housing", shared: true, person: "p2" }),
+          tx("2026-08-01", 2500, {
+            category: "housing",
+            shared: true,
+            person: "p2",
+          }),
+          tx("2026-08-15", 2500, {
+            category: "housing",
+            shared: true,
+            person: "p2",
+          }),
         ],
       },
       now,
@@ -49,7 +67,14 @@ test.describe("budget summarizer", () => {
       {
         ...base,
         catSplits: { groceries: { mode: "pct", p1Pct: 75 } },
-        transactions: [tx("2026-08-01", 100, { category: "groceries", shared: true, settled: true, settledSplit: 0.65 })],
+        transactions: [
+          tx("2026-08-01", 100, {
+            category: "groceries",
+            shared: true,
+            settled: true,
+            settledSplit: 0.65,
+          }),
+        ],
       },
       now,
     );
@@ -65,7 +90,14 @@ test.describe("budget summarizer", () => {
           tx("2026-08-01", 50),
           tx("2026-08-01", -20), // refund / income sign
           tx("2026-08-01", 70, { excluded: true }),
-          ...["gambling", "cash", "insurance", "transfer", "investing", "pets"].map((category) => tx("2026-08-01", 1000, { category })),
+          ...[
+            "gambling",
+            "cash",
+            "insurance",
+            "transfer",
+            "investing",
+            "pets",
+          ].map((category) => tx("2026-08-01", 1000, { category })),
         ],
       },
       now,
@@ -78,22 +110,72 @@ test.describe("budget summarizer", () => {
       {
         ...base,
         excludedFromAvg: ["2026-06"],
-        transactions: [tx("2026-06-01", 9999), tx("2026-07-01", 100), tx("2026-08-01", 300), tx("2026-09-01", 5000)],
+        transactions: [
+          tx("2026-06-01", 9999),
+          tx("2026-07-01", 100),
+          tx("2026-08-01", 300),
+          tx("2026-09-01", 5000),
+        ],
       },
       now,
     );
-    expect(s.lastMonth).toEqual({ month: "2026-08", spend: 300 });
+    expect(s.lastMonth).toMatchObject({ month: "2026-08", spend: 300 });
     expect(s.avgPerMonth).toBe(200);
     expect(s.avgMonths).toBe(2);
+  });
+
+  test("income vs spend and savings rate, as budget-together's ring card", () => {
+    const inc = (date, amount, person = "p1", extra = {}) => ({
+      date,
+      amount: -amount,
+      category: "income",
+      person,
+      shared: false,
+      ...extra,
+    });
+    const s = summarize.budget(
+      {
+        ...base,
+        transactions: [
+          tx("2026-08-03", 1500),
+          inc("2026-08-01", 4000),
+          inc("2026-08-15", 1000),
+          inc("2026-08-15", 3000, "p2"), // not Jack's
+          inc("2026-08-20", 500, "p1", { excluded: true }), // excluded
+          inc("2026-09-01", 9000), // month in progress
+        ],
+      },
+      now,
+    );
+    expect(s.lastMonth).toEqual({
+      month: "2026-08",
+      spend: 1500,
+      income: 5000,
+      saved: 3500,
+      rate: 70,
+    });
+    // No income → no rate (never a divide-by-zero "−∞%").
+    const t = summarize.budget(
+      { ...base, transactions: [tx("2026-08-03", 100)] },
+      now,
+    );
+    expect(t.lastMonth.rate).toBeNull();
   });
 });
 
 test.describe("fitness summarizer", () => {
   test("30-day lift count, days since last lift, and the usual gap", () => {
-    const logs = ["2026-09-20", "2026-09-21", "2026-09-23", "2026-08-01"].map((d, i) => ({ id: i, name: "Workout B", date: d, duration: 42, sets: [] }));
+    const logs = ["2026-09-20", "2026-09-21", "2026-09-23", "2026-08-01"].map(
+      (d, i) => ({ id: i, name: "Workout B", date: d, duration: 42, sets: [] }),
+    );
     const s = summarize.fitness({ workoutLogs: logs }, now);
     expect(s.last30).toEqual(["2026-09-20", "2026-09-21", "2026-09-23"]);
-    expect(s.lastLift).toMatchObject({ day: "2026-09-23", daysAgo: 3, name: "Workout B", minutes: 42 });
+    expect(s.lastLift).toMatchObject({
+      day: "2026-09-23",
+      daysAgo: 3,
+      name: "Workout B",
+      minutes: 42,
+    });
     expect(s.medianGap).toBe(2);
   });
 });
