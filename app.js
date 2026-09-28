@@ -381,9 +381,13 @@ function fillVeils(band, show) {
   const s = DATA["budget-together"]?.summary;
   band.querySelectorAll(".veil").forEach((v) => {
     const key = v.dataset.key;
-    const val = key === "last" ? s?.lastMonth?.spend : s?.avgPerMonth;
+    const val = s?.lastMonth?.[key];
     if (show && Number.isFinite(val))
-      countUp(v, Math.round(val), { fmt: money, ms: 600 });
+      countUp(v, Math.round(val), {
+        fmt: key === "rate" ? String : money,
+        ms: 600,
+      });
+    else if (show) v.textContent = "—";
     else {
       stopCount(v);
       v.textContent = "";
@@ -420,50 +424,58 @@ function readingFor(app) {
     }
     read.append(num, sub, ticks(s.last30));
     label = `${s.last30.length} lifts in the last 30 days${s.lastLift ? `, last lift ${s.lastLift.daysAgo} days ago` : ""}`;
-  } else if (app.id === "upcoming-movies") {
-    num.style.color = "var(--accent)";
-    if (s.next) {
-      const d = s.next.daysUntil;
-      num.textContent = d <= 0 ? "TODAY" : `T–${d}`;
-      const titles =
-        s.next.titles.slice(0, 2).join(" + ") +
-        (s.next.titles.length > 2 ? ` +${s.next.titles.length - 2}` : "");
-      const date = dayKeyDate(s.next.day);
-      sub.append(
-        el("span", null, titles.toUpperCase()),
-        el(
-          "span",
-          null,
-          `${DAYS[date.getDay()]} ${MONTHS[date.getMonth()]} ${date.getDate()}`,
-        ),
+  } else if (app.id === "upcoming-movies" && s.rows?.length) {
+    // Like the Scores band: tickets first, then must-sees and likelies,
+    // each with its date (ticket date for bookings, else release date).
+    const TAG = { booked: "BOOKED", must: "MUST", likely: "LIKELY" };
+    const says = [];
+    const list = el("span", "score-rows");
+    for (const r of s.rows) {
+      const when = shortWhen(dayKeyDate(r.day).toISOString(), true);
+      const row = el("span", `score-row-mini is-${r.kind}`);
+      row.append(
+        el("b", null, TAG[r.kind]),
+        el("span", null, `${r.title.toUpperCase()} · ${when}`),
       );
-      label = `next release in ${d} days: ${s.next.titles.join(" and ")}`;
-    } else {
-      num.textContent = "—";
-      sub.append(el("span", null, "NOTHING BOOKED"));
-      label = "nothing booked";
+      list.append(row);
+      says.push(
+        `${TAG[r.kind].toLowerCase()} ${r.title}, ${when.toLowerCase()}`,
+      );
     }
+    read.classList.add("is-rows");
+    read.append(list);
+    label = says.join("; ");
+  } else if (app.id === "upcoming-movies") {
+    num.textContent = "—";
+    sub.append(el("span", null, "NOTHING BOOKED"));
+    label = "nothing booked or coming up";
   } else if (app.id === "budget-together") {
     const month = s.lastMonth
       ? MONTHS[Number(s.lastMonth.month.slice(5, 7)) - 1]
       : "LAST MO";
+    // Last month: income vs spend, and the savings rate — all veiled.
     const veils = el("span", "veils");
-    for (const [key, text] of [
-      ["last", `${month} SPEND`],
-      ["avg", "AVG / MO"],
+    for (const [key, text, pre, post] of [
+      ["income", `${month} IN`, "$", ""],
+      ["spend", `${month} OUT`, "$", ""],
+      ["rate", "SAVED", "", "%"],
     ]) {
-      const row = el("span", "veil-row");
+      const row = el("span", `veil-row veil-row--${key}`);
       const v = el("span", "veil");
       v.dataset.key = key;
       const lab = el("span", "veil-label", text);
-      if (key === "last") lab.insertAdjacentHTML("beforeend", SVG.eye);
-      row.append(lab, el("span", "veil-dollar", "$"), v);
+      if (key === "income") lab.insertAdjacentHTML("beforeend", SVG.eye);
+      row.append(lab);
+      if (pre) row.append(el("span", "veil-dollar", pre));
+      row.append(v);
+      if (post) row.append(el("span", "veil-dollar", post));
       veils.append(row);
     }
     const hint = el("span", "hold-hint");
     hint.innerHTML = `${SVG.eye}<span>HOLD TO SEE</span>`;
     read.append(veils, hint);
-    label = "spend hidden, press and hold the figures to reveal";
+    label =
+      "last month's income, spend and savings rate hidden, press and hold the figures to reveal";
   }
   if (!read.childElementCount) read.append(num, sub);
   const asof = el(
@@ -576,7 +588,7 @@ function scoresReading(read) {
     list.append(row);
     says.push(r.say);
   }
-  read.classList.add("is-scores");
+  read.classList.add("is-rows");
   read.append(
     list,
     el(
@@ -713,7 +725,7 @@ function fitBandNames() {
     // Scores rows sit at the top; its name goes underneath when the band is
     // tall enough, else beside them (whichever lets it be bigger). Other
     // bands put the name beside the reading, centred in the room left.
-    const rows = read.classList.contains("is-scores");
+    const rows = read.classList.contains("is-rows");
     const spare = Math.max(0, lim.bottom - lim.top - read.offsetHeight);
     const top = lim.top + (rows ? 0 : Math.min(spare / 2, 10));
     read.style.top = `${top.toFixed(1)}px`;
@@ -765,20 +777,16 @@ function buildStrip() {
 }
 
 function renderStrip() {
+  // Less-used apps: a quiet index of names (no readings), each marked with
+  // a slanted swatch of its colour.
   document.querySelectorAll(".strip-item").forEach((btn) => {
     const app = APPS.find((a) => a.id === btn.dataset.app);
-    const s = DATA[app.id]?.summary;
-    let reading = null;
-    if (app.id === "parlay" && s?.hitRate != null)
-      reading = `${Math.round(s.hitRate * 100)}%`;
-    if (app.id === "recipe-book" && s) reading = String(s.count);
     btn.innerHTML = "";
-    btn.append(el("span", null, app.label || app.name));
-    if (reading) btn.append(el("b", null, reading));
-    btn.setAttribute(
-      "aria-label",
-      reading ? `${app.name}, ${reading}` : app.name,
+    btn.append(
+      el("i", "strip-swatch"),
+      el("span", null, app.label || app.name),
     );
+    btn.setAttribute("aria-label", app.name);
   });
 }
 
@@ -866,6 +874,32 @@ function renderTape() {
   );
   const live = $("#tape-live");
   if (!live.textContent) live.textContent = lines[0];
+}
+
+// Hold the tape to fast-forward it; it eases back to speed on release.
+const TAPE_FAST = 6;
+function wireTape() {
+  const tape = $(".tape");
+  let rate = 1;
+  let target = 1;
+  let frame = 0;
+  const step = () => {
+    rate += (target - rate) * 0.18;
+    if (Math.abs(target - rate) < 0.05) rate = target;
+    $("#tape-track")
+      .getAnimations()
+      .forEach((a) => a.updatePlaybackRate(rate));
+    frame = rate === target ? 0 : requestAnimationFrame(step);
+  };
+  const to = (next) => {
+    target = next;
+    if (!frame) frame = requestAnimationFrame(step);
+  };
+  tape.addEventListener("pointerdown", () => to(TAPE_FAST));
+  ["pointerup", "pointercancel", "pointerleave"].forEach((t) =>
+    tape.addEventListener(t, () => to(1)),
+  );
+  tape.addEventListener("contextmenu", (e) => e.preventDefault());
 }
 
 /* ---------- live data ---------- */
@@ -1097,14 +1131,6 @@ function wireSearch() {
 
 /* ---------- open / close an app ---------- */
 
-function rectInset(node) {
-  const r = node?.getBoundingClientRect?.();
-  if (!r || !r.width) return "inset(40% 0 40% 0)";
-  const vw = window.innerWidth;
-  const vh = window.innerHeight;
-  return `inset(${Math.max(0, r.top)}px ${Math.max(0, vw - r.right)}px ${Math.max(0, vh - r.bottom)}px ${Math.max(0, r.left)}px)`;
-}
-
 function originFor(appId) {
   return (
     document.querySelector(`.band[data-app="${CSS.escape(appId)}"]`) ||
@@ -1114,6 +1140,84 @@ function originFor(appId) {
 
 const layerFor = (appId) =>
   APPS.find((a) => a.id === appId)?.panel ? $("#scores-panel") : $("#embed");
+
+/* ---------- launch / collapse ----------
+   An app grows out of its band (or strip tile) in the band's own diagonal
+   shape. As it grows, the band's colour covers the screen and the band's
+   name flies up into the app bar's title; then the colour lifts off the
+   app. Closing plays the same moves backwards: colour covers, the title
+   flies home onto the band, the shape collapses into the band's diagonal.
+   Web Animations, one timing for both directions. */
+const LAUNCH = { ms: 560, easing: "cubic-bezier(0.65, 0, 0.25, 1)" };
+
+function originPolygon(node) {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const r = node?.getBoundingClientRect?.();
+  const pt = (x, y) => `${x.toFixed(1)}px ${y.toFixed(1)}px`;
+  if (!r || !r.width)
+    return `polygon(${pt(0, vh * 0.4)}, ${pt(vw, vh * 0.4)}, ${pt(vw, vh * 0.6)}, ${pt(0, vh * 0.6)})`;
+  const slant = node.classList.contains("band")
+    ? parseFloat(getComputedStyle(node).getPropertyValue("--slant")) || 18
+    : 0;
+  return `polygon(${pt(r.left, r.top + slant)}, ${pt(r.right, r.top)}, ${pt(r.right, r.bottom - slant)}, ${pt(r.left, r.bottom)})`;
+}
+const fullPolygon = () =>
+  `polygon(0px 0px, ${window.innerWidth}px 0px, ${window.innerWidth}px ${window.innerHeight}px, 0px ${window.innerHeight}px)`;
+
+const nameOf = (node) =>
+  node?.querySelector?.(".band-name") || node?.querySelector?.("span") || null;
+
+// A stand-in for the name that flies between the band and the app bar.
+// It's laid out at `toEl` (final size) and animated in from `fromEl`.
+function flyName(fromEl, toEl, text) {
+  const a = fromEl?.getBoundingClientRect();
+  const b = toEl?.getBoundingClientRect();
+  if (!a?.width || !b?.width) return null;
+  const fly = el("div", "launch-name", text);
+  const to = getComputedStyle(toEl);
+  Object.assign(fly.style, {
+    left: `${b.left}px`,
+    top: `${b.top}px`,
+    fontSize: to.fontSize,
+    letterSpacing: to.letterSpacing,
+    color: getComputedStyle(fromEl).color,
+  });
+  document.body.append(fly);
+  const f = fly.getBoundingClientRect();
+  const k = a.height / (f.height || 1);
+  fly.animate(
+    [
+      {
+        transform: `translate(${a.left - f.left}px, ${a.top - f.top}px) scale(${k})`,
+        color: getComputedStyle(fromEl).color,
+      },
+      { transform: "none", color: to.color },
+    ],
+    { duration: LAUNCH.ms, easing: LAUNCH.easing, fill: "both" },
+  );
+  return fly;
+}
+
+function coverFor(layer) {
+  let cover = layer.querySelector(":scope > .launch-cover");
+  if (!cover) {
+    cover = el("div", "launch-cover");
+    cover.setAttribute("aria-hidden", "true");
+    layer.append(cover);
+  }
+  return cover;
+}
+
+// Stop any launch/collapse still running on a layer (fast re-taps).
+function settleLayer(layer) {
+  for (const a of layer._anims || []) a.cancel();
+  layer._anims = [];
+  layer._fly?.remove();
+  layer._fly = null;
+  const title = layer.querySelector(".embed-title");
+  if (title) title.style.opacity = "";
+}
 
 function launchApp(appId, originEl, { animate = true } = {}) {
   const app = APPS.find((a) => a.id === appId && (a.url || a.panel));
@@ -1141,20 +1245,33 @@ function launchApp(appId, originEl, { animate = true } = {}) {
   if (location.hash !== `#app/${app.id}`)
     history.pushState({ app: app.id }, "", `#app/${app.id}`);
 
+  settleLayer(embed);
   embed.hidden = false;
   $("#app").setAttribute("aria-hidden", "true");
-  embed.dataset.name = app.label || app.name;
   if (animate && !reducedMotion()) {
-    embed.classList.remove("is-animating", "is-closing");
-    embed.classList.add("is-opening");
-    clearTimeout(embed._wipe);
-    embed._wipe = setTimeout(() => embed.classList.remove("is-opening"), 900);
-    embed.style.clipPath = rectInset(originEl || originFor(appId));
-    embed.getBoundingClientRect(); // commit the start frame
-    embed.classList.add("is-animating");
-    embed.style.clipPath = "inset(0 0 0 0)";
-  } else {
-    embed.style.clipPath = "inset(0 0 0 0)";
+    const origin = originEl || originFor(appId);
+    const title = embed.querySelector(".embed-title");
+    const cover = coverFor(embed);
+    const timing = { duration: LAUNCH.ms, easing: LAUNCH.easing };
+    const grow = embed.animate(
+      [{ clipPath: originPolygon(origin) }, { clipPath: fullPolygon() }],
+      timing,
+    );
+    // Colour holds while the shape grows, then lifts off the app.
+    const lift = cover.animate(
+      [{ opacity: 1 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }],
+      { duration: LAUNCH.ms + 280, easing: "ease-out", fill: "forwards" },
+    );
+    embed._fly = flyName(nameOf(origin), title, app.label || app.name);
+    if (embed._fly && title) title.style.opacity = "0";
+    embed._anims = [grow, lift];
+    grow.finished
+      .then(() => {
+        embed._fly?.remove();
+        embed._fly = null;
+        if (title) title.style.opacity = "";
+      })
+      .catch(() => {});
   }
   embed.querySelector(".embed-home").focus({ preventScroll: true });
 }
@@ -1163,36 +1280,42 @@ function closeApp({ fromHistory = false, quiet = false } = {}) {
   if (!openAppId) return;
   const embed = layerFor(openAppId);
   const appId = openAppId;
+  const app = APPS.find((a) => a.id === appId);
   openAppId = null;
   clearTimeout(embedTimer);
   if (!quiet) feel("close");
   $("#app").removeAttribute("aria-hidden");
   if (!fromHistory && location.hash)
     history.pushState(null, "", location.pathname + location.search);
+  settleLayer(embed);
   const finish = () => {
+    settleLayer(embed);
     embed.hidden = true;
-    embed.classList.remove(
-      "is-animating",
-      "is-loading",
-      "is-failed",
-      "is-closing",
-    );
+    embed.classList.remove("is-loading", "is-failed");
     // Keep the iframe document resident: reopening the same app is instant.
     originFor(appId)
       ?.querySelector?.(".band-hit")
       ?.focus({ preventScroll: true });
   };
   if (reducedMotion() || quiet) return finish();
-  embed.classList.remove("is-opening");
-  embed.classList.add("is-animating", "is-closing");
-  embed.style.clipPath = rectInset(originFor(appId));
-  const ms =
-    parseFloat(
-      getComputedStyle(document.documentElement).getPropertyValue(
-        "--launch-ms",
-      ),
-    ) || 420;
-  setTimeout(finish, ms + 20);
+  // The launch in reverse: colour covers, the title flies home, the shape
+  // collapses into the band's diagonal.
+  const origin = originFor(appId);
+  const title = embed.querySelector(".embed-title");
+  const cover = coverFor(embed);
+  const fade = cover.animate([{ opacity: 0 }, { opacity: 1 }], {
+    duration: 180,
+    easing: "ease-out",
+    fill: "forwards",
+  });
+  const shrink = embed.animate(
+    [{ clipPath: fullPolygon() }, { clipPath: originPolygon(origin) }],
+    { duration: LAUNCH.ms, easing: LAUNCH.easing, delay: 80, fill: "forwards" },
+  );
+  embed._fly = flyName(title, nameOf(origin), app?.label || app?.name || "");
+  if (embed._fly && title) title.style.opacity = "0";
+  embed._anims = [fade, shrink];
+  shrink.finished.then(finish).catch(() => {});
 }
 
 function armEmbedTimeout(app) {
@@ -1317,6 +1440,7 @@ function startHome() {
   buildStrip();
   renderBands();
   renderTape();
+  wireTape();
   wireSearch();
   $("#lock").addEventListener("click", lock);
   $("#theme").addEventListener("click", toggleTheme);
