@@ -96,11 +96,12 @@ function fmtGameTime(iso, now = new Date()) {
   if (Number.isNaN(d.valueOf())) return "";
   const t = fmtTime(d);
   if (d.toDateString() === now.toDateString()) return `TODAY ${t}`;
-  const days = Math.round((new Date(d.toDateString()) - new Date(now.toDateString())) / 86_400_000);
-  return days > 0 && days < 7 ? `${DAYS[d.getDay()]} ${t}` : `${DAYS[d.getDay()]} ${MONTHS[d.getMonth()]} ${d.getDate()}`;
-}
-function matchup(team, g) {
-  return `${team.label.toUpperCase()} ${g.home ? "VS" : "@"} ${g.opp}`;
+  const days = Math.round(
+    (new Date(d.toDateString()) - new Date(now.toDateString())) / 86_400_000,
+  );
+  return days > 0 && days < 7
+    ? `${DAYS[d.getDay()]} ${t}`
+    : `${DAYS[d.getDay()]} ${MONTHS[d.getMonth()]} ${d.getDate()}`;
 }
 function money(n) {
   return Math.round(n).toLocaleString("en-US");
@@ -125,7 +126,6 @@ function el(tag, cls, text) {
   return n;
 }
 const SVG = {
-  up: '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M5 1l4.5 8h-9z"/></svg>',
   down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v16"/><path d="M5.5 13l6.5 6.5 6.5-6.5"/></svg>',
   eye: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>',
 };
@@ -229,7 +229,10 @@ function startClock() {
 
 function setWeatherLine(payload) {
   $("#weather-line").classList.toggle("is-stale", !!payload?.stale);
-  const place = (payload?.place || CONFIG.location || "").toUpperCase();
+  // Geocoders return civil names ("Township of Wayne"); keep the place.
+  const place = (payload?.place || CONFIG.location || "")
+    .toUpperCase()
+    .replace(/^(TOWNSHIP|CITY|TOWN|VILLAGE|BOROUGH) OF /, "");
   const short = place === "LOS ANGELES" ? "LA" : place;
   const temp = Number.isFinite(payload?.temp) ? `${payload.temp}°` : "";
   const label =
@@ -258,7 +261,7 @@ async function setPublishStamp() {
   } catch {}
   $("#publish-time").textContent = when
     ? `PUBLISHED ${MONTHS[when.getMonth()]} ${when.getDate()}`
-    : "LOCAL BUILD";
+    : "PREVIEW";
 }
 
 /* ---------- bands ---------- */
@@ -275,7 +278,8 @@ function buildBands() {
     band.style.setProperty("--band-bg", app.color);
     band.style.setProperty("--band-fg", inkFor(app.color));
     // Light bands (e.g. Scores gold) carry dark readings; white fails there.
-    if (luminance(app.color) > 0.35) band.style.setProperty("--band-hi", "#0b0b0b");
+    if (luminance(app.color) > 0.35)
+      band.style.setProperty("--band-hi", "#0b0b0b");
     const hit = el("button", "band-hit");
     hit.type = "button";
     hit.addEventListener("pointerdown", () => feel("tick"));
@@ -343,7 +347,7 @@ function readingFor(app) {
   const sub = el("span", "band-sub");
   let label = "";
 
-  if (app.id === "scores") return scoresReading(read, num, sub);
+  if (app.id === "scores") return scoresReading(read);
   if (!s) {
     num.textContent = "—";
     sub.append(el("span", null, entry?.error ? "OFFLINE" : "SYNCING"));
@@ -401,11 +405,7 @@ function readingFor(app) {
       v.dataset.key = key;
       const lab = el("span", "veil-label", text);
       if (key === "last") lab.insertAdjacentHTML("beforeend", SVG.eye);
-      row.append(
-        lab,
-        el("span", "veil-dollar", "$"),
-        v,
-      );
+      row.append(lab, el("span", "veil-dollar", "$"), v);
       veils.append(row);
     }
     const hint = el("span", "hold-hint");
@@ -423,42 +423,117 @@ function readingFor(app) {
   return { read, label };
 }
 
-function scoresReading(read, num, sub) {
-  const h = SCORES ? headline(SCORES.teams) : null;
-  let label = "no games";
-  if (!h) {
-    num.textContent = "—";
-    sub.append(el("span", null, SCORES ? "NO GAMES" : "SYNCING"));
-  } else if (h.kind === "live") {
-    num.textContent = `${h.game.us ?? 0}–${h.game.them ?? 0}`;
-    sub.append(
-      el("span", null, `${h.team.abbr || h.team.label.toUpperCase()} ${h.game.home ? "VS" : "@"} ${h.game.opp} · ${String(h.game.detail).toUpperCase()}`),
-      el("span", null, "LIVE"),
-    );
-    label = `live: ${h.team.label} ${h.game.us} to ${h.game.them}`;
-  } else if (h.kind === "final") {
-    num.textContent = `${h.game.result} ${h.game.us}–${h.game.them}`;
-    sub.append(el("span", null, `${matchup(h.team, h.game)} · FINAL`));
-    label = `${h.team.label} final ${h.game.us} to ${h.game.them}`;
-  } else if (h.game) {
-    const when = fmtGameTime(h.game.date);
-    const time = when.replace(/^(TODAY|[A-Z]{3}) /, "");
-    num.textContent = h.kind === "today" ? "TODAY" : when.split(" ")[0];
-    sub.append(
-      el("span", null, `${h.team.abbr || h.team.label.toUpperCase()} ${h.game.home ? "VS" : "@"} ${h.game.opp} · ${time}`),
-      el("span", null, h.team.label.toUpperCase()),
-    );
-    label = `next: ${h.team.label} ${h.game.home ? "vs" : "at"} ${h.game.oppName || h.game.opp}, ${when}`;
-  } else if (h.card) {
-    const when = fmtGameTime(h.card.date);
-    num.textContent = h.kind === "today" ? "TODAY" : when.split(" ")[0];
-    sub.append(el("span", null, String(h.card.name).toUpperCase()), el("span", null, h.card.main ? `${h.card.main[0].name} VS ${h.card.main[1].name}`.toUpperCase() : when));
-    label = `next: ${h.card.name}, ${when}`;
+/* One row per team: live score, else the next game (or UFC main event),
+   else the last result. Surnames only for fighters so a row fits. */
+const surname = (n) =>
+  String(n || "")
+    .replace(/^(?:[A-Z]\.\s*)+/i, "")
+    .toUpperCase();
+
+function shortWhen(iso, dateOnly = false, now = new Date()) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.valueOf())) return "";
+  const days = Math.round(
+    (new Date(d.toDateString()) - new Date(now.toDateString())) / 86_400_000,
+  );
+  const day =
+    days === 0
+      ? "TODAY"
+      : days > 0 && days < 7
+        ? DAYS[d.getDay()]
+        : `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+  if (dateOnly) return day;
+  const h = d.getHours() % 12 || 12;
+  const m = d.getMinutes() ? `:${String(d.getMinutes()).padStart(2, "0")}` : "";
+  return `${day} ${h}${m}${d.getHours() < 12 ? "A" : "P"}`;
+}
+
+function scoreRow(t) {
+  const tag = t.abbr || t.label.toUpperCase();
+  if (t.live) {
+    const g = t.live;
+    return {
+      tag,
+      text: `${g.us ?? 0}–${g.them ?? 0} ${g.home ? "VS" : "@"} ${g.opp} · ${String(g.detail).toUpperCase()}`,
+      live: true,
+      say: `${t.label} live, ${g.us} to ${g.them}`,
+    };
   }
-  read.append(num, sub);
-  const asof = el("span", "band-asof", SCORES?.at ? `AS OF ${fmtTime(new Date(SCORES.at))}` : "AS OF —");
-  read.append(asof);
-  return { read, label };
+  if (t.next) {
+    const g = t.next;
+    return {
+      tag,
+      text: `${g.home ? "VS" : "@"} ${g.opp} · ${shortWhen(g.date)}`,
+      say: `${t.label} ${g.home ? "vs" : "at"} ${g.oppName || g.opp}, ${fmtGameTime(g.date)}`,
+    };
+  }
+  if (t.card) {
+    const c = t.card;
+    const fight = c.main
+      ? `${surname(c.main[0].name)} VS ${surname(c.main[1].name)}`
+      : String(c.name).toUpperCase();
+    if (c.state === "in")
+      return {
+        tag,
+        text: `${fight} · LIVE`,
+        live: true,
+        say: `${c.name} live`,
+      };
+    if (c.state === "post")
+      return {
+        tag,
+        text: c.winner ? `${surname(c.winner)} WON` : `${fight} · FINAL`,
+        say: `${c.name} final`,
+      };
+    return {
+      tag,
+      text: `${fight} · ${shortWhen(c.date, c.dateOnly)}`,
+      say: `${c.name}, ${fight.toLowerCase()}, ${shortWhen(c.date, c.dateOnly).toLowerCase()}`,
+    };
+  }
+  if (t.last) {
+    const g = t.last;
+    return {
+      tag,
+      text: `${g.result} ${g.us}–${g.them} ${g.home ? "VS" : "@"} ${g.opp}`,
+      say: `${t.label} last ${g.result === "W" ? "won" : "lost"} ${g.us} to ${g.them}`,
+    };
+  }
+  return {
+    tag,
+    text: t.error ? "OFFLINE" : "NO GAMES",
+    say: `${t.label} no games`,
+  };
+}
+
+function scoresReading(read) {
+  const teams = SCORES?.teams || [];
+  if (!teams.length) {
+    read.append(
+      el("span", "band-num", "—"),
+      el("span", "band-sub", SCORES ? "NO GAMES" : "SYNCING"),
+    );
+    return { read, label: "loading" };
+  }
+  const list = el("span", "score-rows");
+  const says = [];
+  for (const t of teams) {
+    const r = scoreRow(t);
+    const row = el("span", `score-row-mini${r.live ? " is-live" : ""}`);
+    row.append(el("b", null, r.tag), el("span", null, r.text));
+    list.append(row);
+    says.push(r.say);
+  }
+  read.classList.add("is-scores");
+  read.append(
+    list,
+    el(
+      "span",
+      "band-asof",
+      SCORES?.at ? `AS OF ${fmtTime(new Date(SCORES.at))}` : "AS OF —",
+    ),
+  );
+  return { read, label: says.join("; ") };
 }
 
 function ticks(last30) {
@@ -482,31 +557,21 @@ function urgency() {
   const fit = DATA["fitness-tracker"]?.summary;
   const mov = DATA["upcoming-movies"]?.summary;
   const game = SCORES ? headline(SCORES.teams) : null;
-  if (game?.kind === "live") return { lead: "scores", reason: "● LIVE NOW" };
-  if (mov?.next && mov.next.daysUntil <= 2) {
-    const d = mov.next.daysUntil;
-    return {
-      lead: "upcoming-movies",
-      reason: d <= 0 ? "ON TOP · OPENS TODAY" : `ON TOP · OPENS IN ${d}D`,
-    };
-  }
-  if (game?.kind === "today") return { lead: "scores", reason: "ON TOP · GAME DAY" };
+  if (game?.kind === "live") return "scores";
+  if (mov?.next && mov.next.daysUntil <= 2) return "upcoming-movies";
+  if (game?.kind === "today") return "scores";
   if (
     fit?.lastLift &&
     fit.medianGap != null &&
     fit.lastLift.daysAgo > fit.medianGap
-  ) {
-    return {
-      lead: "fitness-tracker",
-      reason: `ON TOP · USUAL GAP ${fit.medianGap}D`,
-    };
-  }
-  return { lead: null, reason: null };
+  )
+    return "fitness-tracker";
+  return null;
 }
 
 function renderBands() {
   const wrap = $("#bands");
-  const { lead, reason } = urgency();
+  const lead = urgency();
   const order = bandApps().map((a) => a.id);
   if (lead) order.sort((a, b) => (a === lead ? -1 : b === lead ? 1 : 0));
   order.forEach((id, i) => {
@@ -517,49 +582,72 @@ function renderBands() {
     band.classList.toggle("is-flip", i % 2 === 1);
     const { read, label } = readingFor(app);
     band.querySelector(".band-read").replaceWith(read);
-    band.querySelector(".band-reason")?.remove();
-    if (id === lead && reason) {
-      const tag = el("p", "band-reason");
-      tag.innerHTML = SVG.up;
-      tag.append(reason);
-      band.append(tag);
-    }
-    band.classList.toggle("is-stale", id === "scores" ? !!SCORES?.stale && !!SCORES?.at && navigator.onLine === false : !!DATA[id]?.error);
+    band.classList.toggle(
+      "is-stale",
+      id === "scores"
+        ? !!SCORES?.stale && !!SCORES?.at && navigator.onLine === false
+        : !!DATA[id]?.error,
+    );
     if (band.classList.contains("is-revealed")) fillVeils(band, true);
     band
       .querySelector(".band-hit")
-      .setAttribute(
-        "aria-label",
-        `${app.name}. ${label}.${id === lead && reason ? ` On top today, ${reason.replace("ON TOP · ", "").toLowerCase()}.` : ""}`,
-      );
+      .setAttribute("aria-label", `${app.name}. ${label}.`);
   });
   fitBandNames();
 }
 
-/* Each app name fills its band: as wide as the space beside the reading
-   allows, capped by the height left under the reason tag. Also sizes the
-   reason tag to that free column and the budget hold target to the
-   figures. */
+/* Keeps every band's text inside its diagonal. The clip runs from
+   (0, slant)→(W, 0) on top and (W, H − slant)→(0, H) underneath, so the
+   usable height depends on where the reading sits: a right-hand reading
+   loses the most at the bottom, a left-hand one at the top. The reading
+   goes compact (drops secondary lines) when it can't fit, then the app
+   name fills the column beside it. Also sizes the budget hold target. */
 function fitBandNames() {
   const slant = 18;
+  const pad = 4;
   document.querySelectorAll(".band").forEach((band) => {
     const name = band.querySelector(".band-name");
     const read = band.querySelector(".band-read");
-    if (!name || !band.clientWidth) return;
-    // Short bands (four on a small phone) drop secondary lines rather than
-    // letting the diagonal clip them.
+    const W = band.clientWidth;
+    const H = band.clientHeight;
+    if (!name || !read || !W) return;
+    const flip = band.classList.contains("is-flip");
+    const limits = () => {
+      const xl = flip ? 16 : W - 16 - read.offsetWidth;
+      const xr = xl + read.offsetWidth;
+      const top = slant * (1 - xl / W) + pad;
+      return { top, bottom: H - (slant * xr) / W - pad };
+    };
     band.classList.remove("is-compact");
-    if (read.scrollHeight + slant * 2 + 4 > band.clientHeight) band.classList.add("is-compact");
-    const col = band.clientWidth - 14 - 16 - read.offsetWidth - 10;
-    const tag = band.querySelector(".band-reason");
-    if (tag) tag.style.setProperty("--reason-max", `${Math.max(120, col)}px`);
+    let lim = limits();
+    if (read.offsetHeight > lim.bottom - lim.top) {
+      band.classList.add("is-compact");
+      lim = limits();
+    }
+    // Scores rows sit at the top; its name goes underneath when the band is
+    // tall enough, else beside them (whichever lets it be bigger). Other
+    // bands put the name beside the reading, centred in the room left.
+    const rows = read.classList.contains("is-scores");
+    const spare = Math.max(0, lim.bottom - lim.top - read.offsetHeight);
+    const top = lim.top + (rows ? 0 : Math.min(spare / 2, 10));
+    read.style.top = `${top.toFixed(1)}px`;
+
     name.style.setProperty("--name-size", "100px");
-    const natural = name.scrollWidth;
-    const top = tag ? slant + 6 + tag.offsetHeight + 10 : slant;
-    const byWidth = (100 * col) / natural;
-    const byHeight = (band.clientHeight - slant - 6 - top) / 0.86;
-    const size = Math.max(40, Math.min(byWidth, byHeight, 120));
+    const perPx = name.scrollWidth / 100;
+    const fit = (col, floor) =>
+      Math.min(col / perPx, (H - slant - 6 - floor) / 0.86);
+    const MIN = 30;
+    read.style.maxWidth = "";
+    let under = rows ? fit(W - 28, top + read.offsetHeight + 6) : 0;
+    if (rows && under < MIN) {
+      // Too short to stack: keep a column for the name; long rows ellipsize.
+      read.style.maxWidth = `${W - 14 - 16 - 12 - MIN * perPx}px`;
+      under = 0;
+    }
+    const beside = fit(W - 14 - 16 - read.offsetWidth - 12, slant);
+    const size = Math.max(24, Math.min(Math.max(beside, under), 120));
     name.style.setProperty("--name-size", `${size.toFixed(1)}px`);
+
     const hold = band.querySelector(".hold");
     if (hold) {
       Object.assign(hold.style, {
@@ -639,12 +727,32 @@ function headlines() {
   if (rec) out.push(`${rec.count} RECIPES`);
   for (const t of SCORES?.teams || []) {
     const name = t.label.toUpperCase();
-    if (t.live) out.push(`${name} ${t.live.us}–${t.live.them} ${String(t.live.detail).toUpperCase()}`);
-    else if (t.last) out.push(`${name} ${t.last.result} ${t.last.us}–${t.last.them} ${t.last.home ? "VS" : "@"} ${t.last.opp}`);
-    if (!t.live && t.next) out.push(`${name} ${t.next.home ? "VS" : "@"} ${t.next.opp} ${fmtGameTime(t.next.date)}`);
+    if (t.live)
+      out.push(
+        `${name} ${t.live.us}–${t.live.them} ${String(t.live.detail).toUpperCase()}`,
+      );
+    else if (t.last)
+      out.push(
+        `${name} ${t.last.result} ${t.last.us}–${t.last.them} ${t.last.home ? "VS" : "@"} ${t.last.opp}`,
+      );
+    if (!t.live && t.next)
+      out.push(
+        `${name} ${t.next.home ? "VS" : "@"} ${t.next.opp} ${fmtGameTime(t.next.date)}`,
+      );
     if (t.card) {
-      if (t.card.state === "post" && t.card.winner) out.push(`${String(t.card.name).toUpperCase()}: ${t.card.winner.toUpperCase()} WINS MAIN EVENT`);
-      else if (t.card.state !== "post") out.push(`${String(t.card.name).toUpperCase()} ${fmtGameTime(t.card.date)}`);
+      if (t.card.state === "post" && t.card.winner)
+        out.push(
+          `${String(t.card.name).toUpperCase()}: ${t.card.winner.toUpperCase()} WINS MAIN EVENT`,
+        );
+      else if (t.card.state !== "post") {
+        const main = t.card.main
+          ? `: ${surname(t.card.main[0].name)} VS ${surname(t.card.main[1].name)}`
+          : "";
+        const when = t.card.dateOnly
+          ? shortWhen(t.card.date, true)
+          : fmtGameTime(t.card.date);
+        out.push(`${String(t.card.name).toUpperCase()}${main} ${when}`);
+      }
     }
   }
   return out;
@@ -685,11 +793,12 @@ function renderSyncLine() {
   const failed = Object.values(DATA).some((e) => e?.error);
   const offline = navigator.onLine === false;
   document.body.classList.toggle("is-offline", offline || failed);
-  $("#sync-line").textContent = syncing && !offline
-    ? `${v} · SYNCING`
-    : offline || failed
-      ? `${v} · OFFLINE · AS OF ${at}`
-      : `${v} · SYNCED ${at}`;
+  $("#sync-line").textContent =
+    syncing && !offline
+      ? `${v} · SYNCING`
+      : offline || failed
+        ? `${v} · OFFLINE · AS OF ${at}`
+        : `${v} · SYNCED ${at}`;
 }
 
 async function refreshData() {
@@ -735,12 +844,32 @@ function renderScoresPanel() {
       p.append(el("b", null, tag), el("span", null, text));
       lines.append(p);
     };
-    if (t.live) line("LIVE", `${t.live.us}–${t.live.them} ${t.live.home ? "VS" : "@"} ${t.live.opp} · ${String(t.live.detail).toUpperCase()}`, "is-live");
-    if (t.last) line("LAST", `${t.last.result} ${t.last.us}–${t.last.them} ${t.last.home ? "VS" : "@"} ${t.last.opp}`);
-    if (t.next) line("NEXT", `${t.next.home ? "VS" : "@"} ${t.next.opp} · ${fmtGameTime(t.next.date)}`);
+    if (t.live)
+      line(
+        "LIVE",
+        `${t.live.us}–${t.live.them} ${t.live.home ? "VS" : "@"} ${t.live.opp} · ${String(t.live.detail).toUpperCase()}`,
+        "is-live",
+      );
+    if (t.last)
+      line(
+        "LAST",
+        `${t.last.result} ${t.last.us}–${t.last.them} ${t.last.home ? "VS" : "@"} ${t.last.opp}`,
+      );
+    if (t.next)
+      line(
+        "NEXT",
+        `${t.next.home ? "VS" : "@"} ${t.next.opp} · ${fmtGameTime(t.next.date)}`,
+      );
     if (t.card) {
-      line(t.card.state === "post" ? "LAST" : "NEXT", `${String(t.card.name).toUpperCase()} · ${fmtGameTime(t.card.date)}`);
-      if (t.card.main) line("MAIN", `${t.card.main[0].name} VS ${t.card.main[1].name}${t.card.winner ? ` · ${t.card.winner} WINS` : ""}`.toUpperCase());
+      line(
+        t.card.state === "post" ? "LAST" : "NEXT",
+        `${String(t.card.name).toUpperCase()} · ${t.card.dateOnly ? shortWhen(t.card.date, true) : fmtGameTime(t.card.date)}`,
+      );
+      if (t.card.main)
+        line(
+          "MAIN",
+          `${t.card.main[0].name} VS ${t.card.main[1].name}${t.card.winner ? ` · ${t.card.winner} WINS` : ""}`.toUpperCase(),
+        );
     }
     if (t.error && !t.last && !t.next && !t.card) line("—", "COULDN'T LOAD");
     if (!lines.childElementCount) line("—", "NO GAMES SCHEDULED");
@@ -748,7 +877,13 @@ function renderScoresPanel() {
     list.append(row);
   }
   const at = SCORES.at ? fmtTime(new Date(SCORES.at)) : "—";
-  list.append(el("p", "scores-foot", `${SCORES.stale ? "OFFLINE · " : ""}AS OF ${at} · ESPN`));
+  list.append(
+    el(
+      "p",
+      "scores-foot",
+      `${SCORES.stale ? "OFFLINE · " : ""}AS OF ${at} · ESPN`,
+    ),
+  );
 }
 
 async function refreshScores() {

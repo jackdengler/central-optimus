@@ -362,9 +362,18 @@
   white-space: nowrap;
 }
 
+/* Nothing in a reading may leave the band: lines ellipsize at the
+   reading's width (JS keeps it inside the diagonal vertically). */
+.band-sub {
+  max-width: 100%;
+}
+.band-sub > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Compact bands: keep the number + first line, drop the rest. */
 .band.is-compact .band-read {
-  top: calc(var(--slant) - 2px);
   gap: 3px;
 }
 .band.is-compact .band-num {
@@ -372,49 +381,50 @@
 }
 .band.is-compact .band-sub span:nth-child(n + 2),
 .band.is-compact .ticks,
-.band.is-compact .veil-label svg {
-  display: inline-block;
-  width: 12px;
-  height: 12px;
-  margin-left: 5px;
-  vertical-align: -2px;
-}
-.hold-hint {
+.band.is-compact .hold-hint {
   display: none;
 }
 
-.band-reason {
-  position: absolute;
-  left: 14px;
-  top: calc(var(--slant) + 6px);
-  z-index: 2;
-  margin: 0;
-  display: inline-flex;
-  align-items: center;
+/* Scores: one row per team (tag + next game / main event / result). */
+.band-read.is-scores {
+  max-width: calc(100% - 32px);
+  gap: 4px;
+}
+.score-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 100%;
+}
+.score-row-mini {
+  display: flex;
+  align-items: baseline;
   gap: 6px;
-  padding: 4px 7px;
-  background: var(--ground);
-  color: var(--accent);
+  min-width: 0;
   font-size: 11px;
-  line-height: 13px;
+  line-height: 14px;
   letter-spacing: 0.02em;
   text-transform: uppercase;
+  color: var(--band-hi);
   white-space: nowrap;
-  max-width: var(--reason-max, 50%);
+}
+.score-row-mini b {
+  flex: none;
+  min-width: 30px;
+  padding: 0 4px;
+  background: var(--ground);
+  color: var(--ink);
+  font-weight: 500;
+  text-align: center;
+}
+.score-row-mini span {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  pointer-events: none;
 }
-.band-reason svg {
-  width: 8px;
-  height: 8px;
-  fill: currentColor;
-  stroke: none;
-  flex: none;
-}
-.band.is-flip .band-reason {
-  left: auto;
-  right: 14px;
+.score-row-mini.is-live b {
+  background: var(--band-hi);
+  color: var(--band-bg);
 }
 
 /* 30-day lift ticks */
@@ -492,6 +502,13 @@
   text-transform: uppercase;
   color: var(--band-hi);
   white-space: nowrap;
+}
+.veil-label svg {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 5px;
+  vertical-align: -2px;
 }
 .veil-dollar {
   font-family: var(--display);
@@ -815,7 +832,11 @@
   letter-spacing: -0.01em;
   color: var(--ink);
 }
-.score-lines { display: flex; flex-direction: column; gap: 6px; }
+.score-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 .score-line {
   margin: 0;
   display: flex;
@@ -827,9 +848,18 @@
   color: var(--ink-2);
   font-variant-numeric: tabular-nums;
 }
-.score-line b { flex: none; width: 44px; font-weight: 500; color: var(--accent); }
-.score-line.is-live b, .score-line.is-live span { color: #ff5a4f; }
-.scores-empty, .scores-foot {
+.score-line b {
+  flex: none;
+  width: 44px;
+  font-weight: 500;
+  color: var(--accent);
+}
+.score-line.is-live b,
+.score-line.is-live span {
+  color: #ff5a4f;
+}
+.scores-empty,
+.scores-foot {
   margin: 16px 0 0;
   font-size: 11px;
   letter-spacing: 0.06em;
