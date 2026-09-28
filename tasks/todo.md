@@ -99,6 +99,7 @@ User feedback came from an iPhone screenshot. The band text spilled past the str
 - [x] Hold the tape to fast-forward it (6×); it eases back on release
 - [x] Launch: the app grows out of the band in the band's own diagonal shape under the band's colour, while the band's name flies up into the app bar title. Close plays the same moves in reverse, ending on the band. Uses Web Animations; a fast re-tap cancels cleanly
 - [x] Tests cover the movie rows, the budget figures, the tape speed-up, and launch/collapse leaving nothing behind. The SE geometry test caught the budget and movie readings overflowing short bands, so both were fixed
+- [x] Savings, Recipes and Parlay get the Optimus look: Anton + DM Mono self-hosted, the shared `co.theme` light/dark script and toggle, square edges, and yellow as a fill only. Brand colour appears as bands and markers. For each app, the same scripted session on the old and new builds gave identical storage, text and network calls (Parlay: 0 differences over 170 checkpoints, font requests aside). Pushed: savings `d167962`, recipes `2954866`, parlay `2e6eca0`
 
 ## Review
 - **What was built:** the Big Type launcher (commit `f8b9e1a`), plus the data layer (`f8e3b86`).
