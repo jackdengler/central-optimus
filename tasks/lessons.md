@@ -40,3 +40,8 @@
   scripted session on the old and new builds and diff what gets saved
   (storage and counts). It caught nothing this time, and that is what
   makes it safe to say so.
+- **New class names must not collide with old rules.** Before adding a
+  class to an existing stylesheet, grep for it: `.done` already meant
+  "the done screen". Screenshot the mid-flow states too (exercise 2 of 8,
+  a trailer open, a group expanded), not just the first frame of each
+  screen.

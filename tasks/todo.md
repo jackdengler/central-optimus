@@ -76,6 +76,13 @@ User feedback came from an iPhone screenshot. The band text spilled past the str
 - [x] Bug the new test caught: an inline pre-paint `html, body { background: #0b0b0b }` beat the themed rule, so a runtime toggle left the page dark. It now uses `var(--ground, #0b0b0b)`
 - [x] Fitness: "Light mode / Dark mode" row on home; movies: header icon. Both repos have light token overrides
 
+## Round 5 (2026-09-28): Big Type redesign of fitness + movies (behaviour unchanged)
+- [x] Fitness: rose hero band (today + checklist progress); Anton A/B/C with today filled rose; number-led Food/Body tiles; square ticks; arrow menu rows. Set screen has a full-width Anton exercise name, a per-exercise progress strip and 52–80px weight/reps. Rest screen has a giant countdown and a drain bar. "DONE." in rose. Square, uppercase-mono everywhere; Anton list titles
+- [x] Movies: square and flat (radius tokens 0, no soft shadows); wine month bands with the launcher's diagonal; Anton dates and titles; the trailer button shows the trailer's YouTube still; square interest strip; the rest of the app follows. Skin values are tokens in :root
+- [x] Proof of unchanged behaviour: the same scripted session on old and new builds leaves identical saved data (fitness) and identical counts and marks (movies)
+- [x] An independent QA subagent reviewed every screen and diff and found 31 issues. Fixed the real ones. Worst was a new `.done` class colliding with the old done-screen rule, which ballooned the progress strip from exercise 2 on
+- [x] Movies CI: snapshots depended on a live GitHub API call. The fixture now stubs external calls as offline
+
 ## Review
 - **What was built:** the Big Type launcher (commit `f8b9e1a`), plus the data layer (`f8e3b86`).
 - **Verification:**
