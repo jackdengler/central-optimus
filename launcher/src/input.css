@@ -114,7 +114,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 0 var(--gutter);
-  min-height: 104px;
+  min-height: 96px;
 }
 .clock-wrap {
   display: flex;
@@ -123,7 +123,7 @@
 }
 .clock {
   font-family: var(--display);
-  font-size: clamp(76px, 26vw, 104px);
+  font-size: clamp(72px, 23vw, 96px);
   line-height: 0.86;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
@@ -157,6 +157,9 @@
   font-variant-numeric: tabular-nums;
   color: var(--ink-3);
   white-space: nowrap;
+}
+#weather-line.is-stale {
+  opacity: 0.55;
 }
 .meta-hi {
   color: var(--ink);
@@ -259,7 +262,7 @@
   --band-hi: #fff;
   position: relative;
   flex: 1 1 0;
-  min-height: 112px;
+  min-height: 88px;
   max-height: 230px;
   margin-top: 0;
   background: var(--band-bg);
@@ -357,6 +360,27 @@
   text-transform: uppercase;
   color: var(--band-hi);
   white-space: nowrap;
+}
+
+/* Compact bands: keep the number + first line, drop the rest. */
+.band.is-compact .band-read {
+  top: calc(var(--slant) - 2px);
+  gap: 3px;
+}
+.band.is-compact .band-num {
+  font-size: clamp(40px, 12vw, 50px);
+}
+.band.is-compact .band-sub span:nth-child(n + 2),
+.band.is-compact .ticks,
+.band.is-compact .veil-label svg {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 5px;
+  vertical-align: -2px;
+}
+.hold-hint {
+  display: none;
 }
 
 .band-reason {
@@ -767,6 +791,49 @@
 .embed-failure-actions {
   display: flex;
   gap: 8px;
+}
+
+/* ---------- scores panel ---------- */
+
+.scores-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px var(--gutter) max(env(safe-area-inset-bottom), 16px);
+  background: var(--ground);
+}
+.score-row {
+  padding: 14px 0;
+  border-bottom: 1px solid #242424;
+}
+.score-team {
+  margin: 0 0 8px;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 56px;
+  line-height: 0.86;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.score-lines { display: flex; flex-direction: column; gap: 6px; }
+.score-line {
+  margin: 0;
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.score-line b { flex: none; width: 44px; font-weight: 500; color: var(--accent); }
+.score-line.is-live b, .score-line.is-live span { color: #ff5a4f; }
+.scores-empty, .scores-foot {
+  margin: 16px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
 }
 
 /* ---------- gate + boot error ---------- */

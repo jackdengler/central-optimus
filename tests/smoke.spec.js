@@ -5,7 +5,7 @@ test.describe("smoke", () => {
   test("loads the Big Type home with bands, strip and clock", async ({ page }) => {
     await page.goto("/");
     await expect(page).toHaveTitle(/Central Optimus/i);
-    await expect(page.locator("#bands .band")).toHaveCount(3, { timeout: 10_000 });
+    await expect(page.locator("#bands .band")).toHaveCount(4, { timeout: 10_000 });
     await expect(page.locator("#strip .strip-item")).toHaveCount(7);
     await expect(page.locator("#clock")).not.toHaveText(/--/);
     await expect(page.locator("#today-date")).not.toBeEmpty();
@@ -24,7 +24,7 @@ test.describe("smoke", () => {
       if (msg.type() === "error") errors.push(`console: ${msg.text()}`);
     });
     await page.goto("/");
-    await expect(page.locator("#bands .band")).toHaveCount(3, { timeout: 10_000 });
+    await expect(page.locator("#bands .band")).toHaveCount(4, { timeout: 10_000 });
     await expect(page.locator('.band[data-app="fitness-tracker"] .band-num')).toHaveText("10");
     const real = errors.filter(
       (e) =>

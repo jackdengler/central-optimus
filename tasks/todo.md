@@ -50,6 +50,14 @@ The PAT gate (optimistic reveal plus background re-verify), the postMessage PAT 
 - [x] P3 Interactions: band-to-app launch/close, scratch-off reveal, search filtering, reduced-motion paths
 - [x] P4 Proof: update the Playwright specs and snapshots, lint, format, a11y, iPhone-size renders; push to the preview branch
 
+## Round 2 (2026-09-28): icon, offline-first, sound/haptics, scores
+- [x] Big Type icon: a condensed "O" cut from the three band colours, with the tape and a real shadow. Maskable icon and splash are black
+- [x] Offline-first: stale weather fallback, OFFLINE · AS OF status, re-sync on reconnect, honest offline message for apps
+- [x] feel.js: synthesized tick, open, close and tear cues, iOS ambient audio session, Android vibration, sound toggle in search
+- [x] Scores band and panel plus ticker: Steelers, Penn State, UFC via ESPN. Live game takes the top band; game day ranks above the lift gap
+- [x] Compact bands: short bands drop secondary lines instead of clipping them (4 bands on an iPhone 14)
+- Not verified here: ESPN's live responses (this container's network policy blocks ESPN). The parser is built on ESPN's documented shape and tested with fixtures
+
 ## Review
 - **What was built:** the Big Type launcher (commit `f8b9e1a`), plus the data layer (`f8e3b86`).
 - **Verification:**

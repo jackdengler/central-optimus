@@ -138,6 +138,27 @@ other apps, and search. Fonts (Anton, DM Mono) are self-hosted in
 - Search filters the bands/strip; Enter opens the top match; ⌘K or `/`
   focuses it. `1`–`9` open apps in on-screen order.
 
+### Scores (`launcher/scores.js`)
+
+A fourth band, SCORES (not an app), shows the most relevant game for the
+teams in `config.json` → `teams` (currently Steelers, Penn State football,
+UFC): a live game (jumps to the top band), else today's / the soonest
+game, else the latest result. Tapping it opens a Big Type panel for every
+team; results and upcoming games also run in the ticker tape. Data comes
+from ESPN's public site API (`site.api.espn.com`, no key; allowed in the
+CSP). It polls every minute while a game is live, every 30 minutes
+otherwise, and caches the last payload for offline.
+
+### Offline + feel
+
+The shell, fonts and every module are precached by the service worker;
+live readings, weather and scores paint from their last cached values
+first. Offline, the status line reads `OFFLINE · AS OF h:mm`, stale weather
+dims, and everything re-syncs on reconnect. `launcher/feel.js` synthesizes
+tap / open / close / scratch-off cues with Web Audio (iOS "ambient"
+session: respects the silent switch) plus Android vibration; search
+"sound" to toggle.
+
 ### Live data (`launcher/data.js`)
 
 Readings come from `dataRepo` via the GitHub Contents API with the

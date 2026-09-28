@@ -109,6 +109,13 @@ export const test = base.extend({
       },
     );
 
+    // ESPN (scores): deterministic, ESPN-shaped payloads.
+    await page.route(/^https:\/\/site\.api\.espn\.com\/.*/, async (route) => {
+      const url = route.request().url();
+      const body = url.includes("/teams/pit/") ? espn().steelers : url.includes("/teams/213/") ? espn().psu : espn().ufc;
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+    });
+
     // Weather + reverse geocode: fixed, offline.
     await page.route(/api\.open-meteo\.com/, (route) =>
       route.fulfill({
@@ -172,6 +179,50 @@ export function dataFixtures() {
       catSplits: { groceries: { mode: "pct", p1Pct: 75 } },
       excludedFromAvg: [],
     },
+  };
+}
+
+/* ESPN-shaped fixtures. daysFromNow(n, h) → ISO string n days out at h:00 local. */
+function daysFromNow(n, h = 13) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  d.setHours(h, 0, 0, 0);
+  return d.toISOString();
+}
+function teamEvent({ date, state, us, them, home = true, abbr = "PIT", opp = "BAL", oppName = "Baltimore Ravens", win, detail }) {
+  const mine = { homeAway: home ? "home" : "away", team: { abbreviation: abbr }, ...(us != null ? { score: { value: us, displayValue: String(us) } } : {}), ...(win != null ? { winner: win } : {}) };
+  const other = { homeAway: home ? "away" : "home", team: { abbreviation: opp, displayName: oppName }, ...(them != null ? { score: String(them) } : {}), ...(win != null ? { winner: !win } : {}) };
+  return { date, competitions: [{ competitors: [mine, other], status: { type: { state, completed: state === "post", shortDetail: detail || (state === "post" ? "Final" : "Sun 1:00 PM") } } }] };
+}
+export function espn(overrides = {}) {
+  return {
+    steelers: {
+      events: [
+        teamEvent({ date: daysFromNow(-4), state: "post", us: 24, them: 17, win: true }),
+        teamEvent({ date: daysFromNow(3), state: "pre", home: false, opp: "CIN", oppName: "Cincinnati Bengals" }),
+      ],
+    },
+    psu: {
+      events: [
+        teamEvent({ date: daysFromNow(-2), state: "post", us: 31, them: 20, abbr: "PSU", opp: "UCLA", win: true }),
+        teamEvent({ date: daysFromNow(5, 15), state: "pre", abbr: "PSU", opp: "OSU", home: false }),
+      ],
+    },
+    ufc: {
+      events: [
+        {
+          name: "UFC 320: A vs B",
+          shortName: "UFC 320",
+          date: daysFromNow(6, 19),
+          status: { type: { state: "pre" } },
+          competitions: [
+            { competitors: [{ athlete: { shortName: "C. Prelim" } }, { athlete: { shortName: "D. Prelim" } }] },
+            { competitors: [{ athlete: { shortName: "A. Fighter" } }, { athlete: { shortName: "B. Fighter" } }] },
+          ],
+        },
+      ],
+    },
+    ...overrides,
   };
 }
 

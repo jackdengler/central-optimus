@@ -15,7 +15,7 @@
          Scripts are self-only (no inline) so an injected <script> can't run. -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.github.com https://api.open-meteo.com https://api.bigdatacloud.net; frame-src 'self' https://jackdengler.github.io; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.github.com https://site.api.espn.com https://api.open-meteo.com https://api.bigdatacloud.net; frame-src 'self' https://jackdengler.github.io; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'"
     />
     <title>Central Optimus</title>
 
@@ -31,6 +31,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Optimus" />
+    <link
+      rel="apple-touch-startup-image"
+      href="./icons/splash-1170x2532.png"
+      media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+    />
     <!-- Pre-paint the ground so the PWA safe areas are black before CSS lands. -->
     <style>
       html, body { margin: 0; background: #0b0b0b; }
@@ -111,6 +116,18 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Scores: an in-launcher panel (not an app), opened from its band. -->
+    <div id="scores-panel" class="embed scores" hidden>
+      <header class="embed-bar">
+        <button id="scores-home" type="button" class="embed-home" aria-label="Home">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+          <span>HOME</span>
+        </button>
+        <h1 class="embed-title">Scores</h1>
+      </header>
+      <div id="scores-list" class="scores-list"></div>
     </div>
 
     <!-- PAT auth gate -->

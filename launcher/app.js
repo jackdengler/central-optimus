@@ -1,5 +1,7 @@
 import { initWeather } from "./weather.js";
 import { loadLiveData, clearLiveData } from "./data.js";
+import { feel, soundOn, setSound } from "./feel.js";
+import { loadScores, headline } from "./scores.js";
 
 /* =====================================================================
    Central Optimus — Big Type launcher.
@@ -21,16 +23,12 @@ let weatherController = null;
 let openAppId = null;
 let embedTimer = 0;
 let lastDataLoad = 0;
+let SCORES = null; // { teams, at, stale }
+let scoresTimer = 0;
 
 const $ = (sel) => document.querySelector(sel);
 const reducedMotion = () =>
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-function haptic(ms = 8) {
-  try {
-    navigator.vibrate?.(ms);
-  } catch (_) {}
-}
 
 /* Block page pinch-zoom (iOS ignores user-scalable=no in standalone). */
 ["gesturestart", "gesturechange", "gestureend"].forEach((evt) =>
@@ -93,18 +91,32 @@ function greeting(d, name) {
             : "GOOD NIGHT";
   return `${part}, ${name.toUpperCase()}`;
 }
+function fmtGameTime(iso, now = new Date()) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.valueOf())) return "";
+  const t = fmtTime(d);
+  if (d.toDateString() === now.toDateString()) return `TODAY ${t}`;
+  const days = Math.round((new Date(d.toDateString()) - new Date(now.toDateString())) / 86_400_000);
+  return days > 0 && days < 7 ? `${DAYS[d.getDay()]} ${t}` : `${DAYS[d.getDay()]} ${MONTHS[d.getMonth()]} ${d.getDate()}`;
+}
+function matchup(team, g) {
+  return `${team.label.toUpperCase()} ${g.home ? "VS" : "@"} ${g.opp}`;
+}
 function money(n) {
   return Math.round(n).toLocaleString("en-US");
 }
 // Readable text colour on a band: near-black on light fills, white on dark.
-function inkFor(hex) {
+function luminance(hex) {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
-  if (!m) return "#0b0b0b";
+  if (!m) return 0;
   const [r, g, b] = [0, 2, 4].map((i) => {
     const c = parseInt(m[1].slice(i, i + 2), 16) / 255;
     return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
   });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.12 ? "#0b0b0b" : "#ffffff";
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function inkFor(hex) {
+  return luminance(hex) > 0.12 ? "#0b0b0b" : "#ffffff";
 }
 function el(tag, cls, text) {
   const n = document.createElement(tag);
@@ -216,6 +228,7 @@ function startClock() {
 }
 
 function setWeatherLine(payload) {
+  $("#weather-line").classList.toggle("is-stale", !!payload?.stale);
   const place = (payload?.place || CONFIG.location || "").toUpperCase();
   const short = place === "LOS ANGELES" ? "LA" : place;
   const temp = Number.isFinite(payload?.temp) ? `${payload.temp}°` : "";
@@ -261,8 +274,11 @@ function buildBands() {
     band.dataset.app = app.id;
     band.style.setProperty("--band-bg", app.color);
     band.style.setProperty("--band-fg", inkFor(app.color));
+    // Light bands (e.g. Scores gold) carry dark readings; white fails there.
+    if (luminance(app.color) > 0.35) band.style.setProperty("--band-hi", "#0b0b0b");
     const hit = el("button", "band-hit");
     hit.type = "button";
+    hit.addEventListener("pointerdown", () => feel("tick"));
     hit.addEventListener("click", () => launchApp(app.id, band));
     band.append(
       hit,
@@ -282,7 +298,7 @@ function buildHold(band) {
   const reveal = (e) => {
     e?.preventDefault?.();
     clearTimeout(timer);
-    if (!band.classList.contains("is-revealed")) haptic(10);
+    if (!band.classList.contains("is-revealed")) feel("tear");
     fillVeils(band, true);
     band.classList.add("is-revealed");
   };
@@ -327,6 +343,7 @@ function readingFor(app) {
   const sub = el("span", "band-sub");
   let label = "";
 
+  if (app.id === "scores") return scoresReading(read, num, sub);
   if (!s) {
     num.textContent = "—";
     sub.append(el("span", null, entry?.error ? "OFFLINE" : "SYNCING"));
@@ -382,8 +399,10 @@ function readingFor(app) {
       const row = el("span", "veil-row");
       const v = el("span", "veil");
       v.dataset.key = key;
+      const lab = el("span", "veil-label", text);
+      if (key === "last") lab.insertAdjacentHTML("beforeend", SVG.eye);
       row.append(
-        el("span", "veil-label", text),
+        lab,
         el("span", "veil-dollar", "$"),
         v,
       );
@@ -400,6 +419,44 @@ function readingFor(app) {
     "band-asof",
     entry?.at ? `AS OF ${fmtTime(new Date(entry.at))}` : "AS OF —",
   );
+  read.append(asof);
+  return { read, label };
+}
+
+function scoresReading(read, num, sub) {
+  const h = SCORES ? headline(SCORES.teams) : null;
+  let label = "no games";
+  if (!h) {
+    num.textContent = "—";
+    sub.append(el("span", null, SCORES ? "NO GAMES" : "SYNCING"));
+  } else if (h.kind === "live") {
+    num.textContent = `${h.game.us ?? 0}–${h.game.them ?? 0}`;
+    sub.append(
+      el("span", null, `${h.team.abbr || h.team.label.toUpperCase()} ${h.game.home ? "VS" : "@"} ${h.game.opp} · ${String(h.game.detail).toUpperCase()}`),
+      el("span", null, "LIVE"),
+    );
+    label = `live: ${h.team.label} ${h.game.us} to ${h.game.them}`;
+  } else if (h.kind === "final") {
+    num.textContent = `${h.game.result} ${h.game.us}–${h.game.them}`;
+    sub.append(el("span", null, `${matchup(h.team, h.game)} · FINAL`));
+    label = `${h.team.label} final ${h.game.us} to ${h.game.them}`;
+  } else if (h.game) {
+    const when = fmtGameTime(h.game.date);
+    const time = when.replace(/^(TODAY|[A-Z]{3}) /, "");
+    num.textContent = h.kind === "today" ? "TODAY" : when.split(" ")[0];
+    sub.append(
+      el("span", null, `${h.team.abbr || h.team.label.toUpperCase()} ${h.game.home ? "VS" : "@"} ${h.game.opp} · ${time}`),
+      el("span", null, h.team.label.toUpperCase()),
+    );
+    label = `next: ${h.team.label} ${h.game.home ? "vs" : "at"} ${h.game.oppName || h.game.opp}, ${when}`;
+  } else if (h.card) {
+    const when = fmtGameTime(h.card.date);
+    num.textContent = h.kind === "today" ? "TODAY" : when.split(" ")[0];
+    sub.append(el("span", null, String(h.card.name).toUpperCase()), el("span", null, h.card.main ? `${h.card.main[0].name} VS ${h.card.main[1].name}`.toUpperCase() : when));
+    label = `next: ${h.card.name}, ${when}`;
+  }
+  read.append(num, sub);
+  const asof = el("span", "band-asof", SCORES?.at ? `AS OF ${fmtTime(new Date(SCORES.at))}` : "AS OF —");
   read.append(asof);
   return { read, label };
 }
@@ -424,6 +481,8 @@ function ticks(last30) {
 function urgency() {
   const fit = DATA["fitness-tracker"]?.summary;
   const mov = DATA["upcoming-movies"]?.summary;
+  const game = SCORES ? headline(SCORES.teams) : null;
+  if (game?.kind === "live") return { lead: "scores", reason: "● LIVE NOW" };
   if (mov?.next && mov.next.daysUntil <= 2) {
     const d = mov.next.daysUntil;
     return {
@@ -431,6 +490,7 @@ function urgency() {
       reason: d <= 0 ? "ON TOP · OPENS TODAY" : `ON TOP · OPENS IN ${d}D`,
     };
   }
+  if (game?.kind === "today") return { lead: "scores", reason: "ON TOP · GAME DAY" };
   if (
     fit?.lastLift &&
     fit.medianGap != null &&
@@ -464,7 +524,7 @@ function renderBands() {
       tag.append(reason);
       band.append(tag);
     }
-    band.classList.toggle("is-stale", !!DATA[id]?.error);
+    band.classList.toggle("is-stale", id === "scores" ? !!SCORES?.stale && !!SCORES?.at && navigator.onLine === false : !!DATA[id]?.error);
     if (band.classList.contains("is-revealed")) fillVeils(band, true);
     band
       .querySelector(".band-hit")
@@ -486,12 +546,16 @@ function fitBandNames() {
     const name = band.querySelector(".band-name");
     const read = band.querySelector(".band-read");
     if (!name || !band.clientWidth) return;
+    // Short bands (four on a small phone) drop secondary lines rather than
+    // letting the diagonal clip them.
+    band.classList.remove("is-compact");
+    if (read.scrollHeight + slant * 2 + 4 > band.clientHeight) band.classList.add("is-compact");
     const col = band.clientWidth - 14 - 16 - read.offsetWidth - 10;
     const tag = band.querySelector(".band-reason");
     if (tag) tag.style.setProperty("--reason-max", `${Math.max(120, col)}px`);
     name.style.setProperty("--name-size", "100px");
     const natural = name.scrollWidth;
-    const top = tag ? slant + 6 + tag.offsetHeight + 4 : slant;
+    const top = tag ? slant + 6 + tag.offsetHeight + 10 : slant;
     const byWidth = (100 * col) / natural;
     const byHeight = (band.clientHeight - slant - 6 - top) / 0.86;
     const size = Math.max(40, Math.min(byWidth, byHeight, 120));
@@ -518,6 +582,7 @@ function buildStrip() {
     btn.type = "button";
     btn.dataset.app = app.id;
     btn.style.setProperty("--app-color", app.color);
+    btn.addEventListener("pointerdown", () => feel("tick"));
     btn.addEventListener("click", () => launchApp(app.id, btn));
     nav.append(btn);
   }
@@ -572,6 +637,16 @@ function headlines() {
       `PARLAY ${Math.round(par.hitRate * 100)}%${par.open ? ` · ${par.open} OPEN` : ""}`,
     );
   if (rec) out.push(`${rec.count} RECIPES`);
+  for (const t of SCORES?.teams || []) {
+    const name = t.label.toUpperCase();
+    if (t.live) out.push(`${name} ${t.live.us}–${t.live.them} ${String(t.live.detail).toUpperCase()}`);
+    else if (t.last) out.push(`${name} ${t.last.result} ${t.last.us}–${t.last.them} ${t.last.home ? "VS" : "@"} ${t.last.opp}`);
+    if (!t.live && t.next) out.push(`${name} ${t.next.home ? "VS" : "@"} ${t.next.opp} ${fmtGameTime(t.next.date)}`);
+    if (t.card) {
+      if (t.card.state === "post" && t.card.winner) out.push(`${String(t.card.name).toUpperCase()}: ${t.card.winner.toUpperCase()} WINS MAIN EVENT`);
+      else if (t.card.state !== "post") out.push(`${String(t.card.name).toUpperCase()} ${fmtGameTime(t.card.date)}`);
+    }
+  }
   return out;
 }
 
@@ -594,11 +669,35 @@ function renderTape() {
 
 /* ---------- live data ---------- */
 
+const SYNC_KEY = "co.synced.at";
+let syncing = false;
+
+/* Status line: SYNCING while a refresh runs, SYNCED h:mm when everything
+   came back, otherwise OFFLINE with the time of the last good sync so an
+   old number is never mistaken for a fresh one. */
+function renderSyncLine() {
+  const v = `V${CONFIG.version || "2.0"}`;
+  let last = null;
+  try {
+    last = Number(localStorage.getItem(SYNC_KEY)) || null;
+  } catch (_) {}
+  const at = last ? fmtTime(new Date(last)) : "—";
+  const failed = Object.values(DATA).some((e) => e?.error);
+  const offline = navigator.onLine === false;
+  document.body.classList.toggle("is-offline", offline || failed);
+  $("#sync-line").textContent = syncing && !offline
+    ? `${v} · SYNCING`
+    : offline || failed
+      ? `${v} · OFFLINE · AS OF ${at}`
+      : `${v} · SYNCED ${at}`;
+}
+
 async function refreshData() {
   const token = localStorage.getItem(TOKEN_KEY);
-  if (!token || !CONFIG.dataRepo) return;
+  if (!token || !CONFIG.dataRepo || syncing) return;
   lastDataLoad = Date.now();
-  $("#sync-line").textContent = `V${CONFIG.version || "2.0"} · SYNCING`;
+  syncing = true;
+  renderSyncLine();
   await loadLiveData({
     token,
     repo: CONFIG.dataRepo,
@@ -609,9 +708,60 @@ async function refreshData() {
       renderTape();
     },
   });
-  const failed = Object.values(DATA).some((e) => e?.error);
-  $("#sync-line").textContent =
-    `V${CONFIG.version || "2.0"} · ${failed ? "OFFLINE" : `SYNCED ${fmtTime(new Date())}`}`;
+  syncing = false;
+  if (!Object.values(DATA).some((e) => e?.error)) {
+    try {
+      localStorage.setItem(SYNC_KEY, String(Date.now()));
+    } catch (_) {}
+  }
+  renderSyncLine();
+}
+
+/* ---------- scores ---------- */
+
+function renderScoresPanel() {
+  const list = $("#scores-list");
+  list.innerHTML = "";
+  if (!SCORES?.teams?.length) {
+    list.append(el("p", "scores-empty", "SYNCING SCORES…"));
+    return;
+  }
+  for (const t of SCORES.teams) {
+    const row = el("section", "score-row");
+    row.append(el("h2", "score-team", t.label.toUpperCase()));
+    const lines = el("div", "score-lines");
+    const line = (tag, text, cls) => {
+      const p = el("p", `score-line${cls ? ` ${cls}` : ""}`);
+      p.append(el("b", null, tag), el("span", null, text));
+      lines.append(p);
+    };
+    if (t.live) line("LIVE", `${t.live.us}–${t.live.them} ${t.live.home ? "VS" : "@"} ${t.live.opp} · ${String(t.live.detail).toUpperCase()}`, "is-live");
+    if (t.last) line("LAST", `${t.last.result} ${t.last.us}–${t.last.them} ${t.last.home ? "VS" : "@"} ${t.last.opp}`);
+    if (t.next) line("NEXT", `${t.next.home ? "VS" : "@"} ${t.next.opp} · ${fmtGameTime(t.next.date)}`);
+    if (t.card) {
+      line(t.card.state === "post" ? "LAST" : "NEXT", `${String(t.card.name).toUpperCase()} · ${fmtGameTime(t.card.date)}`);
+      if (t.card.main) line("MAIN", `${t.card.main[0].name} VS ${t.card.main[1].name}${t.card.winner ? ` · ${t.card.winner} WINS` : ""}`.toUpperCase());
+    }
+    if (t.error && !t.last && !t.next && !t.card) line("—", "COULDN'T LOAD");
+    if (!lines.childElementCount) line("—", "NO GAMES SCHEDULED");
+    row.append(lines);
+    list.append(row);
+  }
+  const at = SCORES.at ? fmtTime(new Date(SCORES.at)) : "—";
+  list.append(el("p", "scores-foot", `${SCORES.stale ? "OFFLINE · " : ""}AS OF ${at} · ESPN`));
+}
+
+async function refreshScores() {
+  clearTimeout(scoresTimer);
+  await loadScores(CONFIG.teams, (payload) => {
+    SCORES = payload;
+    renderBands();
+    renderTape();
+    if (openAppId === "scores") renderScoresPanel();
+  });
+  // Poll every minute while a game is live, otherwise every 30 minutes.
+  const live = SCORES?.teams?.some((t) => t.live);
+  scoresTimer = setTimeout(refreshScores, live ? 60_000 : 30 * 60_000);
 }
 
 /* ---------- search ---------- */
@@ -622,6 +772,15 @@ const ACTIONS = [
     label: "Refresh",
     keywords: "refresh sync reload update",
     run: () => refreshData(),
+  },
+  {
+    label: "Sound",
+    keywords: "sound audio mute unmute volume",
+    run: () => {
+      setSound(!soundOn());
+      if (soundOn()) feel("tick");
+      $("#tape-live").textContent = soundOn() ? "Sound on" : "Sound off";
+    },
   },
 ];
 
@@ -696,22 +855,31 @@ function originFor(appId) {
   );
 }
 
+const layerFor = (appId) =>
+  APPS.find((a) => a.id === appId)?.panel ? $("#scores-panel") : $("#embed");
+
 function launchApp(appId, originEl, { animate = true } = {}) {
-  const app = APPS.find((a) => a.id === appId && a.url);
+  const app = APPS.find((a) => a.id === appId && (a.url || a.panel));
   if (!app || openAppId === appId) return;
-  haptic(8);
+  if (openAppId) closeApp({ fromHistory: true, quiet: true });
+  // Only an animated launch gets the whoosh; deep links open silently.
+  if (animate) feel("open");
   openAppId = appId;
-  const embed = $("#embed");
+  const embed = layerFor(appId);
   embed.style.setProperty("--app-color", app.color);
   embed.style.setProperty("--app-fg", inkFor(app.color));
-  $("#embed-title").textContent = app.label || app.name;
-  const frame = $("#embed-frame");
-  frame.title = app.name;
-  embed.classList.remove("is-failed");
-  if (frame.getAttribute("src") !== app.url) {
-    embed.classList.add("is-loading");
-    frame.src = app.url;
-    armEmbedTimeout(app);
+  if (app.panel) {
+    renderScoresPanel();
+  } else {
+    $("#embed-title").textContent = app.label || app.name;
+    const frame = $("#embed-frame");
+    frame.title = app.name;
+    embed.classList.remove("is-failed");
+    if (frame.getAttribute("src") !== app.url) {
+      embed.classList.add("is-loading");
+      frame.src = app.url;
+      armEmbedTimeout(app);
+    }
   }
   if (location.hash !== `#app/${app.id}`)
     history.pushState({ app: app.id }, "", `#app/${app.id}`);
@@ -727,15 +895,16 @@ function launchApp(appId, originEl, { animate = true } = {}) {
   } else {
     embed.style.clipPath = "inset(0 0 0 0)";
   }
-  $("#embed-home").focus({ preventScroll: true });
+  embed.querySelector(".embed-home").focus({ preventScroll: true });
 }
 
-function closeApp({ fromHistory = false } = {}) {
+function closeApp({ fromHistory = false, quiet = false } = {}) {
   if (!openAppId) return;
-  const embed = $("#embed");
+  const embed = layerFor(openAppId);
   const appId = openAppId;
   openAppId = null;
   clearTimeout(embedTimer);
+  if (!quiet) feel("close");
   $("#app").removeAttribute("aria-hidden");
   if (!fromHistory && location.hash)
     history.pushState(null, "", location.pathname + location.search);
@@ -747,7 +916,7 @@ function closeApp({ fromHistory = false } = {}) {
       ?.querySelector?.(".band-hit")
       ?.focus({ preventScroll: true });
   };
-  if (reducedMotion()) return finish();
+  if (reducedMotion() || quiet) return finish();
   embed.classList.add("is-animating");
   embed.style.clipPath = rectInset(originFor(appId));
   const ms =
@@ -765,7 +934,10 @@ function armEmbedTimeout(app) {
     const embed = $("#embed");
     embed.classList.remove("is-loading");
     embed.classList.add("is-failed");
-    $("#embed-failure-msg").textContent = `${app.name} didn't respond in time.`;
+    $("#embed-failure-msg").textContent =
+      navigator.onLine === false
+        ? `You're offline, and ${app.name} isn't saved on this phone yet.`
+        : `${app.name} didn't respond in time.`;
   }, EMBED_LOAD_TIMEOUT_MS);
 }
 
@@ -793,6 +965,7 @@ function wireEmbed() {
     sendPatHandshake(frame);
   });
   $("#embed-home").addEventListener("click", () => closeApp());
+  $("#scores-home").addEventListener("click", () => closeApp());
   $("#embed-failure-close").addEventListener("click", () => closeApp());
   $("#embed-failure-retry").addEventListener("click", () => {
     const app = APPS.find((a) => a.id === openAppId);
@@ -883,7 +1056,17 @@ function startHome() {
     onUpdate: setWeatherLine,
     onError: () => {},
   });
+  renderSyncLine();
   refreshData();
+  refreshScores();
+  // Offline-first: everything above painted from cache; when the network
+  // comes back, re-sync data and weather without waiting for a relaunch.
+  window.addEventListener("online", () => {
+    refreshData();
+    refreshScores();
+    weatherController?.refresh?.();
+  });
+  window.addEventListener("offline", renderSyncLine);
   document.addEventListener("visibilitychange", () => {
     if (
       document.visibilityState === "visible" &&
