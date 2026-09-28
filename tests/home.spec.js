@@ -32,11 +32,11 @@ test.describe("home", () => {
     await expect(page.locator('.strip-item[data-app="recipe-book"]')).toContainText("1");
   });
 
-  test("the most urgent band leads, with a reason tag", async ({ page }) => {
+  test("the most urgent band leads, with no reason tag", async ({ page }) => {
     await page.goto("/");
     const first = page.locator("#bands .band").first();
     await expect(first).toHaveAttribute("data-app", "fitness-tracker");
-    await expect(first.locator(".band-reason")).toHaveText(/ON TOP · USUAL GAP 2D/);
+    await expect(page.locator(".band-reason")).toHaveCount(0);
   });
 
   test("a release within two days takes the top spot", async ({ page }) => {
@@ -52,7 +52,7 @@ test.describe("home", () => {
     await page.goto("/");
     const first = page.locator("#bands .band").first();
     await expect(first).toHaveAttribute("data-app", "upcoming-movies", { timeout: 10_000 });
-    await expect(first.locator(".band-reason")).toHaveText(/OPENS IN 1D/);
+    await expect(first.locator(".band-num")).toHaveText("T–1");
   });
 
   test("budget figures stay out of the DOM until held", async ({ page }) => {

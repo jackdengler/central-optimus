@@ -58,6 +58,17 @@ The PAT gate (optimistic reveal plus background re-verify), the postMessage PAT 
 - [x] Compact bands: short bands drop secondary lines instead of clipping them (4 bands on an iPhone 14)
 - Not verified here: ESPN's live responses (this container's network policy blocks ESPN). The parser is built on ESPN's documented shape and tested with fixtures
 
+## Round 3 (2026-09-28): fit, no reason tags, every team + UFC main event
+User feedback came from an iPhone screenshot. The band text spilled past the strip and got cut off by the diagonal. They didn't want the "ON TOP" reasoning. They wanted upcoming games for every team and the next UFC main event.
+- [x] Root cause: a stray edit had merged the compact rule into the eye-icon rule. Compact mode gave the secondary lines a 12px width instead of hiding them. Also, the fit check assumed both sides of a band had equal height, but the diagonal cuts a right-side reading at the bottom and a left-side one at the top.
+- [x] `fitBandNames` computes per-side limits from the clip polygon. Reading lines ellipsize at the reading width. The compact rule is restored.
+- [x] Reason tags removed. Bands still reorder by urgency.
+- [x] The Scores band has one row per team (PIT / PSU / UFC). UFC skips Contender Series weeks and takes the main event from the card title, e.g. "UFC 320: Ankalaev vs. Pereira 2". If the title doesn't name a fight, it falls back to the last listed bout. The main event also shows in the ticker.
+- [x] The Scores name stacks under the rows when the band is tall enough. Otherwise it sits beside them in a reserved column.
+- [x] Small fixes: "Township of" is stripped from the place name; a build without a build.json shows "PREVIEW".
+- [x] `tests/fit.spec.js` checks the geometry: every reading part must sit inside its band's diagonal on the iPhone 14 and iPhone SE, using long names. It fails on the previous commit and passes now. Result: 43/43 on Chromium.
+- Not verified here: ESPN's calendar shape for the Contender Series fallback (ESPN is blocked from this container).
+
 ## Review
 - **What was built:** the Big Type launcher (commit `f8b9e1a`), plus the data layer (`f8e3b86`).
 - **Verification:**

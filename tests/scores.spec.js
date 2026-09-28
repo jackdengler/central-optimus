@@ -45,10 +45,37 @@ test.describe("scores parsers", () => {
     expect(s.last.result).toBe("L");
   });
 
-  test("UFC card: the main event is the last bout", () => {
+  test("UFC card: the title names the main event", () => {
     const u = parseUfc(espn().ufc);
     expect(u.card.name).toBe("UFC 320");
-    expect(u.card.main.map((f) => f.name)).toEqual(["A. Fighter", "B. Fighter"]);
+    expect(u.card.main.map((f) => f.name)).toEqual(["Ankalaev", "Pereira 2"]);
+  });
+
+  test("UFC card: without a titled fight, the last bout is the main event", () => {
+    const json = espn().ufc;
+    json.events[0].name = "UFC 320";
+    expect(parseUfc(json).card.main.map((f) => f.name)).toEqual(["M. Ankalaev", "A. Pereira"]);
+  });
+
+  test("UFC card: a Contender Series week is skipped for the next real card", () => {
+    const dwcs = { name: "Dana White's Contender Series: Week 8", shortName: "Dana White's Contender Series", date: "2026-09-29T00:00Z", competitions: [] };
+    const json = {
+      events: [dwcs],
+      leagues: [
+        {
+          calendar: [
+            { label: "UFC Fight Night: Old vs. Card", startDate: "2026-09-20T07:00Z", endDate: "2026-09-21T06:59Z" },
+            { label: "Dana White's Contender Series: Week 9", startDate: "2026-09-30T07:00Z", endDate: "2026-10-01T06:59Z" },
+            { label: "UFC 320: Ankalaev vs. Pereira 2", startDate: "2026-10-04T07:00Z", endDate: "2026-10-05T06:59Z" },
+          ],
+        },
+      ],
+    };
+    const u = parseUfc(json, now);
+    expect(u.card).toMatchObject({ name: "UFC 320", state: "pre", dateOnly: true, date: "2026-10-04T07:00Z" });
+    expect(u.card.main.map((f) => f.name)).toEqual(["Ankalaev", "Pereira 2"]);
+    // Nothing better on the calendar: the Contender card beats an empty band.
+    expect(parseUfc({ events: [dwcs] }, now).card.name).toBe("Dana White's Contender Series");
   });
 
   test("headline prefers live, then soonest upcoming, then latest final", () => {
@@ -62,11 +89,15 @@ test.describe("scores parsers", () => {
 });
 
 test.describe("scores on the home screen", () => {
-  test("the Scores band shows the soonest game and the tape carries results", async ({ page }) => {
+  test("the Scores band lists every team's next game and the UFC main event", async ({ page }) => {
     await page.goto("/");
-    const band = page.locator('.band[data-app="scores"]');
-    await expect(band.locator(".band-sub")).toContainText("PIT @ CIN · ");
+    const rows = page.locator('.band[data-app="scores"] .score-row-mini');
+    await expect(rows.locator("b")).toHaveText(["PIT", "PSU", "UFC"]);
+    await expect(rows.nth(0)).toContainText("@ CIN · ");
+    await expect(rows.nth(1)).toContainText("@ OSU · ");
+    await expect(rows.nth(2)).toContainText("ANKALAEV VS PEREIRA 2 · ");
     await expect(page.locator("#tape-track")).toContainText("STEELERS W 24–17 VS BAL");
+    await expect(page.locator("#tape-track")).toContainText("UFC 320: ANKALAEV VS PEREIRA 2");
   });
 
   test("tapping the band opens the scores panel for every team", async ({ page }) => {
@@ -76,7 +107,7 @@ test.describe("scores on the home screen", () => {
     await expect(panel).toBeVisible();
     await expect(panel.locator(".score-team")).toHaveText(["STEELERS", "PENN STATE", "UFC"]);
     await expect(panel).toContainText("W 24–17 VS BAL");
-    await expect(panel).toContainText("A. FIGHTER VS B. FIGHTER");
+    await expect(panel).toContainText("ANKALAEV VS PEREIRA 2");
     await page.locator("#scores-home").click();
     await expect(panel).toBeHidden();
   });
@@ -99,8 +130,8 @@ test.describe("scores on the home screen", () => {
     await page.goto("/");
     const first = page.locator("#bands .band").first();
     await expect(first).toHaveAttribute("data-app", "scores", { timeout: 10_000 });
-    await expect(first.locator(".band-num")).toHaveText("14–10");
-    await expect(first.locator(".band-reason")).toContainText("LIVE");
+    await expect(first.locator(".score-row-mini.is-live")).toContainText("14–10 VS OSU · Q3 8:01");
+    await expect(page.locator(".band-reason")).toHaveCount(0);
   });
 });
 

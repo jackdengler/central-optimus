@@ -21,3 +21,12 @@
   brief or mockup calls real from the source file first. (A hand-typed
   W/L order went into the concept brief as "real" and had to be
   corrected mid-build.)
+- **Fit is a geometry test, not an eyeball check.** Fixture strings are
+  short, but real ones ("Dana White's Contender Series", a long workout
+  name) spilled out of the bands on the phone. For any clipped or diagonal
+  layout, assert that every text box sits inside the shape, at the
+  smallest target phone, with long strings. Prove the test fails on the
+  broken version.
+- **Don't add explanation the user didn't ask for.** The "ON TOP · reason"
+  tag was a feature nobody requested. The ordering already carries the
+  signal.

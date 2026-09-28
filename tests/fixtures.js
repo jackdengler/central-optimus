@@ -211,13 +211,13 @@ export function espn(overrides = {}) {
     ufc: {
       events: [
         {
-          name: "UFC 320: A vs B",
+          name: "UFC 320: Ankalaev vs. Pereira 2",
           shortName: "UFC 320",
           date: daysFromNow(6, 19),
           status: { type: { state: "pre" } },
           competitions: [
             { competitors: [{ athlete: { shortName: "C. Prelim" } }, { athlete: { shortName: "D. Prelim" } }] },
-            { competitors: [{ athlete: { shortName: "A. Fighter" } }, { athlete: { shortName: "B. Fighter" } }] },
+            { competitors: [{ athlete: { shortName: "M. Ankalaev" } }, { athlete: { shortName: "A. Pereira" } }] },
           ],
         },
       ],
