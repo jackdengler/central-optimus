@@ -83,6 +83,14 @@ User feedback came from an iPhone screenshot. The band text spilled past the str
 - [x] An independent QA subagent reviewed every screen and diff and found 31 issues. Fixed the real ones. Worst was a new `.done` class colliding with the old done-screen rule, which ballooned the progress strip from exercise 2 on
 - [x] Movies CI: snapshots depended on a live GitHub API call. The fixture now stubs external calls as offline
 
+## Round 6 (2026-09-28): motion and feel
+- [x] Entrance: on unlock the bands deal in from alternating sides along their diagonal, the tape unrolls, and the strip and search rise
+- [x] Count-up: band figures roll to their value once each band lands. Budget figures roll as they're scratched off. Rolls resume across re-renders (renderBands rebuilds the reading on every update, which first swallowed the animation)
+- [x] App open: the band's colour, carrying the app name in Anton, fills the screen as the clip grows, then lifts off; close reverses it
+- [x] Press physics: bands and strip tiles give under a press and spring back with overshoot
+- [x] Clock digits drop in on the minute; a live game doubles the tape speed with a pulsing red lead
+- [x] Reduced motion switches all of it off. The geometry and visual tests wait for the motion to settle (`#app.is-entering`, `[data-counting]`)
+
 ## Review
 - **What was built:** the Big Type launcher (commit `f8b9e1a`), plus the data layer (`f8e3b86`).
 - **Verification:**

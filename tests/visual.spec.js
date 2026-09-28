@@ -7,6 +7,8 @@ test.describe("visual", () => {
   test("home", async ({ page }) => {
     await page.goto("/");
     await expect(page.locator('.band[data-app="fitness-tracker"] .band-num')).toHaveText("10");
+    await expect(page.locator("#app.is-entering")).toHaveCount(0);
+    await expect(page.locator("[data-counting]")).toHaveCount(0);
     await expect(page.locator(".score-row-mini")).toHaveCount(3);
     await page.evaluate(() => document.fonts.ready);
     // Mask what churns: clock/date/weather, the moving tape, sync time.

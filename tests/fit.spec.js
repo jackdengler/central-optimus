@@ -35,6 +35,9 @@ for (const phone of PHONES) {
       page.locator('.band[data-app="fitness-tracker"] .band-num'),
     ).toHaveText("10");
     await expect(page.locator(".score-row-mini")).toHaveCount(3);
+    // Measure the settled layout: entrance deal-in and number roll done.
+    await expect(page.locator("#app.is-entering")).toHaveCount(0);
+    await expect(page.locator("[data-counting]")).toHaveCount(0);
     const bad = await page.evaluate(() => {
       const slant = 18;
       const out = [];
