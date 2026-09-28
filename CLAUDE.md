@@ -21,6 +21,12 @@
   `npm run build` (Tailwind), rasterizes `icons/icon.svg` into PNGs
   with `rsvg-convert`, assembles `launcher/` + `apps/*` into `_site/`,
   deploys to GitHub Pages.
+- `launcher/theme.js` — light/dark mode. One localStorage key,
+  `co.theme` ("dark" | "light", default dark), shared with the apps on
+  this origin (fitness-tracker and upcoming-movies carry an identical
+  head script); the `storage` event keeps an embedded app in step.
+  Light values live in `:root[data-theme="light"]` in `input.css`;
+  `--k`/`--paper` stay fixed for things on bands, tape and app bars.
 - `launcher/config.json` — `githubUser` is the only allowed login for
   the PAT gate. Currently `jackdengler`.
 

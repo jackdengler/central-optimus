@@ -69,6 +69,13 @@ User feedback came from an iPhone screenshot. The band text spilled past the str
 - [x] `tests/fit.spec.js` checks the geometry: every reading part must sit inside its band's diagonal on the iPhone 14 and iPhone SE, using long names. It fails on the previous commit and passes now. Result: 43/43 on Chromium.
 - Not verified here: ESPN's calendar shape for the Contender Series fallback (ESPN is blocked from this container).
 
+## Round 4 (2026-09-28): light mode across Optimus, fitness and movies
+- [x] Shared contract: one `co.theme` localStorage key on jackdengler.github.io, applied before first paint, with the `storage` event syncing an embedded app live (verified both ways between frames)
+- [x] Launcher: sun/moon button next to the lock and a "light" search action. Bands, tape, app bars and on-band chips keep print black (`--k`/`--paper`); `--accent-ink` (#7a6300 in light) carries yellow's text uses. All light text is 4.5:1 or better
+- [x] iOS: the translucent status bar has white text, so light mode paints a black strip behind it
+- [x] Bug the new test caught: an inline pre-paint `html, body { background: #0b0b0b }` beat the themed rule, so a runtime toggle left the page dark. It now uses `var(--ground, #0b0b0b)`
+- [x] Fitness: "Light mode / Dark mode" row on home; movies: header icon. Both repos have light token overrides
+
 ## Review
 - **What was built:** the Big Type launcher (commit `f8b9e1a`), plus the data layer (`f8e3b86`).
 - **Verification:**

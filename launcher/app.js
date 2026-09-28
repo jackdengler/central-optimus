@@ -899,6 +899,30 @@ async function refreshScores() {
   scoresTimer = setTimeout(refreshScores, live ? 60_000 : 30 * 60_000);
 }
 
+/* ---------- theme ---------- */
+
+// theme.js (loaded in <head>) owns the co.theme key; this only drives it.
+function labelThemeButton() {
+  const light = window.coTheme?.get() === "light";
+  const btn = $("#theme");
+  btn.setAttribute(
+    "aria-label",
+    light ? "Switch to dark mode" : "Switch to light mode",
+  );
+  btn.setAttribute("aria-pressed", String(light));
+}
+
+function toggleTheme() {
+  window.coTheme?.toggle();
+  feel("tick");
+  $("#tape-live").textContent =
+    window.coTheme?.get() === "light" ? "Light mode" : "Dark mode";
+}
+
+document.addEventListener("co:theme", () => {
+  if ($("#theme")) labelThemeButton();
+});
+
 /* ---------- search ---------- */
 
 const ACTIONS = [
@@ -907,6 +931,11 @@ const ACTIONS = [
     label: "Refresh",
     keywords: "refresh sync reload update",
     run: () => refreshData(),
+  },
+  {
+    label: "Light / dark mode",
+    keywords: "theme light dark mode appearance",
+    run: () => toggleTheme(),
   },
   {
     label: "Sound",
@@ -1183,6 +1212,8 @@ function startHome() {
   renderTape();
   wireSearch();
   $("#lock").addEventListener("click", lock);
+  $("#theme").addEventListener("click", toggleTheme);
+  labelThemeButton();
   document.fonts?.ready.then(fitBandNames);
   window.addEventListener("resize", () => requestAnimationFrame(fitBandNames));
   weatherController?.destroy();
