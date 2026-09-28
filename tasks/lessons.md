@@ -30,3 +30,13 @@
 - **Don't add explanation the user didn't ask for.** The "ON TOP · reason"
   tag was a feature nobody requested. The ordering already carries the
   signal.
+- **Screenshot tests must not depend on the network.** The movies header
+  shows a line fetched live from the GitHub API. CI has network and this
+  sandbox does not, so the baselines differed by a whole header line. It
+  stayed hidden under the 2% tolerance until a taller header pushed it
+  over. Stub every external call in the shared test fixture, and abort
+  with the error code your console checks already treat as offline.
+- **Prove "functionality unchanged" with data, not by eye.** Run the same
+  scripted session on the old and new builds and diff what gets saved
+  (storage and counts). It caught nothing this time, and that is what
+  makes it safe to say so.
