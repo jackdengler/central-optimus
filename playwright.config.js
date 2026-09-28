@@ -15,6 +15,10 @@ export default defineConfig({
   use: {
     baseURL: BASE_URL,
     trace: "on-first-retry",
+    // Fixed location so the weather line is deterministic (the fixture
+    // stubs Open-Meteo for these coordinates).
+    geolocation: { latitude: 34.05, longitude: -118.24 },
+    permissions: ["geolocation"],
   },
   projects: [
     {

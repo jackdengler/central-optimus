@@ -1,13 +1,29 @@
 {
   "apps": [
     {
-      "id": "parlay",
-      "name": "Parlay Tracker",
-      "subtitle": "Wagers",
-      "blurb": "Track live parlays, cash-outs, and hit rate.",
-      "url": "https://jackdengler.github.io/parlay/",
-      "color": "#d97757",
-      "shade": "#8b3a1f"
+      "id": "fitness-tracker",
+      "name": "Fitness Tracker",
+      "subtitle": "Training + food log",
+      "blurb": "Workouts, meals, and body metrics, synced to private data storage.",
+      "url": "https://jackdengler.github.io/fitness-tracker/",
+      "color": "#e11d48",
+      "shade": "#881337",
+      "auth": "pat",
+      "home": "band",
+      "label": "Fitness",
+      "keywords": "fitness gym workout lift weight"
+    },
+    {
+      "id": "upcoming-movies",
+      "name": "Movies",
+      "subtitle": "Release radar",
+      "blurb": "Every film on your watchlist, sorted by date.",
+      "url": "https://jackdengler.github.io/upcoming-movies/",
+      "color": "#a32929",
+      "shade": "#5c1010",
+      "home": "band",
+      "label": "Movies",
+      "keywords": "movies film cinema release watchlist"
     },
     {
       "id": "budget-together",
@@ -17,61 +33,22 @@
       "url": "https://jackdengler.github.io/budget-together/mobile.html",
       "color": "#4a7c59",
       "shade": "#1f4a2d",
-      "auth": "pat"
+      "auth": "pat",
+      "home": "band",
+      "label": "Budget",
+      "keywords": "budget money spend finance ledger"
     },
     {
-      "id": "upcoming-movies",
-      "name": "Movies",
-      "subtitle": "Release radar",
-      "blurb": "Every film on your watchlist, sorted by date.",
-      "url": "https://jackdengler.github.io/upcoming-movies/",
-      "color": "#a32929",
-      "shade": "#5c1010"
-    },
-    {
-      "id": "cornerman",
-      "name": "Tapology",
-      "subtitle": "Fight card",
-      "blurb": "Upcoming fights and odds, at a glance.",
-      "url": "https://jackdengler.github.io/cornerman-site/",
-      "color": "#2b6cb0",
-      "shade": "#163a66"
-    },
-    {
-      "id": "polished-space",
-      "name": "Polished Space",
-      "subtitle": "Makeover",
-      "blurb": "Give any room a designer refresh.",
-      "url": "https://jackdengler.github.io/polished-space/",
-      "color": "#312e81",
-      "shade": "#1a1845"
-    },
-    {
-      "id": "clean-script",
-      "name": "Clean Script",
-      "subtitle": "Script polish",
-      "blurb": "Strip cruft from scripts and tidy formatting.",
-      "url": "https://jackdengler.github.io/clean-script/",
-      "color": "#0f766e",
-      "shade": "#064e47"
-    },
-    {
-      "id": "savings-projector",
-      "name": "Savings Projector",
-      "subtitle": "Forecast",
-      "blurb": "Project your savings growth over time.",
-      "url": "https://jackdengler.github.io/savings-projector/",
-      "color": "#b7791f",
-      "shade": "#744210"
-    },
-    {
-      "id": "family-tree",
-      "name": "Family Tree",
-      "subtitle": "Ancestry",
-      "blurb": "The Dengler ancestor tree, unlocked by passcode.",
-      "url": "https://jackdengler.github.io/family-tree/",
-      "color": "#7c5233",
-      "shade": "#432c18"
+      "id": "parlay",
+      "name": "Parlay Tracker",
+      "subtitle": "Wagers",
+      "blurb": "Track live parlays, cash-outs, and hit rate.",
+      "url": "https://jackdengler.github.io/parlay/",
+      "color": "#d97757",
+      "shade": "#8b3a1f",
+      "home": "strip",
+      "label": "Parlay",
+      "keywords": "parlay bets wagers ufc"
     },
     {
       "id": "recipe-book",
@@ -81,17 +58,70 @@
       "url": "https://jackdengler.github.io/Recipe-Book/",
       "color": "#c2410c",
       "shade": "#7c2d12",
-      "auth": "pat"
+      "auth": "pat",
+      "home": "strip",
+      "label": "Recipes",
+      "keywords": "recipes food cook kitchen"
     },
     {
-      "id": "fitness-tracker",
-      "name": "Fitness Tracker",
-      "subtitle": "Training + food log",
-      "blurb": "Workouts, meals, and body metrics, synced to private data storage.",
-      "url": "https://jackdengler.github.io/fitness-tracker/",
-      "color": "#e11d48",
-      "shade": "#881337",
-      "auth": "pat"
+      "id": "cornerman",
+      "name": "Tapology",
+      "subtitle": "Fight card",
+      "blurb": "Upcoming fights and odds, at a glance.",
+      "url": "https://jackdengler.github.io/cornerman-site/",
+      "color": "#2b6cb0",
+      "shade": "#163a66",
+      "home": "strip",
+      "label": "Tapology",
+      "keywords": "tapology fights ufc mma odds"
+    },
+    {
+      "id": "clean-script",
+      "name": "Clean Script",
+      "subtitle": "Script polish",
+      "blurb": "Strip cruft from scripts and tidy formatting.",
+      "url": "https://jackdengler.github.io/clean-script/",
+      "color": "#0f766e",
+      "shade": "#064e47",
+      "home": "strip",
+      "label": "Clean Script",
+      "keywords": "script screenplay writing film"
+    },
+    {
+      "id": "savings-projector",
+      "name": "Savings Projector",
+      "subtitle": "Forecast",
+      "blurb": "Project your savings growth over time.",
+      "url": "https://jackdengler.github.io/savings-projector/",
+      "color": "#b7791f",
+      "shade": "#744210",
+      "home": "strip",
+      "label": "Savings",
+      "keywords": "savings forecast money invest"
+    },
+    {
+      "id": "family-tree",
+      "name": "Family Tree",
+      "subtitle": "Ancestry",
+      "blurb": "The Dengler ancestor tree, unlocked by passcode.",
+      "url": "https://jackdengler.github.io/family-tree/",
+      "color": "#7c5233",
+      "shade": "#432c18",
+      "home": "strip",
+      "label": "Family Tree",
+      "keywords": "family tree ancestry dengler"
+    },
+    {
+      "id": "polished-space",
+      "name": "Polished Space",
+      "subtitle": "Makeover",
+      "blurb": "Give any room a designer refresh.",
+      "url": "https://jackdengler.github.io/polished-space/",
+      "color": "#312e81",
+      "shade": "#1a1845",
+      "home": "strip",
+      "label": "Polished Space",
+      "keywords": "room makeover design space"
     }
   ]
 }

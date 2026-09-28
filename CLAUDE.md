@@ -10,9 +10,11 @@
 
 ## Repo shape (for quick orientation)
 
-- `launcher/` — installable PWA (dashboard, PAT gate, manifest, SW).
-  Edit `launcher/src/input.css` (Tailwind v4 + Konsta UI v5), not
-  `launcher/styles.css` (generated, git-ignored).
+- `launcher/` — installable PWA ("Big Type" home, PAT gate, manifest,
+  SW). Edit `launcher/src/input.css` (Tailwind v4), not
+  `launcher/styles.css` (generated, git-ignored). `app.js` = UI,
+  `data.js` = live readings from `dataRepo`, `apps.json` = registry
+  (`home: band|strip`). Design notes: `tasks/todo.md`.
 - `apps/<name>/` — each private app's built `dist/` lands here via
   that app's own CI (set up per-app in the app's repo).
 - `.github/workflows/deploy.yml` — installs Node + npm deps, runs

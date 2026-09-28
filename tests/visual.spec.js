@@ -2,41 +2,28 @@
 import { test, expect } from "./fixtures.js";
 
 test.describe("visual", () => {
-  test.skip(
-    ({ browserName }) => browserName !== "chromium",
-    "visual snapshots run only on chromium"
-  );
+  test.skip(({ browserName }) => browserName !== "chromium", "visual snapshots run only on chromium");
 
-  test("launcher home", async ({ page }) => {
+  test("home", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator("#launcher-grid")).toBeVisible({
-      timeout: 10_000,
-    });
-    // Live data churns every minute (greeting, time, weather), so mask
-    // those regions and compare only the chrome that should be stable.
-    await expect(page).toHaveScreenshot("launcher-home.png", {
-      fullPage: false,
-      mask: [
-        page.locator(".greeting"),
-        page.locator(".base"),
-        page.locator(".watch-canvas"),
-      ],
+    await expect(page.locator('.band[data-app="fitness-tracker"] .band-num')).toHaveText("10");
+    await page.evaluate(() => document.fonts.ready);
+    // Mask what churns: clock/date/weather, the moving tape, sync time.
+    await expect(page).toHaveScreenshot("home.png", {
+      mask: [page.locator(".top"), page.locator(".tape"), page.locator(".status"), page.locator(".ticks")],
+      animations: "disabled",
       maxDiffPixelRatio: 0.03,
     });
   });
 
-  test("upcoming-movies launched in the back face", async ({ page }) => {
+  test("app open", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator("#launcher-grid")).toBeVisible();
-    await page
-      .locator('#launcher-grid .icon[data-app="upcoming-movies"]')
-      .click();
-    await expect(page.locator("#flip-card")).toHaveClass(/is-flipped/, {
-      timeout: 10_000,
-    });
-    await expect(page).toHaveScreenshot("launched-movies.png", {
-      fullPage: false,
+    await page.locator('.band[data-app="upcoming-movies"] .band-hit').click();
+    await expect(page.locator("#embed")).toBeVisible();
+    await page.waitForTimeout(600);
+    await expect(page).toHaveScreenshot("app-open.png", {
       mask: [page.locator("#embed-frame")],
+      animations: "disabled",
       maxDiffPixelRatio: 0.03,
     });
   });

@@ -6,7 +6,7 @@ test.describe("PAT auth gate", () => {
     await page.goto("/");
     // The gate dialog is in the DOM but should never open when storage
     // already has a valid token.
-    await expect(page.locator("#launcher-grid")).toBeVisible({
+    await expect(page.locator("#bands")).toBeVisible({
       timeout: 10_000,
     });
     const open = await page
@@ -33,7 +33,7 @@ test.describe("PAT auth gate", () => {
     await page.locator('#gate-form button[type="submit"]').click();
 
     await expect(dialog).toBeHidden({ timeout: 10_000 });
-    await expect(page.locator("#launcher-grid")).toBeVisible();
+    await expect(page.locator("#bands")).toBeVisible();
     // Token persisted for the next launch.
     const stored = await page.evaluate(
       (key) => localStorage.getItem(key),

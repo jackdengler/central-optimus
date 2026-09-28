@@ -46,10 +46,10 @@ token is stored in `localStorage` and re-verified on every load. The
    ```
 2. Generate a fine-grained PAT at
    <https://github.com/settings/personal-access-tokens/new>:
-   - **Repository access:** Public repositories (read-only). No repo
-     access is needed for identity verification.
-   - **Permissions:** leave everything at *No access*. `GET /user`
-     works with zero scopes on a valid token.
+   - **Repository access:** your private data repo (`dataRepo` in
+     `config.json`, currently `jackdengler/private-data-storage`).
+   - **Permissions:** Contents → Read. That powers the live readings on
+     the home bands. `GET /user` (the identity check) needs no scope.
 3. Open the launcher, paste the PAT once. Done.
 
 ### Security honesty
@@ -99,7 +99,7 @@ app's CSP blocks framing. Hit Retry, or click Close to return to the
 launcher and check DevTools → Network.
 
 **Service worker is serving stale code after a deploy** — Bump `CACHE`
-in `launcher/sw.js` (e.g. `launcher-v27` → `launcher-v28`). The next
+in `launcher/sw.js` (e.g. `launcher-v30` → `launcher-v31`). The next
 load activates the new SW and evicts the old cache. To force eviction
 manually: DevTools → Application → Service Workers → Unregister.
 
@@ -118,18 +118,38 @@ npm run format:check    # Prettier --check (CI-friendly, no writes)
 ```
 
 The `Check` GitHub workflow runs `npm run lint` on every push and PR.
-Lint warnings (e.g. unused vars in `mechanism.js`) are intentionally
-non-fatal so CI stays green; new errors will fail it.
+Lint warnings are non-fatal; errors fail it.
 
-## Theme / UI
+## Theme / UI — "Big Type"
 
-Styling is built with [Tailwind CSS v4](https://tailwindcss.com) and
-[Konsta UI](https://github.com/konstaui/konsta) v5 (iOS-flavored mobile
-components). The root element carries `class="dark ios"` so Konsta's
-iOS theme tokens take effect.
+Portrait-iPhone-first. Black ground, three full-width brand-colour
+**bands** (Fitness, Movies, Budget) with the app name set huge in Anton,
+a slanted accent **ticker tape** of live headlines, a **strip** for the
+other apps, and search. Fonts (Anton, DM Mono) are self-hosted in
+`launcher/fonts/` because the CSP allows fonts from `'self'` only.
 
-Source CSS lives at `launcher/src/input.css`; the compiled stylesheet
-is `launcher/styles.css` (generated, git-ignored).
+- `apps.json` drives layout: `home: "band" | "strip"`, `label`, `keywords`.
+- Bands re-order by urgency: a release ≤2 days out, else a lift gap past
+  the usual (median) rhythm; the lead band gets an "ON TOP" tag.
+- Tapping a band grows the app layer out of it (clip-path) and the band
+  becomes the app header; Home / Escape / back collapse it.
+- Budget figures are veiled; press and hold the figures to reveal (they
+  re-veil after 5s and are only in the DOM while revealed).
+- Search filters the bands/strip; Enter opens the top match; ⌘K or `/`
+  focuses it. `1`–`9` open apps in on-screen order.
+
+### Live data (`launcher/data.js`)
+
+Readings come from `dataRepo` via the GitHub Contents API with the
+stored PAT. Only small summaries are cached (IndexedDB, ETag
+revalidation — 304s are free); raw files are never persisted, and Lock
+wipes the cache. A band that couldn't refresh shows diagonal stripes and
+"AS OF h:mm". The budget summary mirrors budget-together's
+`compute('p1')` (catSplits, settledSplit, excludedFromAvg); keep them in
+sync if the Budget app's rules change.
+
+Styling source is `launcher/src/input.css` (Tailwind v4 build);
+`launcher/styles.css` is generated and git-ignored.
 
 ## Local preview
 

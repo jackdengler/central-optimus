@@ -82,37 +82,98 @@ export const test = base.extend({
       });
     });
 
-    // Iframe URLs for each app — return a tiny stand-in HTML so we never
-    // hit the public internet during tests.
-    const appHosts = [
-      "https://jackdengler.github.io/upcoming-movies/",
-      "https://jackdengler.github.io/parlay/",
-      "https://jackdengler.github.io/cornerman-site/",
-      "https://jackdengler.github.io/polished-space/",
-      "https://jackdengler.github.io/clean-script/",
-    ];
-    for (const url of appHosts) {
-      await page.route(url + "**", async (route) => {
-        const id = url.replace("https://jackdengler.github.io/", "").replace(/\/$/, "");
-        await route.fulfill({
-          status: 200,
-          contentType: "text/html; charset=utf-8",
-          body: fakeAppHtml(id),
-        });
-      });
-    }
-    // Budget Together is a Google Apps Script URL.
-    await page.route(/script\.google\.com\/macros\/.*/i, async (route) => {
+    // Every app is on jackdengler.github.io — return a tiny stand-in page
+    // so launching never depends on the public internet.
+    await page.route(/^https:\/\/jackdengler\.github\.io\/.*/, async (route) => {
+      const id = new URL(route.request().url()).pathname.split("/")[1] || "app";
       await route.fulfill({
         status: 200,
         contentType: "text/html; charset=utf-8",
-        body: fakeAppHtml("budget-together"),
+        body: fakeAppHtml(id),
       });
     });
+
+    // Private data repo (GitHub Contents API) → deterministic fixtures.
+    await page.route(
+      /^https:\/\/api\.github\.com\/repos\/[^/]+\/private-data-storage\/contents\/(.+)$/,
+      async (route) => {
+        const path = decodeURIComponent(route.request().url().split("/contents/")[1]);
+        const body = dataFixtures()[path];
+        if (!body) return route.fulfill({ status: 404, body: "{}" });
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          headers: { ETag: `"${path}"`, "Access-Control-Expose-Headers": "ETag" },
+          body: JSON.stringify(body),
+        });
+      },
+    );
+
+    // Weather + reverse geocode: fixed, offline.
+    await page.route(/api\.open-meteo\.com/, (route) =>
+      route.fulfill({
+        json: {
+          current: { temperature_2m: 68, weather_code: 0 },
+          daily: { sunrise: ["2026-09-26T06:49"], sunset: ["2026-09-26T18:44"] },
+        },
+      }),
+    );
+    await page.route(/api\.bigdatacloud\.net/, (route) =>
+      route.fulfill({ json: { city: "Los Angeles" } }),
+    );
 
     await use(page);
   },
 });
+
+/* Local day key N days before today (tests run in the browser's zone). */
+function dayKey(offset) {
+  const d = new Date();
+  d.setDate(d.getDate() - offset);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/* Synthetic data repo, relative to today:
+   - Fitness: lifts every 2 days, last one 5 days ago → 5D > usual 2D,
+     so Fitness leads with a reason tag. 10 lifts in the last 30 days.
+   - Movies: next booked release in 6 days.
+   - Budget: two months of spend with a category split. */
+export function dataFixtures() {
+  const lifts = [5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 40].map((d, i) => ({
+    id: i,
+    name: "Workout B",
+    date: `${dayKey(d)}T12:00:00`,
+    duration: 42,
+    sets: new Array(21).fill({}),
+  }));
+  return {
+    "fitness.json": { workoutLogs: lifts, weightLogs: [] },
+    "data/interests.json": {
+      marks: {
+        a: { level: "booked", title: "Digger", date: dayKey(-6) },
+        b: { level: "booked", title: "Verity", date: dayKey(-6) },
+        c: { level: "must", title: "Later Film", date: dayKey(-20) },
+      },
+    },
+    "data.json": {
+      eventName: "UFC 314",
+      parlays: [{ id: "p", betIds: ["x", "y"], placed: true }],
+      betResults: { x: "win", y: "loss", z: "win" },
+      betResultsAt: { x: 1, y: 2, z: 3 },
+    },
+    "recipes.json": { recipes: [{ title: "Korean Beef Bowl", createdAt: "2026-09-01" }] },
+    "budget.json": {
+      transactions: [
+        { date: "2026-01-05", amount: 100, category: "dining", person: "p1", shared: false },
+        { date: "2026-01-06", amount: 200, category: "groceries", person: "p2", shared: true },
+        { date: "2026-02-05", amount: 300, category: "dining", person: "p1", shared: false },
+      ],
+      catSplits: { groceries: { mode: "pct", p1Pct: 75 } },
+      excludedFromAvg: [],
+    },
+  };
+}
 
 export { expect };
 export const auth = { TOKEN_KEY, FAKE_TOKEN, ALLOWED_LOGIN };

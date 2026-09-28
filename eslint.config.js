@@ -21,9 +21,7 @@ export default [
       },
     },
     rules: {
-      // Warn on unused vars so CI surfaces them, but don't fail the
-      // build — mechanism.js intentionally keeps a few scratch locals
-      // and removing them risks breaking the watch animation.
+      // Warn on unused vars so CI surfaces them without failing the build.
       "no-unused-vars": [
         "warn",
         {
@@ -35,5 +33,10 @@ export default [
       // Empty catches are used as silent best-effort guards.
       "no-empty": ["error", { allowEmptyCatch: true }],
     },
+  },
+  {
+    // Node-side files: Playwright config and specs.
+    files: ["playwright.config.js", "tests/**/*.js"],
+    languageOptions: { globals: { ...globals.node } },
   },
 ];

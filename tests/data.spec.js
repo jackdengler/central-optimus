@@ -1,0 +1,118 @@
+// @ts-check
+import { test, expect } from "@playwright/test";
+import { summarize } from "../launcher/data.js";
+
+// Pure summarizer tests (no browser). Budget cases mirror budget-together's
+// compute('p1') rules; the port was checked against that code on the real
+// ledger (0 mismatches over 12 months).
+
+const now = new Date(2026, 8, 26, 10, 8); // Sat 26 Sep 2026, local
+
+test.describe("budget summarizer", () => {
+  const base = { catSplits: {}, excludedFromAvg: [], customCategories: [] };
+  const tx = (date, amount, extra = {}) => ({ date, amount, category: "dining", person: "p1", shared: false, ...extra });
+
+  test("counts only Jack's solo spend plus his share of shared spend", () => {
+    const s = summarize.budget(
+      {
+        ...base,
+        transactions: [
+          tx("2026-08-02", 100),
+          tx("2026-08-03", 999, { person: "p2" }), // partner's solo: not mine
+          tx("2026-08-04", 200, { shared: true }), // default split 50%
+        ],
+      },
+      now,
+    );
+    expect(s.lastMonth).toEqual({ month: "2026-08", spend: 200 });
+  });
+
+  test("honours pct and fixed-dollar category splits, per month", () => {
+    const s = summarize.budget(
+      {
+        ...base,
+        catSplits: { groceries: { mode: "pct", p1Pct: 75 }, housing: { mode: "dollar", p1Amt: 3075 } },
+        transactions: [
+          tx("2026-08-01", 400, { category: "groceries", shared: true }),
+          tx("2026-08-01", 2500, { category: "housing", shared: true, person: "p2" }),
+          tx("2026-08-15", 2500, { category: "housing", shared: true, person: "p2" }),
+        ],
+      },
+      now,
+    );
+    // 75% of 400 = 300; housing total 5000 → Jack covers a fixed 3075.
+    expect(s.lastMonth.spend).toBe(300 + 3075);
+  });
+
+  test("settled transactions keep their frozen settledSplit", () => {
+    const s = summarize.budget(
+      {
+        ...base,
+        catSplits: { groceries: { mode: "pct", p1Pct: 75 } },
+        transactions: [tx("2026-08-01", 100, { category: "groceries", shared: true, settled: true, settledSplit: 0.65 })],
+      },
+      now,
+    );
+    expect(s.lastMonth.spend).toBe(65);
+  });
+
+  test("skips refunds, excluded rows and ignored categories", () => {
+    const s = summarize.budget(
+      {
+        ...base,
+        customCategories: [{ id: "pets", ignored: true }],
+        transactions: [
+          tx("2026-08-01", 50),
+          tx("2026-08-01", -20), // refund / income sign
+          tx("2026-08-01", 70, { excluded: true }),
+          ...["gambling", "cash", "insurance", "transfer", "investing", "pets"].map((category) => tx("2026-08-01", 1000, { category })),
+        ],
+      },
+      now,
+    );
+    expect(s.lastMonth.spend).toBe(50);
+  });
+
+  test("average skips excludedFromAvg months and the month in progress", () => {
+    const s = summarize.budget(
+      {
+        ...base,
+        excludedFromAvg: ["2026-06"],
+        transactions: [tx("2026-06-01", 9999), tx("2026-07-01", 100), tx("2026-08-01", 300), tx("2026-09-01", 5000)],
+      },
+      now,
+    );
+    expect(s.lastMonth).toEqual({ month: "2026-08", spend: 300 });
+    expect(s.avgPerMonth).toBe(200);
+    expect(s.avgMonths).toBe(2);
+  });
+});
+
+test.describe("fitness summarizer", () => {
+  test("30-day lift count, days since last lift, and the usual gap", () => {
+    const logs = ["2026-09-20", "2026-09-21", "2026-09-23", "2026-08-01"].map((d, i) => ({ id: i, name: "Workout B", date: d, duration: 42, sets: [] }));
+    const s = summarize.fitness({ workoutLogs: logs }, now);
+    expect(s.last30).toEqual(["2026-09-20", "2026-09-21", "2026-09-23"]);
+    expect(s.lastLift).toMatchObject({ day: "2026-09-23", daysAgo: 3, name: "Workout B", minutes: 42 });
+    expect(s.medianGap).toBe(2);
+  });
+});
+
+test.describe("movies summarizer", () => {
+  test("next release groups same-day titles, booked first", () => {
+    const s = summarize.movies(
+      {
+        marks: {
+          a: { level: "must", title: "Ghost", date: "2026-10-02" },
+          b: { level: "booked", title: "Verity", date: "2026-10-02" },
+          c: { level: "booked", title: "Digger", date: "2026-10-02" },
+          d: { level: "not", title: "Skip", date: "2026-09-27" },
+        },
+      },
+      now,
+    );
+    expect(s.next.daysUntil).toBe(6);
+    expect(s.next.titles.slice(0, 2).sort()).toEqual(["Digger", "Verity"]);
+    expect(s.next.titles[2]).toBe("Ghost");
+  });
+});
