@@ -30,6 +30,46 @@ const $ = (sel) => document.querySelector(sel);
 const reducedMotion = () =>
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+/* Numbers roll up to their value (ease-out, ~0.7s). The final text is
+   laid out first and its width held, so a count never nudges the band's
+   layout; data-counting marks a node mid-roll (tests wait on it).
+   startAt is on the performance.now() clock, so a roll can be resumed on
+   a re-rendered node exactly where it was. */
+function countUp(
+  node,
+  to,
+  {
+    from = 0,
+    ms = 700,
+    startAt = performance.now(),
+    fmt = String,
+    prefix = "",
+    suffix = "",
+  } = {},
+) {
+  const show = (v) => (node.textContent = prefix + fmt(v) + suffix);
+  show(to);
+  const token = {};
+  node._count = token;
+  if (reducedMotion() || from === to) return;
+  node.style.minWidth = `${node.offsetWidth}px`;
+  node.dataset.counting = "";
+  const step = (t) => {
+    if (node._count !== token) return;
+    const p = Math.max(0, Math.min(1, (t - startAt) / ms));
+    show(Math.round(from + (to - from) * (1 - (1 - p) ** 3)));
+    if (p < 1) return requestAnimationFrame(step);
+    node.style.minWidth = "";
+    delete node.dataset.counting;
+  };
+  step(performance.now());
+}
+function stopCount(node) {
+  node._count = null;
+  node.style.minWidth = "";
+  delete node.dataset.counting;
+}
+
 /* Block page pinch-zoom (iOS ignores user-scalable=no in standalone). */
 ["gesturestart", "gesturechange", "gestureend"].forEach((evt) =>
   document.addEventListener(evt, (e) => e.preventDefault(), { passive: false }),
@@ -203,7 +243,14 @@ function tickClock() {
   const now = new Date();
   const { hm, ampm } = fmtClock(now);
   const clock = $("#clock");
+  const turned = clock.dataset.hm && clock.dataset.hm !== hm.join(":");
+  clock.dataset.hm = hm.join(":");
   clock.innerHTML = "";
+  if (turned && !reducedMotion()) {
+    clock.classList.remove("is-turning");
+    void clock.offsetWidth; // restart the drop-in
+    clock.classList.add("is-turning");
+  }
   clock.append(hm[0], el("span", "colon", ":"), hm[1]);
   clock.setAttribute("datetime", now.toISOString());
   $("#ampm").textContent = ampm;
@@ -335,7 +382,12 @@ function fillVeils(band, show) {
   band.querySelectorAll(".veil").forEach((v) => {
     const key = v.dataset.key;
     const val = key === "last" ? s?.lastMonth?.spend : s?.avgPerMonth;
-    v.textContent = show && Number.isFinite(val) ? money(val) : "";
+    if (show && Number.isFinite(val))
+      countUp(v, Math.round(val), { fmt: money, ms: 600 });
+    else {
+      stopCount(v);
+      v.textContent = "";
+    }
   });
 }
 
@@ -580,6 +632,7 @@ function renderBands() {
     if (!app || !band) return;
     wrap.append(band); // re-append in urgency order
     band.classList.toggle("is-flip", i % 2 === 1);
+    band.style.setProperty("--i", i);
     const { read, label } = readingFor(app);
     band.querySelector(".band-read").replaceWith(read);
     band.classList.toggle(
@@ -594,6 +647,39 @@ function renderBands() {
       .setAttribute("aria-label", `${app.name}. ${label}.`);
   });
   fitBandNames();
+  rollBandNumbers();
+}
+
+// Band figures ("10", "T–6") roll from the last value shown (0 at first
+// paint) whenever the number changes. renderBands rebuilds the reading on
+// every data/scores/weather update, so an in-flight roll is resumed on the
+// new node instead of being dropped.
+const shownNum = new Map();
+const rolls = new Map(); // band id → { from, to, startAt, ms }
+function rollBandNumbers() {
+  const now = performance.now();
+  const entering = $("#app").classList.contains("is-entering");
+  document.querySelectorAll(".band").forEach((band) => {
+    const id = band.dataset.app;
+    const num = band.querySelector(".band-num");
+    const m = num && /^(\D*)(\d+)(\D*)$/.exec(num.textContent);
+    if (!m) return shownNum.delete(id);
+    const to = Number(m[2]);
+    const text = { prefix: m[1], suffix: m[3] };
+    const roll = rolls.get(id);
+    if (roll && roll.to === to && now < roll.startAt + roll.ms)
+      return countUp(num, to, { ...roll, ...text });
+    const from = shownNum.get(id) ?? 0;
+    shownNum.set(id, to);
+    if (from === to) return;
+    // While home deals in, wait for this band to land before rolling.
+    const delay = entering
+      ? 520 + (Number(band.style.getPropertyValue("--i")) || 0) * 80
+      : 0;
+    const next = { from, to, startAt: now + delay, ms: 700 };
+    rolls.set(id, next);
+    countUp(num, to, { ...next, ...text });
+  });
 }
 
 /* Keeps every band's text inside its diagonal. The clip runs from
@@ -665,10 +751,11 @@ function fitBandNames() {
 function buildStrip() {
   const nav = $("#strip");
   nav.innerHTML = "";
-  for (const app of stripApps()) {
+  for (const [i, app] of stripApps().entries()) {
     const btn = el("button", "strip-item");
     btn.type = "button";
     btn.dataset.app = app.id;
+    btn.style.setProperty("--i", i);
     btn.style.setProperty("--app-color", app.color);
     btn.addEventListener("pointerdown", () => feel("tick"));
     btn.addEventListener("click", () => launchApp(app.id, btn));
@@ -770,7 +857,13 @@ function renderTape() {
   const reps = Math.max(1, Math.ceil(60 / text.length));
   const copy = text.repeat(reps);
   track.append(el("span", null, copy), el("span", null, copy));
-  track.style.setProperty("--tape-s", `${Math.round(copy.length * 0.28)}s`);
+  // A live game speeds the tape up (and marks it) until it ends.
+  const liveGame = !!SCORES?.teams?.some((t) => t.live);
+  $(".tape").classList.toggle("is-live", liveGame);
+  track.style.setProperty(
+    "--tape-s",
+    `${Math.round(copy.length * (liveGame ? 0.14 : 0.28))}s`,
+  );
   const live = $("#tape-live");
   if (!live.textContent) live.textContent = lines[0];
 }
@@ -1050,8 +1143,12 @@ function launchApp(appId, originEl, { animate = true } = {}) {
 
   embed.hidden = false;
   $("#app").setAttribute("aria-hidden", "true");
+  embed.dataset.name = app.label || app.name;
   if (animate && !reducedMotion()) {
-    embed.classList.remove("is-animating");
+    embed.classList.remove("is-animating", "is-closing");
+    embed.classList.add("is-opening");
+    clearTimeout(embed._wipe);
+    embed._wipe = setTimeout(() => embed.classList.remove("is-opening"), 900);
     embed.style.clipPath = rectInset(originEl || originFor(appId));
     embed.getBoundingClientRect(); // commit the start frame
     embed.classList.add("is-animating");
@@ -1074,14 +1171,20 @@ function closeApp({ fromHistory = false, quiet = false } = {}) {
     history.pushState(null, "", location.pathname + location.search);
   const finish = () => {
     embed.hidden = true;
-    embed.classList.remove("is-animating", "is-loading", "is-failed");
+    embed.classList.remove(
+      "is-animating",
+      "is-loading",
+      "is-failed",
+      "is-closing",
+    );
     // Keep the iframe document resident: reopening the same app is instant.
     originFor(appId)
       ?.querySelector?.(".band-hit")
       ?.focus({ preventScroll: true });
   };
   if (reducedMotion() || quiet) return finish();
-  embed.classList.add("is-animating");
+  embed.classList.remove("is-opening");
+  embed.classList.add("is-animating", "is-closing");
   embed.style.clipPath = rectInset(originFor(appId));
   const ms =
     parseFloat(
@@ -1202,6 +1305,10 @@ function startHome() {
   if (started) return;
   started = true;
   $("#app").hidden = false;
+  if (!reducedMotion()) {
+    $("#app").classList.add("is-entering");
+    setTimeout(() => $("#app").classList.remove("is-entering"), 1400);
+  }
   document.title = CONFIG.title || "Central Optimus";
   startClock();
   setWeatherLine(null);

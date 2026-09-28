@@ -1019,11 +1019,177 @@
   }
 }
 
+/* ---------- feel: entrance, press physics, wipe, clock, live tape ---------- */
+
+:root {
+  --spring: cubic-bezier(0.3, 1.7, 0.5, 1); /* overshoot on release */
+}
+
+/* Home deals in on unlock: bands slide in from alternating sides along
+   their diagonal, the tape unrolls, the strip rises. */
+#app.is-entering .top {
+  animation: fade-down 420ms var(--ease-out) both;
+}
+#app.is-entering .tape {
+  animation: tape-unroll 560ms var(--ease-out) 120ms both;
+}
+#app.is-entering .band {
+  animation: deal-right 640ms var(--ease-out) both;
+  animation-delay: calc(180ms + var(--i, 0) * 80ms);
+}
+#app.is-entering .band.is-flip {
+  animation-name: deal-left;
+}
+#app.is-entering .strip-item {
+  animation: rise 440ms var(--ease-out) both;
+  animation-delay: calc(520ms + var(--i, 0) * 35ms);
+}
+#app.is-entering .bottom {
+  animation: rise 440ms var(--ease-out) 700ms both;
+}
+@keyframes fade-down {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+@keyframes tape-unroll {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes deal-right {
+  from {
+    transform: translateX(105%);
+  }
+}
+@keyframes deal-left {
+  from {
+    transform: translateX(-105%);
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+/* Press physics: a band gives under the finger, springs back past rest. */
+.band {
+  transition:
+    flex-grow 280ms var(--ease-out),
+    min-height 280ms var(--ease-out),
+    opacity 200ms ease,
+    transform 460ms var(--spring);
+}
+.band:has(> .band-hit:active) {
+  transform: scale(0.975);
+  transition-duration: 280ms, 280ms, 200ms, 90ms;
+  transition-timing-function: var(--ease-out), var(--ease-out), ease, ease-out;
+}
+.strip-item {
+  transition: transform 420ms var(--spring);
+}
+.strip-item:active {
+  transform: translateY(2px) scale(0.96);
+  transition: transform 90ms ease-out;
+}
+
+/* App open: the band's colour, with the app's name, fills the screen as
+   the clip grows, then lifts off the app. Closing reverses it. */
+.embed::after {
+  content: attr(data-name);
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  padding: var(--gutter);
+  background: var(--app-color, #333);
+  color: var(--app-fg, var(--k));
+  font-family: var(--display);
+  font-size: clamp(64px, 22vw, 128px);
+  line-height: 0.86;
+  text-align: center;
+  text-transform: uppercase;
+  opacity: 0;
+  pointer-events: none;
+}
+.embed.is-opening::after {
+  animation: cover-out 820ms var(--ease-out) forwards;
+}
+.embed.is-closing::after {
+  animation: cover-in 200ms ease-out forwards;
+}
+@keyframes cover-out {
+  0%,
+  55% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-4%);
+  }
+}
+@keyframes cover-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The clock's digits drop in when the minute turns. */
+.clock.is-turning {
+  animation: clock-drop 360ms var(--ease-out);
+}
+@keyframes clock-drop {
+  from {
+    opacity: 0.35;
+    transform: translateY(-0.12em);
+  }
+}
+
+/* A live game: the tape runs at double speed with a pulsing red lead. */
+.tape.is-live::before {
+  content: "";
+  position: absolute;
+  left: 26px;
+  top: 50%;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  margin-top: -4.5px;
+  background: var(--live);
+  box-shadow: 0 0 0 2px var(--k);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .tape-track,
   .clock .colon,
-  .embed-loading-bar {
+  .embed-loading-bar,
+  .tape.is-live::before,
+  .clock.is-turning {
     animation: none;
+  }
+  .embed::after {
+    display: none;
+  }
+  .band,
+  .strip-item {
+    transform: none !important;
   }
   .band,
   .veil::after,
