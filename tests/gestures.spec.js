@@ -67,6 +67,33 @@ test.describe("long-press peek", () => {
     await expect(page.locator("#peek")).toBeHidden();
   });
 
+  test("holding never selects text (no iOS copy callout)", async ({ page }) => {
+    await home(page);
+    const style = (sel) =>
+      page
+        .locator(sel)
+        .first()
+        .evaluate((el) => {
+          const cs = getComputedStyle(el);
+          return [cs.userSelect, cs.webkitTouchCallout ?? "none"];
+        });
+    for (const sel of [
+      ".band-name",
+      ".band-read",
+      ".tape-track",
+      ".strip-item",
+    ])
+      expect(await style(sel)).toEqual(["none", "none"]);
+    expect((await style("#search"))[0]).not.toBe("none");
+    // A real long press leaves no selection behind.
+    const c = await centre(page.locator('.band[data-app="upcoming-movies"]'));
+    await page.mouse.move(c.x, c.y);
+    await page.mouse.down();
+    await page.waitForTimeout(650);
+    await page.mouse.up();
+    expect(await page.evaluate(() => String(getSelection()))).toBe("");
+  });
+
   test("tapping the scrim closes the sheet", async ({ page }) => {
     await home(page);
     await page

@@ -57,3 +57,9 @@
   everywhere ("the default from before was best"). For a visual change,
   push to the preview branch, send phone-size screenshots, and wait for a
   yes before it reaches `main` or spreads to other apps.
+- **A long-press gesture needs selection off for everything under the
+  finger, not just the hit target.** `user-select: none` on the band's
+  button wasn't enough: iOS still started a selection (and the copy
+  callout) on the text layered above it. Turn selection and the callout
+  off for the whole surface (`#app`), keep inputs selectable, and test
+  that a hold leaves no selection.
