@@ -106,14 +106,6 @@ User feedback came from an iPhone screenshot. The band text spilled past the str
 - [x] Home-screen icon showed a letter "O". That is iOS's fallback when it can't use the icon, and the manifest listed an SVG first, which iOS can't use for home-screen icons. The manifest now lists only PNGs (180, 192, 512, maskable), the same pattern as upcoming-movies. The existing home-screen icon has to be removed and added again
 - [x] Scores panel shows each team's record after its name, e.g. STEELERS (2-1). It comes from ESPN's team.recordSummary, or is counted from the schedule's results
 
-## Round 9 (2026-09-29): team colours
-- [x] Steelers, Penn State and Amherst palettes on a second key, `co.team` ("" | steelers | psu | amherst), on `<html data-team>`. It sits on top of light/dark, so each team has a dark and a light set; `co.theme` and the apps that read it are untouched
-- [x] Steelers: #101820 ground and #FFB612 gold tape (light: warm gold paper). Penn State: Nittany Navy ground with a white tape (light: navy tape, Beaver Blue accents). Amherst: #3F1F69 purple family with a lavender tape (light: purple tape)
-- [x] New `--on-accent` token for text and rules printed on the accent, since a navy or purple tape can't carry black text. The tape, RETRY/UNLOCK, BOOKED tags and HOLD hint use it
-- [x] Header swatch button cycles Classic → Steelers → Penn State → Amherst; search actions "steelers theme", "penn state theme", "amherst theme", "classic theme" ("steelers" alone still opens Scores)
-- [x] Tests: cycling persists across reload, team and mode are independent, and every team × mode keeps ink, muted ink, accent text and tape text at 4.5:1 or better. 54/54 on Chromium; existing snapshots unchanged. Header fits on the iPhone SE with the extra button
-- Not done: the apps (fitness, movies, etc.) don't read `co.team` yet
-
 ## Review
 - **What was built:** the Big Type launcher (commit `f8b9e1a`), plus the data layer (`f8e3b86`).
 - **Verification:**

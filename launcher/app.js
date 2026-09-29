@@ -1048,33 +1048,8 @@ function toggleTheme() {
     window.coTheme?.get() === "light" ? "Light mode" : "Dark mode";
 }
 
-const TEAM_NAMES = {
-  "": "Classic",
-  steelers: "Steelers",
-  psu: "Penn State",
-  amherst: "Amherst",
-};
-
-function labelTeamButton() {
-  const name = TEAM_NAMES[window.coTheme?.getTeam() ?? ""];
-  $("#team").setAttribute("aria-label", `Team colours: ${name}`);
-}
-
-function setTeam(team) {
-  window.coTheme?.setTeam(team);
-  feel("tick");
-  $("#tape-live").textContent = `${TEAM_NAMES[team]} colours`;
-}
-
-function cycleTeam() {
-  const teams = window.coTheme?.teams ?? [""];
-  const now = teams.indexOf(window.coTheme?.getTeam() ?? "");
-  setTeam(teams[(now + 1) % teams.length]);
-}
-
 document.addEventListener("co:theme", () => {
   if ($("#theme")) labelThemeButton();
-  if ($("#team")) labelTeamButton();
 });
 
 /* ---------- search ---------- */
@@ -1091,17 +1066,6 @@ const ACTIONS = [
     keywords: "theme light dark mode appearance",
     run: () => toggleTheme(),
   },
-  // "steelers" alone still finds the Scores band; "steelers theme" lands here.
-  ...Object.entries({
-    steelers: "steelers theme colours colors pittsburgh black gold",
-    psu: "penn state theme colours colors psu nittany navy",
-    amherst: "amherst theme colours colors college purple mammoths",
-    "": "classic theme colours colors default yellow",
-  }).map(([team, keywords]) => ({
-    label: `${TEAM_NAMES[team]} theme`,
-    keywords,
-    run: () => setTeam(team),
-  })),
   {
     label: "Sound",
     keywords: "sound audio mute unmute volume",
@@ -1483,8 +1447,6 @@ function startHome() {
   $("#lock").addEventListener("click", lock);
   $("#theme").addEventListener("click", toggleTheme);
   labelThemeButton();
-  $("#team").addEventListener("click", cycleTeam);
-  labelTeamButton();
   document.fonts?.ready.then(fitBandNames);
   window.addEventListener("resize", () => requestAnimationFrame(fitBandNames));
   weatherController?.destroy();
