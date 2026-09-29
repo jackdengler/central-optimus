@@ -61,7 +61,18 @@ function gameFromEvent(ev, abbr) {
   };
 }
 
-/* Team schedule → { live, next, last }. */
+/* Season record, "2-1" (ties: "2-1-1"). ESPN's schedule carries it as
+   team.recordSummary; failing that, count this schedule's results. */
+function recordOf(json, games) {
+  const summary = String(json?.team?.recordSummary || "").trim();
+  if (/^\d+-\d+(-\d+)?$/.test(summary)) return summary;
+  const n = { W: 0, L: 0, T: 0 };
+  for (const g of games) if (g.result) n[g.result] += 1;
+  if (!n.W && !n.L && !n.T) return null;
+  return `${n.W}-${n.L}${n.T ? `-${n.T}` : ""}`;
+}
+
+/* Team schedule → { live, next, last, record }. */
 export function parseSchedule(json, abbr, now = new Date()) {
   const events = Array.isArray(json?.events) ? json.events : [];
   const games = events
@@ -76,7 +87,7 @@ export function parseSchedule(json, abbr, now = new Date()) {
         new Date(g.date) >= new Date(now.getTime() - 6 * 3600e3),
     ) || null;
   const last = [...games].reverse().find((g) => g.state === "post") || null;
-  return { live, next, last };
+  return { live, next, last, record: recordOf(json, games) };
 }
 
 /* UFC → the next real card (a numbered event or Fight Night, never a
