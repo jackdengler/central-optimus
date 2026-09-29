@@ -27,6 +27,10 @@
   head script); the `storage` event keeps an embedded app in step.
   Light values live in `:root[data-theme="light"]` in `input.css`;
   `--k`/`--paper` stay fixed for things on bands, tape and app bars.
+  A second key, `co.team` ("" | steelers | psu | amherst), layers a team
+  palette over either mode via `<html data-team>`; fitness-tracker and
+  upcoming-movies carry the same palettes and head script. Text on the
+  accent uses `--on-accent`.
 - `launcher/config.json` — `githubUser` is the only allowed login for
   the PAT gate. Currently `jackdengler`.
 
