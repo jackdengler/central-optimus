@@ -112,9 +112,7 @@ User feedback came from an iPhone screenshot. The band text spilled past the str
 - [x] New `--on-accent` token for text and rules printed on the accent, since a navy or purple tape can't carry black text. The tape, RETRY/UNLOCK, BOOKED tags and HOLD hint use it
 - [x] Header swatch button cycles Classic → Steelers → Penn State → Amherst; search actions "steelers theme", "penn state theme", "amherst theme", "classic theme" ("steelers" alone still opens Scores)
 - [x] Tests: cycling persists across reload, team and mode are independent, and every team × mode keeps ink, muted ink, accent text and tape text at 4.5:1 or better. 54/54 on Chromium; existing snapshots unchanged. Header fits on the iPhone SE with the extra button
-- [x] Fitness and Movies follow `co.team` live (same head script and palettes; the storage event carries a change from the launcher into an open app). Fitness gets a "Colours · …" row. Fitness's hard-coded black on accent fills now uses `--sel-ink`. Every team × mode is at least 4.5:1 for ink, muted text, accent text and text on the accent in both apps
-- Not done: Savings, Recipes and Parlay still read only `co.theme`
-- Pre-existing, not from this change: movies' 3 embedded-mode spacing tests fail locally on main before and after
+- Not done: the apps (fitness, movies, etc.) don't read `co.team` yet
 
 ## Review
 - **What was built:** the Big Type launcher (commit `f8b9e1a`), plus the data layer (`f8e3b86`).
