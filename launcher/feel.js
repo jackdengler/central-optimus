@@ -7,6 +7,8 @@
      open  — rising filtered-noise whoosh (app grows out of its band)
      close — soft low thunk (app collapses back)
      tear  — scratchy noise sweep (budget scratch-off reveal)
+     peek  — low double knock (long-press lifts a band)
+     score — two bright rising notes (your team scored)
 
    iOS: navigator.audioSession.type = "ambient" makes cues respect the
    silent switch and mix with music instead of ducking it. Vibration is
@@ -98,11 +100,27 @@ const CUES = {
   },
   tear(ac, t) {
     // A few grainy strokes, like a coin across a scratch card.
-    for (let i = 0; i < 3; i++) noise(ac, t + i * 0.07, 0.09, "bandpass", 1800, 4200, 0.05, 0.004);
+    for (let i = 0; i < 3; i++)
+      noise(ac, t + i * 0.07, 0.09, "bandpass", 1800, 4200, 0.05, 0.004);
+  },
+  peek(ac, t) {
+    tone(ac, t, 160, 120, 0.07, 0.07);
+    tone(ac, t + 0.06, 200, 150, 0.06, 0.05);
+  },
+  score(ac, t) {
+    tone(ac, t, 660, 660, 0.14, 0.05, "triangle");
+    tone(ac, t + 0.13, 990, 990, 0.22, 0.05, "triangle");
   },
 };
 
-const BUZZ = { tick: 8, open: 12, close: 8, tear: [6, 30, 6, 30, 10] };
+const BUZZ = {
+  tick: 8,
+  open: 12,
+  close: 8,
+  tear: [6, 30, 6, 30, 10],
+  peek: 18,
+  score: [40, 70, 40],
+};
 
 /* Play a cue: sound (if on) + vibration (where supported). */
 export function feel(name) {

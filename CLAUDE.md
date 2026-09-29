@@ -27,6 +27,12 @@
   head script); the `storage` event keeps an embedded app in step.
   Light values live in `:root[data-theme="light"]` in `input.css`;
   `--k`/`--paper` stay fixed for things on bands, tape and app bars.
+- Band gestures (`app.js`, `wireBandGestures`): tap opens, a 450ms hold
+  opens the peek sheet (`#peek`), a sideways drag flips `data-view` to
+  the second reading (`altReadingFor`). `tilt.js` = parallax. Score
+  moments and the weather tape takeover live next to `refreshScores` and
+  `weatherAlert`. Every module the page loads must be in `sw.js`'s SHELL
+  (`tests/sw.spec.js` checks).
 - `launcher/config.json` — `githubUser` is the only allowed login for
   the PAT gate. Currently `jackdengler`.
 

@@ -106,6 +106,20 @@ User feedback came from an iPhone screenshot. The band text spilled past the str
 - [x] Home-screen icon showed a letter "O". That is iOS's fallback when it can't use the icon, and the manifest listed an SVG first, which iOS can't use for home-screen icons. The manifest now lists only PNGs (180, 192, 512, maskable), the same pattern as upcoming-movies. The existing home-screen icon has to be removed and added again
 - [x] Scores panel shows each team's record after its name, e.g. STEELERS (2-1). It comes from ESPN's team.recordSummary, or is counted from the schedule's results
 
+## Round 9 (2026-09-29): team colours — reverted
+- Steelers / Penn State / Amherst palettes shipped to the launcher, Fitness and Movies, then were removed everywhere at the owner's request ("default from before was best"). Lesson recorded.
+
+## Round 10 (2026-09-29): peek, swipe, tilt, score moments, weather
+Picked from the ideas list: 4, 5, 7, 8, 11, plus: Parlay and Recipes off the tape (done, `11ad10d`). Built on `claude/optimus-enhancement-ideas-dgkye5`; the preview is at `/central-optimus/preview/claude-optimus-enhancement-ideas-dgkye5/`. Ship to `main` after the owner tries it on the phone.
+
+- [x] **4 · Long-press to peek.** Hold a band 450ms: it lifts over a scrim with a knock (sound + Android buzz), and a sheet in the band's colour drops out under it (above it when there's no room): OPEN · MORE/BACK · REFRESH, plus REVEAL on Budget. A long press never also launches. Right-click / Android long-press / the menu key open it too; Esc or the scrim closes it
+- [x] **5 · Swipe for a second reading.** A sideways drag (≥48px) slides the reading with the finger and flips the band; two squares show which view. Arrow keys flip too. Fitness: 12-week heatmap. Movies: this week + 4 as a calendar (booked yellow, must filled, likely outlined; caption counts films, not days). Budget: 6 months of spend as bars with a dashed average and no figures. Scores: record and last result per team. SUMMARY_VERSION 3 (`lifts84`, `calendar {days, counts}`, `months`); the cache test now seeds version 2
+- [x] **7 · Tilt parallax.** `tilt.js`: names drift ±5px, readings ±6px the other way, the tape ±8px; the rest angle follows the hand. iOS asks for motion access on the first tap. Off for reduced motion; "tilt" in search toggles it (`co.tilt`)
+- [x] **8 · Score moments.** A live score rising between two fresh readings (≤10 min apart) flips that row's digits and pins "TOUCHDOWN STEELERS · PIT 14–3 CIN" to the front of the tape for 5 minutes. Our score also flashes the Scores band in the team's colours (`flash` in config.json) with a two-note chime and a double buzz. Football points map to TD / FG / safety / extra point
+- [x] **11 · Weather in the header.** Rain, drizzle, showers or storms draw drifting diagonal streaks behind the header. A high (or current temp) of 95°F+ or a thunderstorm turns the tape hot orange, leads with the warning, and repeats it every two items. Weather now fetches today's high. Stale readings trigger neither
+- [x] Proof: `tests/gestures.spec.js` (11 tests: peek holds without launching, OPEN/REVEAL/scrim; swipe flips and back, a short drag does nothing, views survive a refresh; the score moment via the live poll on a fake clock; rain, heat, mild; tilt on/off and reduced motion). `fit.spec` now also checks the second readings, text wider than its box, and every reading part against the name. That caught the Movies caption running under the name and the average line spilling; both fixed. `sw.spec`: every module the page loads is precached (it caught `tilt.js` missing). 65/65 on Chromium
+- Not verifiable here: iOS haptics (Safari has no Vibration API, so iOS gets the sounds only), the iOS motion-permission prompt, and real ESPN live-score deltas
+
 ## Review
 - **What was built:** the Big Type launcher (commit `f8b9e1a`), plus the data layer (`f8e3b86`).
 - **Verification:**

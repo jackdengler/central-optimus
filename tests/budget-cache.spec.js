@@ -3,8 +3,8 @@ import { test, expect } from "./fixtures.js";
 
 /* The phone keeps summaries in IndexedDB and revalidates them with the
    file's ETag, so an unchanged budget.json answers 304. A summary cached
-   by an older build (before income/rate existed) must not be served
-   again: its SUMMARY_VERSION no longer matches, so it is refetched. */
+   by an older build (version 2, before the months field existed) must
+   not be served again: its SUMMARY_VERSION no longer matches, so it is refetched. */
 test("a summary cached by an older build is replaced, not served on a 304", async ({
   page,
 }) => {
@@ -26,7 +26,7 @@ test("a summary cached by an older build is replaced, not served on a 304", asyn
       const tx = db.transaction("summaries", "readwrite");
       tx.objectStore("summaries").put(
         {
-          v: 1,
+          v: 2,
           day,
           etag: '"old"',
           summary: {

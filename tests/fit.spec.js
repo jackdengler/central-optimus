@@ -24,6 +24,70 @@ async function longNames(page) {
   );
 }
 
+/* Every reading part inside its band's diagonal; name and reading apart. */
+function offenders(page) {
+  return page.evaluate(() => {
+    const slant = 18;
+    const out = [];
+    for (const band of document.querySelectorAll(".band")) {
+      const b = band.getBoundingClientRect();
+      const parts = band.querySelectorAll(
+        ".band-read > *, .band-sub > span, .score-row-mini, .veil-row, .band-name",
+      );
+      for (const el of parts) {
+        const r = el.getBoundingClientRect();
+        if (!r.width || !r.height || getComputedStyle(el).display === "none")
+          continue;
+        const xl = r.left - b.left;
+        const xr = r.right - b.left;
+        const top = r.top - b.top;
+        const bottom = r.bottom - b.top;
+        const minTop = slant * (1 - xl / b.width);
+        const maxBottom = b.height - (slant * xr) / b.width;
+        const label = `${band.dataset.app} ${el.className || el.tagName}`;
+        // Text wider than its box spills unseen by the rect checks below,
+        // unless it's cut with an ellipsis.
+        const cs = getComputedStyle(el);
+        if (
+          el.scrollWidth > el.clientWidth + 1 &&
+          cs.textOverflow !== "ellipsis"
+        )
+          out.push(`${label}: text spills ${el.scrollWidth}/${el.clientWidth}`);
+        if (xl < 0 || xr > b.width + 0.5)
+          out.push(
+            `${label}: x ${xl.toFixed(0)}–${xr.toFixed(0)} of ${b.width}`,
+          );
+        if (top < minTop - 0.5)
+          out.push(`${label}: top ${top.toFixed(1)} < ${minTop.toFixed(1)}`);
+        if (bottom > maxBottom + 0.5)
+          out.push(
+            `${label}: bottom ${bottom.toFixed(1)} > ${maxBottom.toFixed(1)}`,
+          );
+      }
+      // The app name overlaps neither the reading nor any part of it.
+      const n = band.querySelector(".band-name").getBoundingClientRect();
+      const pieces = [
+        band.querySelector(".band-read"),
+        ...band.querySelectorAll(".band-read > *"),
+      ];
+      for (const piece of pieces) {
+        const rd = piece.getBoundingClientRect();
+        if (!rd.width || !rd.height) continue;
+        const overlap =
+          n.left < rd.right &&
+          rd.left < n.right &&
+          n.top < rd.bottom &&
+          rd.top < n.bottom;
+        if (overlap)
+          out.push(
+            `${band.dataset.app}: name overlaps ${piece.className || "reading"}`,
+          );
+      }
+    }
+    return out;
+  });
+}
+
 for (const phone of PHONES) {
   test(`band readings stay inside their diagonal on ${phone.name}`, async ({
     page,
@@ -40,48 +104,34 @@ for (const phone of PHONES) {
     // Measure the settled layout: entrance deal-in and number roll done.
     await expect(page.locator("#app.is-entering")).toHaveCount(0);
     await expect(page.locator("[data-counting]")).toHaveCount(0);
-    const bad = await page.evaluate(() => {
-      const slant = 18;
-      const out = [];
-      for (const band of document.querySelectorAll(".band")) {
-        const b = band.getBoundingClientRect();
-        const parts = band.querySelectorAll(
-          ".band-read > *, .band-sub > span, .score-row-mini, .veil-row, .band-name",
-        );
-        for (const el of parts) {
-          const r = el.getBoundingClientRect();
-          if (!r.width || !r.height || getComputedStyle(el).display === "none")
-            continue;
-          const xl = r.left - b.left;
-          const xr = r.right - b.left;
-          const top = r.top - b.top;
-          const bottom = r.bottom - b.top;
-          const minTop = slant * (1 - xl / b.width);
-          const maxBottom = b.height - (slant * xr) / b.width;
-          const label = `${band.dataset.app} ${el.className || el.tagName}`;
-          if (xl < 0 || xr > b.width + 0.5)
-            out.push(
-              `${label}: x ${xl.toFixed(0)}–${xr.toFixed(0)} of ${b.width}`,
-            );
-          if (top < minTop - 0.5)
-            out.push(`${label}: top ${top.toFixed(1)} < ${minTop.toFixed(1)}`);
-          if (bottom > maxBottom + 0.5)
-            out.push(
-              `${label}: bottom ${bottom.toFixed(1)} > ${maxBottom.toFixed(1)}`,
-            );
-        }
-        // The app name and the reading never overlap.
-        const n = band.querySelector(".band-name").getBoundingClientRect();
-        const rd = band.querySelector(".band-read").getBoundingClientRect();
-        const overlap =
-          n.left < rd.right &&
-          rd.left < n.right &&
-          n.top < rd.bottom &&
-          rd.top < n.bottom;
-        if (overlap) out.push(`${band.dataset.app}: name overlaps reading`);
-      }
-      return out;
-    });
-    expect(bad).toEqual([]);
+    expect(await offenders(page)).toEqual([]);
+  });
+}
+
+// The second readings (swipe) must fit the same diagonals.
+for (const phone of PHONES) {
+  test(`second readings stay inside their diagonal on ${phone.name}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: phone.width, height: phone.height });
+    await longNames(page);
+    await page.goto("/");
+    await expect(
+      page.locator('.band[data-app="scores"] .score-row-mini'),
+    ).toHaveCount(3);
+    await expect(page.locator("#app.is-entering")).toHaveCount(0);
+    for (const hit of await page.locator(".band-hit").all()) {
+      await hit.focus();
+      await hit.press("ArrowRight");
+    }
+    await expect(page.locator('.band:not([data-view="alt"])')).toHaveCount(0);
+    await expect(page.locator(".heat i")).toHaveCount(84);
+    // Let the slide-in finish: measure where the readings come to rest.
+    await page.waitForFunction(() =>
+      document
+        .getAnimations()
+        .every((a) => !a.effect?.target?.closest?.(".band-read")),
+    );
+    expect(await offenders(page)).toEqual([]);
   });
 }

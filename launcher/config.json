@@ -12,7 +12,11 @@
       "abbr": "PIT",
       "sport": "football",
       "league": "nfl",
-      "team": "pit"
+      "team": "pit",
+      "flash": [
+        "#101820",
+        "#ffb612"
+      ]
     },
     {
       "id": "psu",
@@ -20,7 +24,11 @@
       "abbr": "PSU",
       "sport": "football",
       "league": "college-football",
-      "team": "213"
+      "team": "213",
+      "flash": [
+        "#041e42",
+        "#ffffff"
+      ]
     },
     {
       "id": "ufc",

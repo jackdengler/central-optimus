@@ -2,6 +2,7 @@ import { initWeather } from "./weather.js";
 import { loadLiveData, clearLiveData } from "./data.js";
 import { feel, soundOn, setSound } from "./feel.js";
 import { loadScores, headline } from "./scores.js";
+import { initTilt, tiltOn, setTilt } from "./tilt.js";
 
 /* =====================================================================
    Central Optimus — Big Type launcher.
@@ -25,6 +26,8 @@ let embedTimer = 0;
 let lastDataLoad = 0;
 let SCORES = null; // { teams, at, stale }
 let scoresTimer = 0;
+let WEATHER = null; // last weather payload (see weather.js)
+let MOMENTS = []; // score headlines pinned to the front of the tape
 
 const $ = (sel) => document.querySelector(sel);
 const reducedMotion = () =>
@@ -287,6 +290,13 @@ function setWeatherLine(payload) {
   $("#weather-line").textContent = [short, temp, label]
     .filter(Boolean)
     .join(" ");
+  WEATHER = payload;
+  // Rain or storms draw streaks behind the header; stale readings don't.
+  $(".top").classList.toggle(
+    "is-rain",
+    !!payload && !payload.stale && ["rain", "storm"].includes(payload.kind),
+  );
+  if ($("#tape-track")) renderTape();
   const sunset = hhmmTo12(payload?.sunset);
   const sun = $("#sun-line");
   if (sunset) {
@@ -294,6 +304,26 @@ function setWeatherLine(payload) {
     sun.setAttribute("aria-label", `Sunset ${sunset}`);
     sun.hidden = false;
   }
+}
+
+/* A heat warning (today's high, or now, at 95°F+) or a thunderstorm
+   takes over the tape. Only from a fresh reading. */
+const HEAT_F = 95;
+function weatherAlert() {
+  const w = WEATHER;
+  if (!w || w.stale) return null;
+  const high = Number.isFinite(w.high) ? w.high : null;
+  const now = Number.isFinite(w.temp) ? w.temp : null;
+  if (Math.max(high ?? -Infinity, now ?? -Infinity) >= HEAT_F)
+    return {
+      kind: "heat",
+      text:
+        high != null && high >= (now ?? -Infinity)
+          ? `HEAT WARNING · HIGH ${high}°`
+          : `HEAT WARNING · ${now}° NOW`,
+    };
+  if (w.kind === "storm") return { kind: "storm", text: "THUNDERSTORMS NOW" };
+  return null;
 }
 
 async function setPublishStamp() {
@@ -329,8 +359,7 @@ function buildBands() {
       band.style.setProperty("--band-hi", "#0b0b0b");
     const hit = el("button", "band-hit");
     hit.type = "button";
-    hit.addEventListener("pointerdown", () => feel("tick"));
-    hit.addEventListener("click", () => launchApp(app.id, band));
+    wireBandGestures(hit, band, app);
     band.append(
       hit,
       el("p", "band-name", (app.label || app.name).toUpperCase()),
@@ -372,7 +401,166 @@ function buildHold(band) {
   });
   btn.addEventListener("keyup", release);
   btn.addEventListener("contextmenu", (e) => e.preventDefault());
+  // The peek sheet's REVEAL: show now, re-veil on the usual timer.
+  band._reveal = () => {
+    reveal();
+    release();
+  };
   return btn;
+}
+
+/* ---------- band gestures: tap, long-press peek, swipe ---------- */
+
+const LONG_PRESS_MS = 450;
+const SWIPE_PX = 48;
+
+/* One pointer stream per band decides what a touch was: a tap opens the
+   app, holding still opens the peek sheet, a sideways drag flips to the
+   band's second reading. Anything but a tap swallows the click. */
+function wireBandGestures(hit, band, app) {
+  let start = null;
+  let timer = 0;
+  let swiping = false;
+  let consumed = false;
+  const read = () => band.querySelector(".band-read");
+  const settle = () => {
+    clearTimeout(timer);
+    start = null;
+    if (!swiping) return;
+    swiping = false;
+    const r = read();
+    r.style.transform = "";
+    r.style.opacity = "";
+  };
+  hit.addEventListener("pointerdown", (e) => {
+    if (e.button > 0) return;
+    consumed = false;
+    start = { x: e.clientX, y: e.clientY, id: e.pointerId };
+    feel("tick");
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      consumed = true;
+      start = null;
+      openPeek(band, app);
+    }, LONG_PRESS_MS);
+  });
+  hit.addEventListener("pointermove", (e) => {
+    if (!start || e.pointerId !== start.id) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (Math.hypot(dx, dy) > 10) clearTimeout(timer);
+    if (!swiping && Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+      swiping = true;
+      hit.setPointerCapture?.(e.pointerId);
+    }
+    if (swiping && !reducedMotion()) {
+      const d = Math.max(-90, Math.min(90, dx));
+      const r = read();
+      r.style.transform = `translateX(${(d * 0.6).toFixed(1)}px)`;
+      r.style.opacity = String(1 - Math.min(0.7, Math.abs(d) / 130));
+    }
+  });
+  hit.addEventListener("pointerup", (e) => {
+    const dx = start ? e.clientX - start.x : 0;
+    const was = swiping;
+    settle();
+    if (!was) return;
+    consumed = true;
+    if (Math.abs(dx) >= SWIPE_PX) flipView(band, app, dx < 0 ? 1 : -1);
+  });
+  hit.addEventListener("pointercancel", settle);
+  hit.addEventListener("click", () => {
+    if (consumed) return void (consumed = false);
+    launchApp(app.id, band);
+  });
+  // Right-click / Android long-press / the keyboard's menu key.
+  hit.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    clearTimeout(timer);
+    openPeek(band, app);
+  });
+  hit.addEventListener("keydown", (e) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    flipView(band, app, e.key === "ArrowRight" ? 1 : -1);
+  });
+}
+
+// Two views per band: the main reading and a second one behind a swipe.
+function flipView(band, app, dir = 1) {
+  band.dataset.view = band.dataset.view === "alt" ? "" : "alt";
+  feel("tick");
+  renderBands();
+  if (reducedMotion()) return;
+  band.querySelector(".band-read").animate(
+    [
+      { transform: `translateX(${dir * 36}px)`, opacity: 0 },
+      { transform: "none", opacity: 1 },
+    ],
+    { duration: 280, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+  );
+}
+
+/* Peek: a held band lifts and a sheet of quick actions drops out of it,
+   in the band's colour. It sits outside the band (the band clips). */
+let peekBand = null;
+
+function openPeek(band, app) {
+  if (peekBand === band) return;
+  closePeek();
+  peekBand = band;
+  feel("peek");
+  band.classList.add("is-peeking");
+  const layer = $("#peek");
+  const sheet = layer.querySelector(".peek-sheet");
+  sheet.innerHTML = "";
+  sheet.style.setProperty("--band-bg", app.color);
+  sheet.style.setProperty("--band-fg", inkFor(app.color));
+  const alt = band.dataset.view === "alt";
+  const actions = [
+    ["OPEN", () => launchApp(app.id, band)],
+    [alt ? "BACK" : "MORE", () => flipView(band, app, 1)],
+  ];
+  if (band._reveal) actions.push(["REVEAL", () => band._reveal()]);
+  actions.push([
+    "REFRESH",
+    () => (app.id === "scores" ? refreshScores() : refreshData()),
+  ]);
+  sheet.setAttribute("aria-label", `${app.name} actions`);
+  for (const [label, run] of actions) {
+    const b = el("button", "peek-act", label);
+    b.type = "button";
+    b.setAttribute("role", "menuitem");
+    b.addEventListener("click", () => {
+      closePeek();
+      feel("tick");
+      run();
+    });
+    sheet.append(b);
+  }
+  layer.hidden = false;
+  // Under the band, or above it when there's no room below.
+  const r = band.getBoundingClientRect();
+  const h = sheet.offsetHeight;
+  const below = r.bottom - 12 + h < window.innerHeight - 8;
+  sheet.style.top = `${Math.round(below ? r.bottom - 12 : r.top + 12 - h)}px`;
+  sheet.classList.toggle("is-above", !below);
+  if (!reducedMotion())
+    sheet.animate(
+      [
+        { transform: `translateY(${below ? -10 : 10}px)`, opacity: 0 },
+        { transform: "none", opacity: 1 },
+      ],
+      { duration: 220, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" },
+    );
+  sheet.querySelector(".peek-act")?.focus({ preventScroll: true });
+}
+
+function closePeek() {
+  if (!peekBand) return;
+  peekBand.classList.remove("is-peeking");
+  peekBand = null;
+  $("#peek").hidden = true;
 }
 
 // Figures are only in the DOM while revealed, so the veil is real privacy
@@ -584,6 +772,7 @@ function scoresReading(read) {
   for (const t of teams) {
     const r = scoreRow(t);
     const row = el("span", `score-row-mini${r.live ? " is-live" : ""}`);
+    row.dataset.team = t.id;
     row.append(el("b", null, r.tag), el("span", null, r.text));
     list.append(row);
     says.push(r.say);
@@ -613,6 +802,166 @@ function ticks(last30) {
     wrap.append(t);
   }
   return wrap;
+}
+
+/* ---------- second readings (swipe a band) ---------- */
+
+function viewDots(alt) {
+  const dots = el("span", "view-dots");
+  dots.setAttribute("aria-hidden", "true");
+  dots.append(el("i", alt ? "" : "on"), el("i", alt ? "on" : ""));
+  return dots;
+}
+
+function altReadingFor(app) {
+  const s = DATA[app.id]?.summary;
+  const read = el("div", "band-read is-alt");
+  if (app.id === "scores") return recordsReading(read);
+  if (!s) {
+    read.append(
+      el("span", "band-num", "—"),
+      el("span", "band-sub", DATA[app.id]?.error ? "OFFLINE" : "SYNCING"),
+    );
+    return { read, label: "loading" };
+  }
+  if (app.id === "fitness-tracker") {
+    const days = s.lifts84 || s.last30;
+    read.append(
+      heatmap(days),
+      el("span", "alt-cap", `${days.length} LIFTS · 12 WEEKS`),
+    );
+    return { read, label: `${days.length} lifts in the last 12 weeks` };
+  }
+  if (app.id === "upcoming-movies") {
+    const cal = s.calendar?.days || [];
+    const n = s.calendar?.counts || {};
+    // Likely days show as outlines; the caption names the firm ones.
+    const cap = [
+      n.booked && `${n.booked} BOOKED`,
+      n.must && `${n.must} MUST`,
+    ].filter(Boolean);
+    read.append(
+      movieCalendarGrid(cal),
+      el(
+        "span",
+        "alt-cap",
+        cap.length ? cap.join(" · ") : "NEXT 5 WEEKS CLEAR",
+      ),
+    );
+    return {
+      read,
+      label: `next five weeks: ${cap.join(", ").toLowerCase() || "nothing marked"}`,
+    };
+  }
+  if (app.id === "budget-together") {
+    read.append(
+      spendBars(s.months || [], s.avgPerMonth),
+      el("span", "alt-cap", "SPEND · 6 MO VS AVG"),
+    );
+    return {
+      read,
+      label: "spend over the last six months against the average",
+    };
+  }
+  return readingFor(app);
+}
+
+// 12 weeks × 7 days, a column per week; the last column is this week.
+function heatmap(days) {
+  const set = new Set(days);
+  const grid = el("span", "heat");
+  grid.setAttribute("aria-hidden", "true");
+  const now = new Date();
+  const today = localDayKey(now);
+  const sunday = now.getDate() - now.getDay();
+  for (let i = 0; i < 84; i++) {
+    const key = localDayKey(
+      new Date(now.getFullYear(), now.getMonth(), sunday - 77 + i),
+    );
+    grid.append(
+      el(
+        "i",
+        key > today
+          ? "future"
+          : set.has(key)
+            ? "on"
+            : key === today
+              ? "today"
+              : "",
+      ),
+    );
+  }
+  return grid;
+}
+
+// This week and the next four; a square per day, filled by its best mark.
+function movieCalendarGrid(cal) {
+  const kinds = new Map(cal.map((d) => [d.day, d.kind]));
+  const grid = el("span", "cal");
+  grid.setAttribute("aria-hidden", "true");
+  const now = new Date();
+  const today = localDayKey(now);
+  const sunday = now.getDate() - now.getDay();
+  for (let i = 0; i < 35; i++) {
+    const key = localDayKey(
+      new Date(now.getFullYear(), now.getMonth(), sunday + i),
+    );
+    const cls = [
+      key < today && "past",
+      key === today && "today",
+      kinds.get(key),
+    ].filter(Boolean);
+    grid.append(el("i", cls.join(" ")));
+  }
+  return grid;
+}
+
+// Relative bars only: no figures, so nothing sensitive leaves the veil.
+function spendBars(months, avg) {
+  const wrap = el("span", "bars");
+  wrap.setAttribute("aria-hidden", "true");
+  const top = Math.max(1, avg || 0, ...months.map((m) => m.spend));
+  months.forEach((m, i) => {
+    const col = el("span", `bar${i === months.length - 1 ? " last" : ""}`);
+    const fill = el("i");
+    fill.style.height = `${Math.max(4, (m.spend / top) * 100).toFixed(1)}%`;
+    col.append(fill, el("b", null, MONTHS[Number(m.month.slice(5, 7)) - 1][0]));
+    wrap.append(col);
+  });
+  if (avg) {
+    const line = el("span", "bars-avg");
+    line.style.setProperty("--avg", (avg / top).toFixed(3));
+    wrap.append(line);
+  }
+  return wrap;
+}
+
+// Scores' second view: each team's record and last result.
+function recordsReading(read) {
+  const teams = SCORES?.teams || [];
+  if (!teams.length) {
+    read.append(el("span", "band-num", "—"), el("span", "band-sub", "SYNCING"));
+    return { read, label: "loading" };
+  }
+  const list = el("span", "score-rows");
+  const says = [];
+  for (const t of teams) {
+    const tag = t.abbr || t.label.toUpperCase();
+    let text = "NO RESULT";
+    if (t.last) {
+      const g = t.last;
+      text = `${t.record ? `${t.record} · ` : ""}${g.result} ${g.us}–${g.them} ${g.home ? "VS" : "@"} ${g.opp}`;
+    } else if (t.card) {
+      text = `${String(t.card.name).toUpperCase()} · ${shortWhen(t.card.date, true)}`;
+    } else if (t.record) text = t.record;
+    const row = el("span", "score-row-mini");
+    row.append(el("b", null, tag), el("span", null, text));
+    list.append(row);
+    says.push(`${t.label} ${text.toLowerCase()}`);
+  }
+  read.classList.add("is-rows");
+  read.append(list);
+  return { read, label: says.join("; ") };
 }
 
 /* Most urgent first: a release ≤2 days out, then a lift gap past the
@@ -645,7 +994,9 @@ function renderBands() {
     wrap.append(band); // re-append in urgency order
     band.classList.toggle("is-flip", i % 2 === 1);
     band.style.setProperty("--i", i);
-    const { read, label } = readingFor(app);
+    const alt = band.dataset.view === "alt";
+    const { read, label } = alt ? altReadingFor(app) : readingFor(app);
+    read.append(viewDots(alt));
     band.querySelector(".band-read").replaceWith(read);
     band.classList.toggle(
       "is-stale",
@@ -793,7 +1144,10 @@ function renderStrip() {
 /* ---------- ticker tape ---------- */
 
 function headlines() {
+  const now = Date.now();
+  MOMENTS = MOMENTS.filter((m) => m.until > now);
   const out = [
+    ...MOMENTS.map((m) => m.text),
     greeting(new Date(), CONFIG.firstName || CONFIG.githubUser || ""),
   ];
   const fit = DATA["fitness-tracker"]?.summary;
@@ -848,7 +1202,12 @@ function headlines() {
 
 let lastTape = "";
 function renderTape() {
-  const lines = headlines();
+  const alert = weatherAlert();
+  let lines = headlines();
+  // A weather warning takes over: it leads and comes back every two items.
+  if (alert)
+    lines = lines.flatMap((l, i) => (i % 2 === 0 ? [alert.text, l] : [l]));
+  $(".tape").classList.toggle("is-alert", !!alert);
   const text = lines.join(" — ") + " — ";
   if (text === lastTape) return;
   lastTape = text;
@@ -1008,11 +1367,74 @@ function renderScoresPanel() {
   );
 }
 
+/* Score moments: when a live score goes up between two fresh readings,
+   the digits flip, the tape leads with the play for five minutes, and if
+   it was us, the Scores band flashes the team's colours with a buzz. */
+const PLAYS = {
+  1: "EXTRA POINT",
+  2: "SAFETY",
+  3: "FIELD GOAL",
+  6: "TOUCHDOWN",
+  7: "TOUCHDOWN",
+  8: "TOUCHDOWN",
+};
+
+function scoreChanges(prev, next) {
+  if (!prev?.teams || !next?.teams || !prev.at || !next.at) return [];
+  if (next.at - prev.at > 10 * 60_000) return []; // too old to call it news
+  const out = [];
+  for (const t of next.teams) {
+    const a = prev.teams.find((p) => p.id === t.id)?.live;
+    const b = t.live;
+    if (!a || !b || a.opp !== b.opp) continue;
+    const us = Number(b.us) - Number(a.us);
+    const them = Number(b.them) - Number(a.them);
+    if (us > 0) out.push({ team: t, ours: true, pts: us });
+    if (them > 0) out.push({ team: t, ours: false, pts: them });
+  }
+  return out;
+}
+
+function playScoreMoment({ team, ours, pts }) {
+  const g = team.live;
+  const play = (team.sport === "football" && PLAYS[pts]) || "SCORE";
+  const who = ours ? team.label.toUpperCase() : g.opp;
+  const tag = team.abbr || team.label.toUpperCase();
+  const text = `${play} ${who} · ${tag} ${g.us}–${g.them} ${g.opp}`;
+  MOMENTS = [
+    { text, until: Date.now() + 5 * 60_000 },
+    ...MOMENTS.filter((m) => m.text !== text),
+  ];
+  $("#tape-live").textContent = text;
+  if (ours) feel("score");
+  if (reducedMotion()) return;
+  const band = $('.band[data-app="scores"]');
+  const row = band?.querySelector(
+    `.score-row-mini[data-team="${CSS.escape(team.id)}"]`,
+  );
+  row?.classList.add("is-scoring");
+  if (!ours || !band) return;
+  const [bg, fg] = team.flash || ["#0b0b0b", "#ffffff"];
+  band.style.setProperty("--flash-bg", bg);
+  band.style.setProperty("--flash-fg", fg);
+  band.classList.remove("is-scored");
+  void band.offsetWidth; // restart the flash
+  band.classList.add("is-scored");
+  const done = (e) => {
+    if (e.target !== band || e.animationName !== "score-flash") return;
+    band.classList.remove("is-scored");
+    band.removeEventListener("animationend", done);
+  };
+  band.addEventListener("animationend", done);
+}
+
 async function refreshScores() {
   clearTimeout(scoresTimer);
   await loadScores(CONFIG.teams, (payload) => {
+    const moments = scoreChanges(SCORES, payload);
     SCORES = payload;
     renderBands();
+    moments.forEach(playScoreMoment);
     renderTape();
     if (openAppId === "scores") renderScoresPanel();
   });
@@ -1066,6 +1488,14 @@ const ACTIONS = [
       setSound(!soundOn());
       if (soundOn()) feel("tick");
       $("#tape-live").textContent = soundOn() ? "Sound on" : "Sound off";
+    },
+  },
+  {
+    label: "Tilt",
+    keywords: "tilt parallax motion gyro",
+    run: () => {
+      setTilt(!tiltOn());
+      $("#tape-live").textContent = tiltOn() ? "Tilt on" : "Tilt off";
     },
   },
 ];
@@ -1217,6 +1647,7 @@ function settleLayer(layer) {
 function launchApp(appId, originEl, { animate = true } = {}) {
   const app = APPS.find((a) => a.id === appId && (a.url || a.panel));
   if (!app || openAppId === appId) return;
+  closePeek();
   if (openAppId) closeApp({ fromHistory: true, quiet: true });
   // Only an animated launch gets the whoosh; deep links open silently.
   if (animate) feel("open");
@@ -1377,6 +1808,7 @@ function wireKeys() {
     const typing = /^(INPUT|TEXTAREA)$/.test(
       document.activeElement?.tagName || "",
     );
+    if (e.key === "Escape" && peekBand) return closePeek();
     if (e.key === "Escape" && openAppId) return closeApp();
     if (
       (e.key === "k" && (e.metaKey || e.ctrlKey)) ||
@@ -1438,6 +1870,10 @@ function startHome() {
   wireTape();
   wireSearch();
   $("#lock").addEventListener("click", lock);
+  $("#peek").addEventListener("click", (e) => {
+    if (!e.target.closest(".peek-act")) closePeek();
+  });
+  initTilt(document.documentElement);
   $("#theme").addEventListener("click", toggleTheme);
   labelThemeButton();
   document.fonts?.ready.then(fitBandNames);

@@ -225,10 +225,11 @@ test("summary shapes are pinned to SUMMARY_VERSION", () => {
     ]),
   );
   expect({ version: SUMMARY_VERSION, shapes }).toEqual({
-    version: 2,
+    version: 3,
     shapes: {
       "fitness-tracker": {
         last30: ["string"],
+        lifts84: ["string"],
         lastLift: {
           day: "string",
           daysAgo: "number",
@@ -250,6 +251,10 @@ test("summary shapes are pinned to SUMMARY_VERSION", () => {
       },
       "upcoming-movies": {
         booked: "number",
+        calendar: {
+          counts: { booked: "number", likely: "number", must: "number" },
+          days: [{ day: "string", kind: "string" }],
+        },
         mustSee: "number",
         next: { day: "string", daysUntil: "number", titles: ["string"] },
         rows: [
@@ -264,6 +269,7 @@ test("summary shapes are pinned to SUMMARY_VERSION", () => {
       "budget-together": {
         avgMonths: "number",
         avgPerMonth: "number",
+        months: [{ month: "string", spend: "number" }],
         lastMonth: {
           income: "number",
           month: "string",
