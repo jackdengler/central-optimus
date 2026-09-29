@@ -1,0 +1,32 @@
+{
+  "title": "Central Optimus",
+  "firstName": "Jack",
+  "githubUser": "jackdengler",
+  "location": "Los Angeles",
+  "version": "2.0",
+  "dataRepo": "jackdengler/private-data-storage",
+  "teams": [
+    {
+      "id": "steelers",
+      "label": "Steelers",
+      "abbr": "PIT",
+      "sport": "football",
+      "league": "nfl",
+      "team": "pit"
+    },
+    {
+      "id": "psu",
+      "label": "Penn State",
+      "abbr": "PSU",
+      "sport": "football",
+      "league": "college-football",
+      "team": "213"
+    },
+    {
+      "id": "ufc",
+      "label": "UFC",
+      "sport": "mma",
+      "league": "ufc"
+    }
+  ]
+}

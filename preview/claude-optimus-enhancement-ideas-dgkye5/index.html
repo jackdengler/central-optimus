@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0b0b0b" />
+    <!-- Content Security Policy. The launcher only ever talks to a small,
+         fixed set of origins: GitHub (identity gate + the private data repo
+         via the Contents API), Open-Meteo (weather), BigDataCloud (reverse-
+         geocode for the location label), and its own origin for config/apps/
+         build JSON, fonts, and the embedded apps (under jackdengler.github.io).
+         Scripts are self-only (no inline) so an injected <script> can't run. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://api.github.com https://site.api.espn.com https://api.open-meteo.com https://api.bigdatacloud.net; frame-src 'self' https://jackdengler.github.io; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'"
+    />
+    <title>Central Optimus</title>
+
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <!-- Every app lives on this origin; warm the connection at boot. -->
+    <link rel="preconnect" href="https://jackdengler.github.io" />
+    <link rel="preconnect" href="https://api.github.com" crossorigin />
+    <link rel="preload" href="./fonts/Anton-400.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="./fonts/DMMono-500.woff2" as="font" type="font/woff2" crossorigin />
+
+    <link rel="icon" type="image/svg+xml" href="./icons/icon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Optimus" />
+    <link
+      rel="apple-touch-startup-image"
+      href="./icons/splash-1170x2532.png"
+      media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)"
+    />
+    <!-- Pre-paint the ground so the PWA safe areas are dark before CSS lands;
+         once styles.css loads, --ground (theme-aware) takes over. -->
+    <style>
+      html, body { margin: 0; background-color: var(--ground, #0b0b0b); }
+    </style>
+    <script src="./theme.js"></script>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main id="app" class="home" hidden>
+      <header class="top">
+        <div class="clock-wrap">
+          <time id="clock" class="clock">--<span class="colon">:</span>--</time>
+          <span id="ampm" class="ampm"></span>
+        </div>
+        <div class="top-actions">
+          <button id="theme" type="button" class="square-btn theme-btn" aria-label="Switch to light mode" title="Light / dark">
+            <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8" /></svg>
+            <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" /></svg>
+          </button>
+          <button id="team" type="button" class="square-btn team-btn" aria-label="Team colours: Classic" title="Team colours">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path class="sw-a" d="M4.5 4.5h15l-15 15z" /><path class="sw-b" d="M19.5 4.5v15h-15z" /><rect x="4.5" y="4.5" width="15" height="15" /></svg>
+          </button>
+          <button id="lock" type="button" class="square-btn" aria-label="Lock launcher" title="Lock launcher">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9.5" rx="2.5" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+          </button>
+        </div>
+        <p class="meta">
+          <span id="today-date" class="meta-hi"></span>
+          <span id="weather-line"></span>
+          <span id="sun-line" hidden></span>
+        </p>
+      </header>
+
+      <div class="tape" aria-hidden="true">
+        <p id="tape-track" class="tape-track"></p>
+      </div>
+      <p id="tape-live" class="sr-only" aria-live="polite"></p>
+
+      <section id="bands" class="bands" aria-label="Live apps"></section>
+
+      <nav id="strip" class="strip" aria-label="More apps"></nav>
+
+      <div class="bottom">
+        <label class="search" for="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4 4" /></svg>
+          <span class="sr-only">Search apps</span>
+          <input
+            id="search"
+            type="search"
+            placeholder="SEARCH APPS"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            enterkeyhint="go"
+          />
+        </label>
+        <p class="status">
+          <span id="sync-line">V— · SYNCING</span>
+          <span id="publish-time">PUBLISHED —</span>
+        </p>
+      </div>
+    </main>
+
+    <!-- The open app. Launch grows this layer out of the tapped band. -->
+    <div id="embed" class="embed" hidden>
+      <header id="embed-bar" class="embed-bar">
+        <button id="embed-home" type="button" class="embed-home" aria-label="Home">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+          <span>HOME</span>
+        </button>
+        <h1 id="embed-title" class="embed-title"></h1>
+      </header>
+      <div class="embed-body">
+        <iframe
+          id="embed-frame"
+          class="embed-frame"
+          title="App"
+          referrerpolicy="no-referrer"
+          allow="clipboard-read; clipboard-write; fullscreen"
+        ></iframe>
+        <div class="embed-loading" aria-hidden="true"><span class="embed-loading-bar"></span></div>
+        <div class="embed-failure" role="alert">
+          <p class="embed-failure-title">COULDN'T LOAD</p>
+          <p id="embed-failure-msg" class="embed-failure-msg">The app didn't respond in time.</p>
+          <div class="embed-failure-actions">
+            <button type="button" id="embed-failure-close" class="square-btn wide">CLOSE</button>
+            <button type="button" id="embed-failure-retry" class="square-btn wide is-accent">RETRY</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scores: an in-launcher panel (not an app), opened from its band. -->
+    <div id="scores-panel" class="embed scores" hidden>
+      <header class="embed-bar">
+        <button id="scores-home" type="button" class="embed-home" aria-label="Home">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+          <span>HOME</span>
+        </button>
+        <h1 class="embed-title">Scores</h1>
+      </header>
+      <div id="scores-list" class="scores-list"></div>
+    </div>
+
+    <!-- PAT auth gate -->
+    <dialog id="gate" class="gate">
+      <form method="dialog" id="gate-form">
+        <h2 class="gate-title">SIGN IN</h2>
+        <p class="gate-copy">
+          Paste a GitHub personal access token for your account.
+          <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create one</a>.
+          It needs read access to your private data repo for the live numbers.
+        </p>
+        <label class="sr-only" for="token">GitHub token</label>
+        <input id="token" type="password" autocomplete="off" spellcheck="false" autofocus required placeholder="github_pat_..." />
+        <p id="gate-error" class="gate-error" hidden>Sign-in failed.</p>
+        <button type="submit" class="square-btn wide is-accent">UNLOCK</button>
+      </form>
+    </dialog>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

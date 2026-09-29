@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Central Optimus">
+  <!-- Big Type mark. A giant condensed "O" is the hero; it is cut from the
+       launcher's three live bands (Fitness rose, Movies wine, Budget forest)
+       on the same diagonal, and the accent ticker tape crosses it with a
+       real shadow. Shapes + gradients only (no fonts) so CI's rsvg
+       rasterizer matches the browser. -->
+  <defs>
+    <radialGradient id="ground" cx="50%" cy="28%" r="80%">
+      <stop offset="0" stop-color="#232323"/>
+      <stop offset="0.55" stop-color="#101010"/>
+      <stop offset="1" stop-color="#060606"/>
+    </radialGradient>
+    <linearGradient id="gloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="0.42" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.18"/>
+    </linearGradient>
+    <linearGradient id="tape" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff27a"/>
+      <stop offset="0.5" stop-color="#ffe500"/>
+      <stop offset="1" stop-color="#f2c800"/>
+    </linearGradient>
+    <!-- Anton-style O: straight sides, deep round ends, tight counter -->
+    <mask id="o" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect x="228" y="96" width="568" height="832" rx="268" ry="300" fill="#fff"/>
+      <rect x="428" y="300" width="168" height="424" rx="84" ry="110" fill="#000"/>
+    </mask>
+    <filter id="drop" x="-10%" y="-40%" width="120%" height="180%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#ground)"/>
+
+  <!-- soft shadow under the O so it lifts off the ground -->
+  <rect x="236" y="120" width="568" height="832" rx="268" ry="300" fill="#000" opacity="0.55" filter="url(#drop)"/>
+
+  <!-- the O, cut from the three bands -->
+  <g mask="url(#o)">
+    <polygon points="0,0 1024,0 1024,300 0,500" fill="#e11d48"/>
+    <polygon points="0,528 1024,328 1024,560 0,760" fill="#a32929"/>
+    <polygon points="0,788 1024,588 1024,1024 0,1024" fill="#4a7c59"/>
+    <rect width="1024" height="1024" fill="url(#gloss)"/>
+  </g>
+
+  <!-- ticker tape across the base of the O, with its cast shadow -->
+  <polygon points="-40,850 1064,616 1064,736 -40,970" fill="#000" opacity="0.6" filter="url(#drop)" transform="translate(0 22)"/>
+  <polygon points="-40,820 1064,586 1064,706 -40,940" fill="url(#tape)"/>
+  <polygon points="-40,842 1064,608 1064,616 -40,850" fill="#0b0b0b"/>
+  <polygon points="-40,910 1064,676 1064,684 -40,918" fill="#0b0b0b"/>
+</svg>

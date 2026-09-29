@@ -1,0 +1,1324 @@
+@import "tailwindcss";
+
+/* =====================================================================
+   Central Optimus — "Big Type"
+   Black ground, full-width brand-colour bands with huge condensed type,
+   a slanted accent ticker tape, DM Mono for everything small. Portrait
+   iPhone first; wider screens get the same column, centred.
+   ===================================================================== */
+
+@font-face {
+  font-family: "Anton";
+  src: url("./fonts/Anton-400.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "DM Mono";
+  src: url("./fonts/DMMono-400.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "DM Mono";
+  src: url("./fonts/DMMono-500.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+
+:root {
+  --ground: #0b0b0b;
+  --ink: #f5f2ea;
+  --ink-2: #cfcac0;
+  --ink-3: #a8a49b;
+  --line: #3a3a3a;
+  --accent: #ffe500; /* fills: tape, buttons, loading bar */
+  --accent-ink: #ffe500; /* accent as text / outline on the page */
+  --on-accent: #0b0b0b; /* text and rules printed on an accent fill */
+  --surface: #141414;
+  --field: #111;
+  --hairline: #242424;
+  --strip-gap: #1a1a1a;
+  --strip-bg: #000;
+  --strip-ink: #ece9e2;
+  --live: #ff5a4f;
+  --danger-ink: #ff8a7a;
+  /* Print black / paper: things that sit on the coloured bands, the tape
+     and app bars keep these in both themes. */
+  --k: #0b0b0b;
+  --paper: #f5f2ea;
+  --display:
+    "Anton", Impact, "Haettenschweiler", "Arial Narrow Bold", sans-serif;
+  --mono: "DM Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --slant: 18px; /* band diagonal rise */
+  --gutter: 16px;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  color-scheme: dark;
+}
+
+/* Light mode (co.theme = "light", set by theme.js before first paint).
+   Bands, tape and app bars keep their colours; the page flips to paper. */
+:root[data-theme="light"] {
+  --ground: #f5f2ea;
+  --ink: #0b0b0b;
+  --ink-2: #3a3731;
+  --ink-3: #6b665d;
+  --line: #cfc8ba;
+  --accent-ink: #7a6300;
+  --surface: #fffdf8;
+  --field: #fffdf8;
+  --hairline: #ddd6c8;
+  --strip-gap: #d9d2c4;
+  --strip-bg: #fffdf8;
+  --strip-ink: #1a1916;
+  --live: #c8322a;
+  --danger-ink: #b3261e;
+  color-scheme: light;
+}
+
+/* Team palettes (co.team, set by theme.js on <html data-team>). They sit on
+   top of either mode: each team has a dark and a light set, and anything a
+   set leaves out falls back to the plain mode above. Bands keep their app
+   colours; the ground, surfaces, tape and accents change. */
+:root[data-team="steelers"]:not([data-theme="light"]) {
+  --ground: #101820;
+  --surface: #16212c;
+  --field: #0c131a;
+  --hairline: #22303d;
+  --line: #3a4757;
+  --strip-gap: #18232e;
+  --strip-bg: #080d12;
+  --accent: #ffb612;
+  --accent-ink: #ffb612;
+  --on-accent: #101820;
+}
+:root[data-team="steelers"][data-theme="light"] {
+  --ground: #f8edcf;
+  --ink: #101820;
+  --ink-2: #2c3440;
+  --ink-3: #5c5a52;
+  --surface: #fff8e6;
+  --field: #fff8e6;
+  --hairline: #e6d6a8;
+  --line: #d2bd85;
+  --strip-gap: #e6d6a8;
+  --strip-bg: #fff8e6;
+  --strip-ink: #101820;
+  --accent: #ffb612;
+  --accent-ink: #855600;
+  --on-accent: #101820;
+}
+:root[data-team="psu"]:not([data-theme="light"]) {
+  --ground: #041e42;
+  --ink: #f5f7fb;
+  --ink-2: #cdd7e8;
+  --ink-3: #a3b4cf;
+  --surface: #0a2a55;
+  --field: #031834;
+  --hairline: #143668;
+  --line: #2f5189;
+  --strip-gap: #0b2a52;
+  --strip-bg: #021530;
+  --strip-ink: #f5f7fb;
+  --accent: #ffffff;
+  --accent-ink: #96bee6;
+  --on-accent: #041e42;
+}
+:root[data-team="psu"][data-theme="light"] {
+  --ground: #f3f6fb;
+  --ink: #041e42;
+  --ink-2: #1e3a64;
+  --ink-3: #4b6084;
+  --surface: #ffffff;
+  --field: #ffffff;
+  --hairline: #d6deea;
+  --line: #b6c4da;
+  --strip-gap: #d6deea;
+  --strip-bg: #ffffff;
+  --strip-ink: #041e42;
+  --accent: #041e42;
+  --accent-ink: #1e407c;
+  --on-accent: #ffffff;
+}
+:root[data-team="amherst"]:not([data-theme="light"]) {
+  --ground: #1a0f2e;
+  --ink: #f6f3fa;
+  --ink-2: #d6cde6;
+  --ink-3: #ada2c3;
+  --surface: #25173f;
+  --field: #150b26;
+  --hairline: #302152;
+  --line: #4b3972;
+  --strip-gap: #251840;
+  --strip-bg: #110920;
+  --strip-ink: #f6f3fa;
+  --accent: #c9b8e8;
+  --accent-ink: #c9b8e8;
+  --on-accent: #3f1f69;
+}
+:root[data-team="amherst"][data-theme="light"] {
+  --ground: #f6f3fa;
+  --ink: #1f0f38;
+  --ink-2: #3f2e5c;
+  --ink-3: #665a7f;
+  --surface: #ffffff;
+  --field: #ffffff;
+  --hairline: #e0d8ec;
+  --line: #cbbfdf;
+  --strip-gap: #e0d8ec;
+  --strip-bg: #ffffff;
+  --strip-ink: #1f0f38;
+  --accent: #3f1f69;
+  --accent-ink: #3f1f69;
+  --on-accent: #ffffff;
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--mono);
+    font-weight: 500;
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior: none;
+  }
+  body {
+    overflow: hidden;
+  }
+  button,
+  input {
+    font: inherit;
+    color: inherit;
+  }
+  button {
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.9;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- home layout ---------- */
+
+.home {
+  height: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  padding-top: max(env(safe-area-inset-top), 12px);
+  padding-bottom: max(env(safe-area-inset-bottom), 12px);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.home[hidden] {
+  display: none;
+}
+
+.top {
+  flex: none;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  /* Anton's digits rise above their line box; keep them clear of the
+     status bar / Dynamic Island. */
+  margin-top: 10px;
+  padding: 0 var(--gutter);
+  min-height: 96px;
+}
+.clock-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+.clock {
+  font-family: var(--display);
+  font-size: clamp(72px, 23vw, 96px);
+  line-height: 0.86;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.clock .colon {
+  color: var(--accent-ink);
+  animation: blink 2s linear infinite;
+}
+.ampm {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+  margin-top: -2px;
+}
+.top-actions {
+  flex: none;
+  display: flex;
+  gap: 8px;
+}
+.theme-btn .i-moon,
+:root[data-theme="light"] .theme-btn .i-sun {
+  display: none;
+}
+:root[data-theme="light"] .theme-btn .i-moon {
+  display: block;
+}
+/* Team button: a split swatch of the current accent pair. */
+.team-btn .sw-a {
+  fill: var(--accent);
+}
+.team-btn .sw-b {
+  fill: var(--on-accent);
+}
+/* iOS draws the translucent status bar's text in white; in light mode keep
+   a print-black strip behind it so the time and battery stay readable. */
+:root[data-theme="light"] body {
+  background-image: linear-gradient(
+    var(--k) env(safe-area-inset-top, 0px),
+    transparent env(safe-area-inset-top, 0px)
+  );
+}
+.meta {
+  position: absolute;
+  right: var(--gutter);
+  top: 60px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+#weather-line.is-stale {
+  opacity: 0.55;
+}
+.meta-hi {
+  color: var(--ink);
+}
+#sun-line {
+  display: inline-flex;
+  align-items: center;
+}
+.meta svg {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  stroke-width: 3;
+  color: var(--accent-ink);
+  margin: 0 3px;
+}
+
+.square-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+.square-btn svg {
+  width: 20px;
+  height: 20px;
+}
+.square-btn.wide {
+  padding: 0 18px;
+}
+.square-btn.is-accent {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+.square-btn:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ---------- ticker tape ---------- */
+
+.tape {
+  flex: none;
+  position: relative;
+  z-index: 3;
+  width: calc(100% + 40px);
+  margin: 20px -20px -6px;
+  height: 26px;
+  overflow: hidden;
+  transform: rotate(-2.6deg);
+  /* Held to fast-forward (app.js): no selection, callout or pan. */
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  background-color: var(--accent);
+  background-image: linear-gradient(
+    to bottom,
+    transparent 3px,
+    var(--on-accent) 3px,
+    var(--on-accent) 4px,
+    transparent 4px,
+    transparent 22px,
+    var(--on-accent) 22px,
+    var(--on-accent) 23px,
+    transparent 23px
+  );
+}
+.tape-track {
+  margin: 0;
+  display: flex;
+  width: max-content;
+  height: 26px;
+  font-family: var(--display);
+  font-size: 15px;
+  line-height: 26px;
+  letter-spacing: 0.06em;
+  word-spacing: 0.12em;
+  color: var(--on-accent);
+  white-space: pre;
+  animation: marquee var(--tape-s, 30s) linear infinite;
+  will-change: transform;
+}
+
+/* ---------- bands ---------- */
+
+.bands {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.band {
+  --band-bg: #333;
+  --band-fg: var(--k);
+  --band-hi: #fff;
+  position: relative;
+  flex: 1 1 0;
+  min-height: 88px;
+  max-height: 230px;
+  margin-top: 0;
+  background: var(--band-bg);
+  color: var(--band-fg);
+  clip-path: polygon(
+    0 var(--slant),
+    100% 0,
+    100% calc(100% - var(--slant)),
+    0 100%
+  );
+  transition:
+    flex-grow 280ms var(--ease-out),
+    min-height 280ms var(--ease-out),
+    opacity 200ms ease;
+  overflow: hidden;
+}
+.band:not(.is-filtered) ~ .band:not(.is-filtered) {
+  margin-top: calc(var(--slant) * -0.85);
+}
+.band.is-filtered {
+  display: none;
+}
+.band-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+}
+.band-hit:focus-visible {
+  outline: none;
+}
+.band-hit:focus-visible ~ .band-name {
+  text-decoration: underline;
+  text-decoration-thickness: 4px;
+  text-underline-offset: 6px;
+}
+.band:active .band-hit {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.band-name {
+  position: absolute;
+  left: 14px;
+  bottom: calc(var(--slant) + 6px);
+  margin: 0;
+  font-family: var(--display);
+  font-size: var(--name-size, 88px);
+  line-height: 0.86;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.band.is-flip .band-name {
+  left: auto;
+  right: 14px;
+}
+
+.band-read {
+  position: absolute;
+  right: 16px;
+  top: calc(var(--slant) + 2px);
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 44%;
+  pointer-events: none;
+}
+.band.is-flip .band-read {
+  right: auto;
+  left: 16px;
+}
+.band-num {
+  font-family: var(--display);
+  font-size: clamp(48px, 16vw, 64px);
+  line-height: 0.86;
+  letter-spacing: -0.02em;
+  color: var(--band-hi);
+  white-space: nowrap;
+}
+.band-num small {
+  font-size: 0.5em;
+  margin-left: 2px;
+}
+.band-sub {
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  line-height: 13px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--band-hi);
+  white-space: nowrap;
+}
+
+/* Nothing in a reading may leave the band: lines ellipsize at the
+   reading's width (JS keeps it inside the diagonal vertically). */
+.band-sub {
+  max-width: 100%;
+}
+.band-sub > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Compact bands: keep the number + first line, drop the rest. */
+.band.is-compact .band-read {
+  gap: 3px;
+}
+.band.is-compact .band-num {
+  font-size: clamp(40px, 12vw, 50px);
+}
+.band.is-compact .score-rows {
+  gap: 2px;
+}
+.band.is-compact .score-row-mini {
+  line-height: 13px;
+}
+.band.is-compact .band-sub span:nth-child(n + 2),
+.band.is-compact .ticks,
+.band.is-compact .hold-hint {
+  display: none;
+}
+
+/* Scores: one row per team (tag + next game / main event / result). */
+.band-read.is-rows {
+  max-width: calc(100% - 32px);
+  gap: 4px;
+}
+.score-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 100%;
+}
+.score-row-mini {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--band-hi);
+  white-space: nowrap;
+}
+.score-row-mini b {
+  flex: none;
+  min-width: 30px;
+  padding: 0 4px;
+  background: var(--k);
+  color: var(--paper);
+  font-weight: 500;
+  text-align: center;
+}
+.score-row-mini span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Movies rows: wider tags; a booked ticket's tag is yellow. */
+.band[data-app="upcoming-movies"] .score-row-mini b {
+  min-width: 58px;
+}
+.score-row-mini.is-booked b {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.score-row-mini.is-live b {
+  background: var(--band-hi);
+  color: var(--band-bg);
+}
+
+/* 30-day lift ticks */
+.ticks {
+  display: flex;
+  gap: 1px;
+  align-items: flex-end;
+  height: 10px;
+}
+.ticks i {
+  display: block;
+  width: 3px;
+  height: 4px;
+  background: currentColor;
+  opacity: 0.35;
+}
+.ticks i.on {
+  height: 10px;
+  opacity: 1;
+}
+.ticks i.today {
+  height: 10px;
+  opacity: 1;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+
+/* Stale data: diagonal stripes + "AS OF" */
+.band.is-stale::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(0, 0, 0, 0.16) 0 8px,
+    transparent 8px 16px
+  );
+}
+.band-asof {
+  display: none;
+  margin-top: 2px;
+  padding: 2px 5px;
+  background: var(--k);
+  color: var(--paper);
+  font-size: 10px;
+  line-height: 12px;
+  letter-spacing: 0.04em;
+}
+.band.is-stale .band-asof {
+  display: inline-block;
+}
+
+/* ---------- budget veil (scratch-off) ---------- */
+
+/* No max-width: the three figures size the reading, and the band's name
+   is fitted to the room they leave (a capped box would overflow unseen). */
+.band[data-app="budget-together"] .band-read {
+  max-width: none;
+}
+.veils {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 4px 10px;
+}
+.veil-row {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 3px;
+  align-items: center;
+}
+.veil-label {
+  grid-column: 1 / -1;
+  font-size: 11px;
+  line-height: 13px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--band-hi);
+  white-space: nowrap;
+}
+.veil-label svg {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 5px;
+  vertical-align: -2px;
+}
+.veil-dollar {
+  font-family: var(--display);
+  font-size: 24px;
+  line-height: 0.9;
+  color: var(--band-hi);
+}
+.veil {
+  position: relative;
+  min-width: 58px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0 2px;
+  font-family: var(--display);
+  font-size: 24px;
+  line-height: 1;
+  color: var(--band-hi);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* Reserve room for the revealed figure ("9,694", "100") so revealing
+   never pushes into the band's name; the rate hugs its "%". */
+.veil-row--rate .veil {
+  min-width: 36px;
+  justify-content: flex-end;
+}
+.veil::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    #1c1c1c 0 3px,
+    var(--k) 3px 7px
+  );
+  clip-path: inset(0 0 0 0);
+  transition: clip-path 360ms var(--ease-out);
+}
+.band.is-revealed .veil::after {
+  clip-path: inset(0 0 0 100%);
+}
+.hold-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  padding: 3px 6px;
+  background: var(--on-accent);
+  color: var(--accent);
+  font-size: 11px;
+  line-height: 13px;
+  letter-spacing: 0.06em;
+}
+.hold-hint svg {
+  width: 13px;
+  height: 13px;
+}
+.band.is-revealed .hold-hint {
+  visibility: hidden;
+}
+/* The figures themselves are the press-and-hold target; JS sizes this
+   transparent button to the reading block. */
+.hold {
+  position: absolute;
+  z-index: 3;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.hold:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ---------- strip ---------- */
+
+.strip {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  margin-top: 6px;
+  background: var(--strip-gap);
+}
+.strip-item {
+  flex: 1 1 auto;
+  position: relative;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 0 12px 0 10px;
+  border: 0;
+  background: var(--strip-bg);
+  color: var(--strip-ink);
+  font-family: var(--display);
+  font-size: 17px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* The app's colour as a slanted tab, echoing the bands' diagonal. */
+.strip-swatch {
+  flex: none;
+  width: 9px;
+  height: 22px;
+  background: var(--app-color, #555);
+  clip-path: polygon(0 3px, 100% 0, 100% calc(100% - 3px), 0 100%);
+}
+.strip-item.is-filtered {
+  display: none;
+}
+.strip-item:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+.strip-item:active {
+  opacity: 0.7;
+}
+
+/* ---------- bottom ---------- */
+
+.bottom {
+  flex: none;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px var(--gutter) 0;
+}
+.search {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  background: var(--field);
+  box-sizing: border-box;
+}
+.search svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-size: 16px; /* ≥16px keeps iOS from zooming on focus */
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.search input::placeholder {
+  color: var(--ink-2);
+  font-size: 11px;
+}
+.search:focus-within {
+  border-color: var(--accent-ink);
+}
+.status {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  font-size: 11px;
+  line-height: 12px;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink-2);
+}
+.status #publish-time {
+  color: var(--ink-3);
+}
+
+/* ---------- open app ---------- */
+
+.embed {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: var(--ground);
+  clip-path: inset(0 0 0 0);
+}
+.embed[hidden] {
+  display: none;
+}
+.embed-bar {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: max(env(safe-area-inset-top), 10px) var(--gutter) 10px;
+  min-height: 56px;
+  background: var(--app-color, #333);
+  color: var(--app-fg, var(--k));
+}
+.embed-home {
+  flex: none;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px 0 6px;
+  border: 0;
+  background: var(--k);
+  color: var(--paper);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+}
+.embed-home svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 2.4;
+}
+.embed-home:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.embed-title {
+  margin: 0 0 -4px;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 44px;
+  line-height: 0.86;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+.embed-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: #fff;
+}
+.embed-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+.embed-loading,
+.embed-failure {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+.embed.is-loading .embed-loading {
+  display: block;
+  background: var(--ground);
+}
+.embed-loading-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 4px;
+  width: 40%;
+  background: var(--app-color, var(--accent));
+  animation: loadbar 900ms ease-in-out infinite;
+}
+.embed.is-failed .embed-failure {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px var(--gutter);
+  background: var(--ground);
+}
+.embed-failure-title {
+  margin: 0;
+  font-family: var(--display);
+  font-size: 44px;
+  line-height: 0.9;
+}
+.embed-failure-msg {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.embed-failure-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---------- scores panel ---------- */
+
+.scores-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px var(--gutter) max(env(safe-area-inset-bottom), 16px);
+  background: var(--ground);
+}
+.score-row {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--hairline);
+}
+.score-team {
+  margin: 0 0 8px;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 56px;
+  line-height: 0.86;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.score-rec {
+  font-size: 0.5em;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+.score-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.score-line {
+  margin: 0;
+  display: flex;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+.score-line b {
+  flex: none;
+  width: 44px;
+  font-weight: 500;
+  color: var(--accent-ink);
+}
+.score-line.is-live b,
+.score-line.is-live span {
+  color: var(--live);
+}
+.scores-empty,
+.scores-foot {
+  margin: 16px 0 0;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
+/* ---------- gate + boot error ---------- */
+
+.gate {
+  width: min(calc(100% - 32px), 360px);
+  padding: 22px 20px;
+  border: 0;
+  border-top: 6px solid var(--accent);
+  background: var(--surface);
+  color: var(--ink);
+}
+.gate::backdrop {
+  background: rgba(0, 0, 0, 0.8);
+}
+.gate form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.gate-title {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 52px;
+  line-height: 0.86;
+}
+.gate-copy {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.gate-copy a {
+  color: var(--accent-ink);
+}
+.gate input {
+  height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  background: var(--field);
+  font-size: 16px;
+  outline: none;
+}
+.gate input:focus {
+  border-color: var(--accent-ink);
+}
+.gate-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger-ink);
+}
+.boot-error {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  background: var(--ground);
+}
+.boot-error h2 {
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 400;
+  font-size: 44px;
+  line-height: 0.9;
+}
+.boot-error p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* ---------- motion ---------- */
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes blink {
+  0%,
+  54% {
+    opacity: 1;
+  }
+  55%,
+  100% {
+    opacity: 0.3;
+  }
+}
+@keyframes loadbar {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+
+/* ---------- feel: entrance, press physics, wipe, clock, live tape ---------- */
+
+:root {
+  --spring: cubic-bezier(0.3, 1.7, 0.5, 1); /* overshoot on release */
+}
+
+/* Home deals in on unlock: bands slide in from alternating sides along
+   their diagonal, the tape unrolls, the strip rises. */
+#app.is-entering .top {
+  animation: fade-down 420ms var(--ease-out) both;
+}
+#app.is-entering .tape {
+  animation: tape-unroll 560ms var(--ease-out) 120ms both;
+}
+#app.is-entering .band {
+  animation: deal-right 640ms var(--ease-out) both;
+  animation-delay: calc(180ms + var(--i, 0) * 80ms);
+}
+#app.is-entering .band.is-flip {
+  animation-name: deal-left;
+}
+#app.is-entering .strip-item {
+  animation: rise 440ms var(--ease-out) both;
+  animation-delay: calc(520ms + var(--i, 0) * 35ms);
+}
+#app.is-entering .bottom {
+  animation: rise 440ms var(--ease-out) 700ms both;
+}
+@keyframes fade-down {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+@keyframes tape-unroll {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+@keyframes deal-right {
+  from {
+    transform: translateX(105%);
+  }
+}
+@keyframes deal-left {
+  from {
+    transform: translateX(-105%);
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+/* Press physics: a band gives under the finger, springs back past rest. */
+.band {
+  transition:
+    flex-grow 280ms var(--ease-out),
+    min-height 280ms var(--ease-out),
+    opacity 200ms ease,
+    transform 460ms var(--spring);
+}
+.band:has(> .band-hit:active) {
+  transform: scale(0.975);
+  transition-duration: 280ms, 280ms, 200ms, 90ms;
+  transition-timing-function: var(--ease-out), var(--ease-out), ease, ease-out;
+}
+.strip-item {
+  transition: transform 420ms var(--spring);
+}
+.strip-item:active {
+  transform: translateY(2px) scale(0.96);
+  transition: transform 90ms ease-out;
+}
+
+/* App open / close (driven from app.js with Web Animations): the layer's
+   clip morphs between the band's diagonal and the full screen, under a
+   cover in the band's colour, while a stand-in for the name flies between
+   the band and the app bar title. */
+.launch-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: var(--app-color, #333);
+  opacity: 0;
+  pointer-events: none;
+}
+.launch-name {
+  position: fixed;
+  z-index: 40;
+  margin: 0;
+  font-family: var(--display);
+  line-height: 0.86;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transform-origin: 0 0;
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* The clock's digits drop in when the minute turns. */
+.clock.is-turning {
+  animation: clock-drop 360ms var(--ease-out);
+}
+@keyframes clock-drop {
+  from {
+    opacity: 0.35;
+    transform: translateY(-0.12em);
+  }
+}
+
+/* A live game: the tape runs at double speed with a pulsing red lead. */
+.tape.is-live::before {
+  content: "";
+  position: absolute;
+  left: 26px;
+  top: 50%;
+  z-index: 1;
+  width: 9px;
+  height: 9px;
+  margin-top: -4.5px;
+  background: var(--live);
+  box-shadow: 0 0 0 2px var(--k);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tape-track,
+  .clock .colon,
+  .embed-loading-bar,
+  .tape.is-live::before,
+  .clock.is-turning {
+    animation: none;
+  }
+  .band,
+  .strip-item {
+    transform: none !important;
+  }
+  .band,
+  .veil::after {
+    transition: none;
+  }
+}
+
+/* Short screens (SE-class): tighten the header so the bands keep room. */
+@media (max-height: 700px) {
+  .top {
+    margin-top: 6px;
+    min-height: 84px;
+  }
+  .clock {
+    font-size: 72px;
+  }
+  .meta {
+    top: 50px;
+  }
+}
