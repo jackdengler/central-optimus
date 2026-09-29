@@ -17,8 +17,11 @@
 const DB_NAME = "co.data";
 const STORE = "summaries";
 // Bump when a summarizer's output shape changes so stale caches are
-// ignored instead of rendered with missing fields.
-const SUMMARY_VERSION = 1;
+// ignored instead of rendered with missing fields (a same-day 304 would
+// otherwise keep serving the old shape). tests/data.spec.js pins the
+// shapes to this number.
+// 2: budget lastMonth gained income/saved/rate; movies gained rows.
+export const SUMMARY_VERSION = 2;
 
 const DAY_MS = 86_400_000;
 
