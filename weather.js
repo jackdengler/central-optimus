@@ -134,7 +134,7 @@ async function fetchWeather(lat, lon) {
   url.searchParams.set("longitude", String(lon));
   url.searchParams.set("current", "temperature_2m,weather_code");
   url.searchParams.set("temperature_unit", "fahrenheit");
-  url.searchParams.set("daily", "sunrise,sunset");
+  url.searchParams.set("daily", "sunrise,sunset,temperature_2m_max");
   url.searchParams.set("forecast_days", "1");
   url.searchParams.set("timezone", "auto");
   const res = await fetch(url.toString(), { cache: "no-store" });
@@ -152,7 +152,17 @@ async function fetchWeather(lat, lon) {
   const hhmm = (v) => (typeof v === "string" && v.includes("T") ? v.slice(11, 16) : null);
   const sunrise = hhmm(data?.daily?.sunrise?.[0]);
   const sunset = hhmm(data?.daily?.sunset?.[0]);
-  return { temp, code, label: meta.label, icon: meta.icon, kind, sunrise, sunset };
+  const high = Math.round(data?.daily?.temperature_2m_max?.[0]);
+  return {
+    temp,
+    code,
+    label: meta.label,
+    icon: meta.icon,
+    kind,
+    sunrise,
+    sunset,
+    high: Number.isFinite(high) ? high : null,
+  };
 }
 
 // Reverse-geocode coordinates to a human place name (city/town) using

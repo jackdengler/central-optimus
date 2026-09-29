@@ -21,7 +21,8 @@ const STORE = "summaries";
 // otherwise keep serving the old shape). tests/data.spec.js pins the
 // shapes to this number.
 // 2: budget lastMonth gained income/saved/rate; movies gained rows.
-export const SUMMARY_VERSION = 2;
+// 3: second band views — fitness lifts84, movies calendar, budget months.
+export const SUMMARY_VERSION = 3;
 
 const DAY_MS = 86_400_000;
 
@@ -92,6 +93,13 @@ export const summarize = {
     const month = [...liftDays]
       .filter((k) => k >= since30 && k <= today)
       .sort();
+    // 12 weeks for the heatmap behind the band (swipe).
+    const since84 = localDayKey(
+      new Date(now.getFullYear(), now.getMonth(), now.getDate() - 83),
+    );
+    const lifts84 = [...liftDays]
+      .filter((k) => k >= since84 && k <= today)
+      .sort();
 
     const weights = (Array.isArray(json?.weightLogs) ? json.weightLogs : [])
       .map((w) => ({ day: toDayKey(w.date), weight: Number(w.weight) }))
@@ -123,6 +131,7 @@ export const summarize = {
       week,
       liftsThisWeek: week.filter((d) => d.lifted).length,
       last30: month,
+      lifts84,
       // Sensitive: rendered behind the privacy veil.
       weight: latestWeight
         ? { day: latestWeight.day, value: latestWeight.weight }
@@ -173,6 +182,7 @@ export const summarize = {
       booked: marks.filter((m) => m && m.level === "booked").length,
       mustSee: marks.filter((m) => m && m.level === "must").length,
       rows: movieRows(marks, today),
+      calendar: movieCalendar(marks, today),
     };
   },
 
@@ -269,9 +279,42 @@ export const summarize = {
         : null,
       avgPerMonth: avg == null ? null : Math.round(avg),
       avgMonths: avgMonths.length,
+      // Last six complete months of spend, oldest first (swipe bars).
+      months: complete.slice(-6).map((m) => ({
+        month: m,
+        spend: Math.round(byMonth.get(m) || 0),
+      })),
     };
   },
 };
+
+/* This week and the next four for the Movies band's calendar (swipe):
+   one entry per marked day, the strongest mark winning (booked > must >
+   likely), plus how many films of each kind fall in the window. Tickets
+   sit on their ticket date, everything else on release. */
+function movieCalendar(marks, today, days = 35) {
+  const t = dayKeyToDate(today);
+  const end = localDayKey(
+    new Date(t.getFullYear(), t.getMonth(), t.getDate() + days - 1),
+  );
+  const RANK = { booked: 3, must: 2, likely: 1 };
+  const byDay = new Map();
+  const counts = { booked: 0, must: 0, likely: 0 };
+  for (const m of marks) {
+    if (!m || !RANK[m.level] || m.watched_date) continue;
+    const raw = m.level === "booked" ? m.booked_date || m.date : m.date;
+    const day = typeof raw === "string" ? toDayKey(raw) : null;
+    if (!day || day < today || day > end) continue;
+    counts[m.level] += 1;
+    if ((RANK[byDay.get(day)] || 0) < RANK[m.level]) byDay.set(day, m.level);
+  }
+  return {
+    days: [...byDay]
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([day, kind]) => ({ day, kind })),
+    counts,
+  };
+}
 
 /* Rows for the Movies band, like the Scores band: tickets first (up to
    two, by ticket date), then upcoming must-sees, keeping at least one
