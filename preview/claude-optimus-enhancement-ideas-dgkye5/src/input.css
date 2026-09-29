@@ -1191,9 +1191,18 @@
 /* The band owns horizontal drags (swipe) and long presses (peek). */
 .band-hit {
   touch-action: pan-y;
+}
+/* Holding anywhere on home must never start a text selection or the iOS
+   copy callout (it fights the long-press peek). Search stays editable. */
+#app {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+}
+#app input,
+#app textarea {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 /* Peek: the held band lifts above a scrim; its actions drop out below. */
