@@ -45,3 +45,9 @@
   "the done screen". Screenshot the mid-flow states too (exercise 2 of 8,
   a trailer open, a group expanded), not just the first frame of each
   screen.
+- **A new field in a cached summary needs a SUMMARY_VERSION bump.** I added
+  income/rate to the budget summary and it showed "—" on the phone: the
+  cached summary was revalidated with its ETag, the 304 kept the old shape,
+  and fresh test browsers never have a cache. Whenever a cached shape
+  changes, bump its version and test the upgrade path (seed the old cache,
+  answer 304). data.spec.js now pins the shapes to the version.

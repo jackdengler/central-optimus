@@ -1,6 +1,7 @@
 // @ts-check
 import { test, expect } from "@playwright/test";
-import { summarize } from "../launcher/data.js";
+import { summarize, SOURCES, SUMMARY_VERSION } from "../launcher/data.js";
+import { dataFixtures } from "./fixtures.js";
 
 // Pure summarizer tests (no browser). Budget cases mirror budget-together's
 // compute('p1') rules; the port was checked against that code on the real
@@ -196,5 +197,91 @@ test.describe("movies summarizer", () => {
     expect(s.next.daysUntil).toBe(6);
     expect(s.next.titles.slice(0, 2).sort()).toEqual(["Digger", "Verity"]);
     expect(s.next.titles[2]).toBe("Ghost");
+  });
+});
+
+/* Cached summaries are reused across deploys (a same-day 304 keeps the
+   stored one), so a new field only reaches the phone if SUMMARY_VERSION
+   moves with it. When this fails: bump SUMMARY_VERSION in data.js, then
+   update both the version and the shapes below. */
+test("summary shapes are pinned to SUMMARY_VERSION", () => {
+  const shape = (v) =>
+    Array.isArray(v)
+      ? [v.length ? shape(v[0]) : null]
+      : v && typeof v === "object"
+        ? Object.fromEntries(
+            Object.keys(v)
+              .sort()
+              .map((k) => [k, shape(v[k])]),
+          )
+        : v === null
+          ? "null"
+          : typeof v;
+  const data = dataFixtures();
+  const shapes = Object.fromEntries(
+    Object.entries(SOURCES).map(([id, src]) => [
+      id,
+      shape(src.summarize(data[src.path], now)),
+    ]),
+  );
+  expect({ version: SUMMARY_VERSION, shapes }).toEqual({
+    version: 2,
+    shapes: {
+      "fitness-tracker": {
+        last30: ["string"],
+        lastLift: {
+          day: "string",
+          daysAgo: "number",
+          minutes: "number",
+          name: "string",
+          sets: "number",
+        },
+        liftsThisWeek: "number",
+        medianGap: "number",
+        week: [
+          {
+            day: "string",
+            future: "boolean",
+            isToday: "boolean",
+            lifted: "boolean",
+          },
+        ],
+        weight: "null",
+      },
+      parlay: {
+        event: "string",
+        hitRate: "number",
+        losses: "number",
+        open: "number",
+        parlays: "number",
+        sequence: ["string"],
+        wins: "number",
+      },
+      "upcoming-movies": {
+        booked: "number",
+        mustSee: "number",
+        next: { day: "string", daysUntil: "number", titles: ["string"] },
+        rows: [
+          {
+            day: "string",
+            daysUntil: "number",
+            kind: "string",
+            title: "string",
+          },
+        ],
+      },
+      "recipe-book": { count: "number", latest: "string" },
+      "budget-together": {
+        avgMonths: "number",
+        avgPerMonth: "number",
+        lastMonth: {
+          income: "number",
+          month: "string",
+          rate: "number",
+          saved: "number",
+          spend: "number",
+        },
+      },
+    },
   });
 });

@@ -101,6 +101,11 @@ User feedback came from an iPhone screenshot. The band text spilled past the str
 - [x] Tests cover the movie rows, the budget figures, the tape speed-up, and launch/collapse leaving nothing behind. The SE geometry test caught the budget and movie readings overflowing short bands, so both were fixed
 - [x] Savings, Recipes and Parlay get the Optimus look: Anton + DM Mono self-hosted, the shared `co.theme` light/dark script and toggle, square edges, and yellow as a fill only. Brand colour appears as bands and markers. For each app, the same scripted session on the old and new builds gave identical storage, text and network calls (Parlay: 0 differences over 170 checkpoints, font requests aside). Pushed: savings `d167962`, recipes `2954866`, parlay `2e6eca0`
 
+## Round 8 (2026-09-29): phone feedback
+- [x] Budget IN showed "—" on the phone: a same-day 304 kept the summary cached by the previous build (no income field). SUMMARY_VERSION is now 2. A browser test seeds an old cache and answers 304; it fails at version 1 and passes at 2. data.spec pins every summary's shape to the version
+- [x] Home-screen icon showed a letter "O". That is iOS's fallback when it can't use the icon, and the manifest listed an SVG first, which iOS can't use for home-screen icons. The manifest now lists only PNGs (180, 192, 512, maskable), the same pattern as upcoming-movies. The existing home-screen icon has to be removed and added again
+- [x] Scores panel shows each team's record after its name, e.g. STEELERS (2-1). It comes from ESPN's team.recordSummary, or is counted from the schedule's results
+
 ## Review
 - **What was built:** the Big Type launcher (commit `f8b9e1a`), plus the data layer (`f8e3b86`).
 - **Verification:**

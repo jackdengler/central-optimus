@@ -83,6 +83,26 @@ test.describe("scores parsers", () => {
     expect(s.last.result).toBe("L");
   });
 
+  test("record: ESPN's recordSummary, else counted from results", () => {
+    const events = [
+      ev("2026-09-07T17:00Z", "post", 10, 20),
+      ev("2026-09-14T17:00Z", "post", 24, 17),
+      ev("2026-09-21T17:00Z", "post", 20, 20),
+      ev("2026-09-28T17:00Z", "pre"),
+    ];
+    const named = parseSchedule(
+      { team: { recordSummary: "2-1" }, events },
+      "PIT",
+      now,
+    );
+    expect(named.record).toBe("2-1");
+    expect(parseSchedule({ events }, "PIT", now).record).toBe("1-1-1");
+    expect(
+      parseSchedule({ events: [ev("2026-09-28T17:00Z", "pre")] }, "PIT", now)
+        .record,
+    ).toBeNull();
+  });
+
   test("UFC card: the title names the main event", () => {
     const u = parseUfc(espn().ufc);
     expect(u.card.name).toBe("UFC 320");
@@ -201,8 +221,8 @@ test.describe("scores on the home screen", () => {
     const panel = page.locator("#scores-panel");
     await expect(panel).toBeVisible();
     await expect(panel.locator(".score-team")).toHaveText([
-      "STEELERS",
-      "PENN STATE",
+      "STEELERS (2-1)",
+      "PENN STATE (1-0)",
       "UFC",
     ]);
     await expect(panel).toContainText("W 24–17 VS BAL");

@@ -964,7 +964,9 @@ function renderScoresPanel() {
   }
   for (const t of SCORES.teams) {
     const row = el("section", "score-row");
-    row.append(el("h2", "score-team", t.label.toUpperCase()));
+    const name = el("h2", "score-team", t.label.toUpperCase());
+    if (t.record) name.append(" ", el("span", "score-rec", `(${t.record})`));
+    row.append(name);
     const lines = el("div", "score-lines");
     const line = (tag, text, cls) => {
       const p = el("p", `score-line${cls ? ` ${cls}` : ""}`);

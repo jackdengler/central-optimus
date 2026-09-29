@@ -60,13 +60,18 @@ jobs:
           # Any square PNG works best (>=512px); non-square is center-cropped.
           if [ -f launcher/icons/custom.png ]; then
             convert launcher/icons/custom.png -resize 180x180^ -gravity center -extent 180x180 launcher/icons/apple-touch-icon.png
+            convert launcher/icons/custom.png -resize 192x192^ -gravity center -extent 192x192 launcher/icons/icon-192.png
             convert launcher/icons/custom.png -resize 512x512^ -gravity center -extent 512x512 launcher/icons/icon-512.png
             convert launcher/icons/custom.png -resize 512x512^ -gravity center -extent 512x512 /tmp/icon-splash.png
           else
             rsvg-convert -w 180 -h 180 launcher/icons/icon.svg -o launcher/icons/apple-touch-icon.png
+            rsvg-convert -w 192 -h 192 launcher/icons/icon.svg -o launcher/icons/icon-192.png
             rsvg-convert -w 512 -h 512 launcher/icons/icon.svg -o launcher/icons/icon-512.png
             rsvg-convert -w 512 -h 512 launcher/icons/icon.svg -o /tmp/icon-splash.png
           fi
+          # The manifest lists these PNGs only: iOS can't use an SVG
+          # home-screen icon and falls back to a letter monogram if it
+          # picks one.
           # Maskable icon: Android masks (circle/squircle) crop to roughly an
           # 80% safe zone, so pad the O mark inside a black
           # field (the icon's own ground) rather than letting the platform clip it.

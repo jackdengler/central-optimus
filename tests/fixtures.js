@@ -293,6 +293,7 @@ function teamEvent({
 export function espn(overrides = {}) {
   return {
     steelers: {
+      team: { abbreviation: "PIT", recordSummary: "2-1" },
       events: [
         teamEvent({
           date: daysFromNow(-4),
