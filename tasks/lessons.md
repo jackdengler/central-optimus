@@ -51,3 +51,9 @@
   and fresh test browsers never have a cache. Whenever a cached shape
   changes, bump its version and test the upgrade path (seed the old cache,
   answer 304). data.spec.js now pins the shapes to the version.
+- **A new look ships as a preview first, and only to the launcher.** Team
+  colours went live in the launcher and then in Fitness and Movies before
+  the user had seen them on the phone. They then asked to remove them
+  everywhere ("the default from before was best"). For a visual change,
+  push to the preview branch, send phone-size screenshots, and wait for a
+  yes before it reaches `main` or spreads to other apps.

@@ -190,15 +190,6 @@ export function dataFixtures() {
         },
       },
     },
-    "data.json": {
-      eventName: "UFC 314",
-      parlays: [{ id: "p", betIds: ["x", "y"], placed: true }],
-      betResults: { x: "win", y: "loss", z: "win" },
-      betResultsAt: { x: 1, y: 2, z: 3 },
-    },
-    "recipes.json": {
-      recipes: [{ title: "Korean Beef Bowl", createdAt: "2026-09-01" }],
-    },
     "budget.json": {
       transactions: [
         {

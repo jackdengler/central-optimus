@@ -248,15 +248,6 @@ test("summary shapes are pinned to SUMMARY_VERSION", () => {
         ],
         weight: "null",
       },
-      parlay: {
-        event: "string",
-        hitRate: "number",
-        losses: "number",
-        open: "number",
-        parlays: "number",
-        sequence: ["string"],
-        wins: "number",
-      },
       "upcoming-movies": {
         booked: "number",
         mustSee: "number",
@@ -270,7 +261,6 @@ test("summary shapes are pinned to SUMMARY_VERSION", () => {
           },
         ],
       },
-      "recipe-book": { count: "number", latest: "string" },
       "budget-together": {
         avgMonths: "number",
         avgPerMonth: "number",

@@ -130,34 +130,6 @@ export const summarize = {
     };
   },
 
-  parlay(json) {
-    const results =
-      json?.betResults && typeof json.betResults === "object"
-        ? json.betResults
-        : {};
-    const at =
-      json?.betResultsAt && typeof json.betResultsAt === "object"
-        ? json.betResultsAt
-        : {};
-    const graded = Object.entries(results)
-      .filter(([, r]) => r === "win" || r === "loss")
-      .sort(([a], [b]) => (at[a] ?? 0) - (at[b] ?? 0))
-      .map(([, r]) => (r === "win" ? "W" : "L"));
-    const wins = graded.filter((r) => r === "W").length;
-    const losses = graded.length - wins;
-    const parlays = Array.isArray(json?.parlays) ? json.parlays : [];
-    return {
-      event: typeof json?.eventName === "string" ? json.eventName : null,
-      parlays: parlays.length,
-      open: parlays.filter((p) => p && p.placed && !isParlaySettled(p, results))
-        .length,
-      wins,
-      losses,
-      hitRate: graded.length ? wins / graded.length : null,
-      sequence: graded,
-    };
-  },
-
   movies(json, now = new Date()) {
     const today = localDayKey(now);
     const marks =
@@ -299,17 +271,6 @@ export const summarize = {
       avgMonths: avgMonths.length,
     };
   },
-
-  recipes(json) {
-    const list = Array.isArray(json?.recipes) ? json.recipes : [];
-    const latest = [...list].sort((a, b) =>
-      String(a.createdAt || "") < String(b.createdAt || "") ? 1 : -1,
-    )[0];
-    return {
-      count: list.length,
-      latest: latest ? String(latest.title || "") : null,
-    };
-  },
 };
 
 /* Rows for the Movies band, like the Scores band: tickets first (up to
@@ -359,25 +320,15 @@ function p1CatShare(split, total) {
   return (total * pct) / 100;
 }
 
-// A placed parlay is settled once any leg lost or every leg is graded.
-function isParlaySettled(parlay, results) {
-  const legs = Array.isArray(parlay.betIds) ? parlay.betIds : [];
-  if (!legs.length) return false;
-  if (legs.some((id) => results[id] === "loss")) return true;
-  return legs.every((id) => results[id] === "win" || results[id] === "loss");
-}
-
 /* ---------- source registry ---------- */
 
 // app id → file in the data repo + its summarizer.
 export const SOURCES = {
   "fitness-tracker": { path: "fitness.json", summarize: summarize.fitness },
-  parlay: { path: "data.json", summarize: summarize.parlay },
   "upcoming-movies": {
     path: "data/interests.json",
     summarize: summarize.movies,
   },
-  "recipe-book": { path: "recipes.json", summarize: summarize.recipes },
   "budget-together": { path: "budget.json", summarize: summarize.budget },
 };
 

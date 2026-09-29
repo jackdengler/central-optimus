@@ -798,8 +798,6 @@ function headlines() {
   ];
   const fit = DATA["fitness-tracker"]?.summary;
   const mov = DATA["upcoming-movies"]?.summary;
-  const par = DATA.parlay?.summary;
-  const rec = DATA["recipe-book"]?.summary;
   if (fit) out.push(`${fit.last30.length} LIFTS IN 30 DAYS`);
   if (fit?.lastLift)
     out.push(
@@ -815,11 +813,6 @@ function headlines() {
         : `${t} IN ${mov.next.daysUntil} DAYS`,
     );
   }
-  if (par?.hitRate != null)
-    out.push(
-      `PARLAY ${Math.round(par.hitRate * 100)}%${par.open ? ` · ${par.open} OPEN` : ""}`,
-    );
-  if (rec) out.push(`${rec.count} RECIPES`);
   for (const t of SCORES?.teams || []) {
     const name = t.label.toUpperCase();
     if (t.live)
